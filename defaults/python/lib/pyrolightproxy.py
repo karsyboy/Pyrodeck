@@ -57,7 +57,7 @@ APPIMAGE_DIRECTORIES = ["~/Applications", "~/AppImages", "~/Downloads", "~"]
 
 
 class PyrolightListError(Exception):
-    """`pyrolight list` failed; `reason` is "not_paired", "unreachable" or "failed"."""
+    """`pyrolight list` failed; `reason` is "not_paired", "unreachable", "outdated" or "failed"."""
 
     def __init__(self, reason: str, message: str):
         super().__init__(message)
@@ -247,6 +247,9 @@ def classify_list_failure(stderr: str) -> PyrolightListError:
         return PyrolightListError("not_paired", text)
     if "failed to connect" in lowered:
         return PyrolightListError("unreachable", text)
+    if "unknown option" in lowered and "json" in lowered:
+        # Pyrolight before `list --json`.
+        return PyrolightListError("outdated", text)
     return PyrolightListError("failed", text or "pyrolight list failed")
 
 

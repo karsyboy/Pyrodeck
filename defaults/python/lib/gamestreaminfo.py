@@ -7,6 +7,11 @@ class GameStreamHost(TypedDict):
     port: int
     hostName: str
     uniqueId: str
+    # Version of Pyroshine's launcher identities in /applist; 0 for hosts
+    # that do not report them (older Pyroshine, Sunshine, GFE).
+    appSources: int
+    # The host app currently running (its GameStream ID), 0 when idle.
+    currentGame: int
 
 
 def getGameSteamListener():
@@ -121,6 +126,10 @@ async def get_server_info(address: str, port: int, timeout: float):
                 result = re.search("<hostname>(.*?)</hostname>", data)
                 return html.unescape(str(result.group(1))) if result else None
 
+        def get_number(data: str, tag: str) -> int:
+            result = re.search(f"<{tag}>\\s*(\\d+)\\s*</{tag}>", data or "")
+            return int(result.group(1)) if result else 0
+
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
             async with session.get(f"http://{address}:{port}/serverinfo") as resp:
                 data = await resp.text(encoding="utf-8")
@@ -134,7 +143,9 @@ async def get_server_info(address: str, port: int, timeout: float):
                     "address": address,
                     "port": port,
                     "hostName": hostname,
-                    "uniqueId": unique_id
+                    "uniqueId": unique_id,
+                    "appSources": get_number(data, "PyroshineAppSources"),
+                    "currentGame": get_number(data, "currentgame"),
                 })
 
     except asyncio.TimeoutError:

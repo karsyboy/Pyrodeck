@@ -22,6 +22,7 @@ class Result(Enum):
     PyrolightNotPaired = "Pyrolight is not paired with this host! Pair it from PyroDeck's Host Selection page."
     PyrolightCannotReachHost = "Pyrolight cannot reach the host!"
     PyrolightListFailed = "Pyrolight could not read the host's app list!"
+    PyrolightOutdated = "This Pyrolight is too old for PyroDeck! Update Pyrolight."
     PyrolightFailed = "Pyrolight exited unexpectedly! See /tmp/pyrodeck-runner-pyrolight.log."
     HostWithoutAppSources = "This host does not report Steam app IDs! Update Pyroshine on the host."
     HostAppNotFound = "This game is not available on the host! Install it there, or unhide it in Pyroshine's library."

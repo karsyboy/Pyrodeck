@@ -62,15 +62,15 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
         self.pyrolight.set_apps([DESKTOP, VALHEIM, PORTAL])
         self.pyrolight.set(stream={"exit": 0, "sleep": 0})
 
-    async def run_runner(self, **kwargs):
-        async with FakeHost() as host:
+    async def run_runner(self, fake_host: FakeHost | None = None, **kwargs):
+        async with (fake_host or FakeHost()) as host:
             with record_connections() as connections:
                 await PyroshineRunner.run(settings(host.port, str(self.pyrolight.executable), **kwargs), None)  # type: ignore[arg-type]
         return host, connections
 
-    async def assert_fails(self, result: Result, **kwargs) -> RunnerError:
+    async def assert_fails(self, result: Result, fake_host: FakeHost | None = None, **kwargs) -> RunnerError:
         with self.assertRaises(RunnerError) as caught:
-            await self.run_runner(**kwargs)
+            await self.run_runner(fake_host, **kwargs)
         self.assertEqual(caught.exception.result, result, caught.exception.message)
         return caught.exception
 
@@ -131,6 +131,56 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
         error = await self.assert_fails(Result.HostAppNotFound, steam_app_id=105600)
         self.assertIn("105600", error.message)
         self.assertEqual(self.pyrolight.streams(), [])
+
+    async def test_each_steam_game_resolves_by_app_id(self):
+        await self.run_runner(steam_app_id=620)
+        self.assertEqual(self.pyrolight.streams()[-1][-1], "Portal 2")
+        await self.run_runner(steam_app_id=892970)
+        self.assertEqual(self.pyrolight.streams()[-1][-1], "Valheim")
+
+    async def test_titles_never_decide_which_game_streams(self):
+        self.pyrolight.set_apps([
+            # A manual entry titled like the game, but not the game.
+            {"name": "Valheim", "id": 1, "sources": []},
+            # Pyroshine suffixes equal titles; each keeps its identity.
+            {"name": "Hades (Steam 1145360)", "id": 2, "sources": ["steam:1145360"]},
+            {"name": "Hades (Steam 1145361)", "id": 3, "sources": ["steam:1145361"]},
+            {"name": "Hades (Heroic)", "id": 4, "sources": ["heroic:legendary/Hades"]},
+            {"name": "Valheim (Steam)", "id": 5, "sources": ["steam:892970"]},
+        ])
+        await self.run_runner(steam_app_id=1145361)
+        self.assertEqual(self.pyrolight.streams()[-1][-1], "Hades (Steam 1145361)")
+        await self.run_runner(steam_app_id=892970)
+        self.assertEqual(self.pyrolight.streams()[-1][-1], "Valheim (Steam)")
+
+    async def test_a_manual_override_on_the_host_streams_for_its_game(self):
+        self.pyrolight.set_apps([{"name": "Valheim (modded)", "id": 9, "sources": ["steam:892970"]}])
+        await self.run_runner()
+        self.assertEqual(self.pyrolight.streams()[-1][-1], "Valheim (modded)")
+
+    async def test_unavailable_and_unsupported_hosts_are_told_apart(self):
+        # Pyroshine with app sources, game not installed or hidden there.
+        self.pyrolight.set_apps([DESKTOP, PORTAL])
+        error = await self.assert_fails(Result.HostAppNotFound)
+        self.assertIn("892970", error.message)
+
+        # Same, on a Pyroshine host without a single Steam game.
+        self.pyrolight.set_apps([DESKTOP])
+        await self.assert_fails(Result.HostAppNotFound)
+
+        # A host that reports no identities at all (older Pyroshine, Sunshine).
+        self.pyrolight.set_apps([{**DESKTOP}, {"name": "Valheim", "id": 1001, "sources": []}])
+        await self.assert_fails(Result.HostWithoutAppSources, FakeHost(app_sources=None))
+        self.assertEqual(self.pyrolight.streams(), [])
+
+    async def test_conflicting_identities_are_never_guessed(self):
+        self.pyrolight.set_apps([VALHEIM, {**VALHEIM, "name": "Valheim 2", "id": 77}])
+        await self.assert_fails(Result.HostAppAmbiguous)
+        self.assertEqual(self.pyrolight.streams(), [])
+
+    async def test_an_outdated_pyrolight_is_reported(self):
+        self.pyrolight.set(list={"exit": 1, "stderr": "Unknown options: json\n"})
+        await self.assert_fails(Result.PyrolightOutdated)
 
     async def test_gamestream_apps_stream_by_exact_name(self):
         await self.run_runner(runner_type=RunnerType.GameStreamApp, app_name="desktop")

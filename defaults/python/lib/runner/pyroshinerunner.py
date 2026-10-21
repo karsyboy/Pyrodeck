@@ -5,7 +5,8 @@ launch (Game Mode focus, Steam Input, the overlay's Exit Game) exactly as for
 any game. It:
 
 1. wakes the host if needed and checks that the selected host answers;
-2. finds the host app to stream (by Steam app ID for library games);
+2. finds the host app to stream: for a library game, the app Pyroshine
+   reports for its Steam app ID (`steam:<id>`), never a title match;
 3. starts one Pyrolight process with `stream HOST APP` and waits for it.
 
 The host owns the game. Closing Pyrolight, suspending the Deck or a network
@@ -26,9 +27,6 @@ from ..pyrolightproxy import HostApp, HostAppList, PyrolightListError, Pyrolight
 from ..splashscreen.overlay import OverlayStack
 
 
-# Phase 1 mapping, until hosts report Steam app IDs: Steam app ID -> host app name.
-STATIC_STEAM_APPS = {892970: "Valheim"}
-
 # A Pyrolight exit with an error this soon after start is a launch failure.
 EARLY_EXIT_SECS = 10
 
@@ -46,12 +44,28 @@ def find_app_by_name(app_list: HostAppList, name: str) -> HostApp:
     return matches[0]
 
 
-def resolve_steam_app(app_list: HostAppList, steam_app_id: int) -> HostApp:
-    name = STATIC_STEAM_APPS.get(steam_app_id)
-    if name is None:
-        raise RunnerError(Result.HostAppNotFound,
-                          f"Steam app {steam_app_id} is not available on {app_list.host_name or 'the host'}!")
-    return find_app_by_name(app_list, name)
+def resolve_steam_app(app_list: HostAppList, steam_app_id: int, host_reports_sources: bool) -> HostApp:
+    """The host app that starts Steam app `steam_app_id`.
+
+    Pyroshine reports each app's launcher identities (`steam:892970`), so a
+    game is found by its app ID, never by title: titles can be suffixed for
+    duplicates ("Hades (Steam)") or replaced by the user's own entry, and
+    different games can share one. Pyroshine reports an identity on at most
+    one app; should two ever claim it, nothing is guessed.
+    """
+    identity = f"steam:{steam_app_id}"
+    matches = [app for app in app_list.apps if identity in app.sources]
+    host = app_list.host_name or "the host"
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        names = ", ".join(f"\"{app.name}\"" for app in matches)
+        raise RunnerError(Result.HostAppAmbiguous, f"{host} offers several apps for Steam app {steam_app_id}: {names}!")
+    if not host_reports_sources and not any(app.sources for app in app_list.apps):
+        raise RunnerError(Result.HostWithoutAppSources)
+    raise RunnerError(Result.HostAppNotFound,
+                      f"Steam app {steam_app_id} is not available on {host}! Install it there, or unhide it in "
+                      "Pyroshine's library.")
 
 
 class PyroshineRunner:
@@ -89,6 +103,8 @@ class PyroshineRunner:
                 raise RunnerError(Result.PyrolightNotPaired) from err
             if err.reason == "unreachable":
                 raise RunnerError(Result.PyrolightCannotReachHost) from err
+            if err.reason == "outdated":
+                raise RunnerError(Result.PyrolightOutdated) from err
             raise RunnerError(Result.PyrolightListFailed) from err
         except TimeoutError as err:
             raise RunnerError(Result.PyrolightCannotReachHost) from err
@@ -102,11 +118,11 @@ class PyroshineRunner:
         return app_list
 
     @classmethod
-    async def resolve_target(cls, proxy: PyrolightProxy, settings: RunnerSettings) -> HostApp:
+    async def resolve_target(cls, proxy: PyrolightProxy, settings: RunnerSettings, server_info: GameStreamHost) -> HostApp:
         app_list = await cls.list_host_apps(proxy, settings)
         if settings["runner_type"] == RunnerType.SteamApp:
             assert settings["steam_app_id"] is not None
-            app = resolve_steam_app(app_list, settings["steam_app_id"])
+            app = resolve_steam_app(app_list, settings["steam_app_id"], server_info["appSources"] >= 1)
         else:
             assert settings["app_name"] is not None
             app = find_app_by_name(app_list, settings["app_name"])
@@ -138,7 +154,7 @@ class PyroshineRunner:
             raise RunnerError(Result.PyrolightIsNotInstalled)
         logger.info(f"Using Pyrolight at {exec_path}")
 
-        await cls.check_connectivity(overlay_stack, settings)
+        server_info = await cls.check_connectivity(overlay_stack, settings)
 
         async with PyrolightProxy(exec_path) as proxy:
             if settings["runner_type"] == RunnerType.Utility:
@@ -148,7 +164,7 @@ class PyroshineRunner:
                 await cls.run_pyrolight(proxy, [action.value, settings["address"]])
                 return
 
-            app = await cls.resolve_target(proxy, settings)
+            app = await cls.resolve_target(proxy, settings, server_info)
             capabilities = None
             if needs_capability_probe(settings["cmd_options"]):
                 capabilities = await proxy.probe_capabilities()
