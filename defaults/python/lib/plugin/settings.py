@@ -1,5 +1,4 @@
 from typing import Dict, List, Literal, Optional, TypedDict, get_args
-from ..buddyrequests import OsType
 from ..settingsmanager import SettingsManager
 
 
@@ -7,6 +6,7 @@ ControllerConfigOption = Literal["Disable", "Default", "Enable"]
 VideoCodecOption = Literal["AV1", "HEVC", "H.264", "Auto"]
 AudioOption = Literal["stereo", "5.1-surround", "7.1-surround"]
 CloseSteamOption = Literal["Client", "BigPictureMode"]
+OsType = Literal["Windows", "Linux", "Other"]
 
 
 class RunnerTimeouts(TypedDict):

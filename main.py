@@ -26,9 +26,10 @@ from lib.plugin.settings import UserSettings, UserSettingsManager
 from lib.logger import logger, set_logger_settings, get_logger
 from lib.buddyrequests import SteamUiMode, SteamUiModeResponse, CurrentUserResponse, BuddyException
 from lib.buddyclient import BuddyClient, AbortHostStateChangeResult
-from lib.utils import wake_on_lan, change_moondeck_runner_ready_state, TimedPooler
+from lib.utils import wake_on_lan, change_runner_ready_state, TimedPooler
 from lib.runnerresult import Result, set_result, get_result
-from lib.moonlightproxy import MoonlightProxy
+from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight
+from lib import runnercontrol
 
 set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=True)
 
@@ -41,7 +42,7 @@ settings_manager = UserSettingsManager(constants.get_config_file_path())
 class Plugin:
     def __cleanup_states(self):
         set_result(None)
-        change_moondeck_runner_ready_state(False)
+        change_runner_ready_state(False)
 
     @utils.async_scope_log(logger.info)
     async def _main(self):
@@ -59,7 +60,7 @@ class Plugin:
 
     @utils.async_scope_log(logger.info)
     async def set_runner_ready(self):
-        change_moondeck_runner_ready_state(True)
+        change_runner_ready_state(True)
 
     @utils.async_scope_log(logger.info)
     async def get_runner_result(self):
@@ -230,9 +231,9 @@ class Plugin:
             return False
 
     @utils.async_scope_log(logger.info)
-    async def get_moondeckrun_path(self):
+    async def get_runner_path(self):
         try:
-            return str(pathlib.Path(__file__).parent.resolve().joinpath("python", "moondeckrun.sh"))
+            return str(pathlib.Path(__file__).parent.resolve().joinpath("python", "pyrodeckrun.sh"))
         except Exception:
             logger.exception("Unhandled exception")
             return None
@@ -248,9 +249,7 @@ class Plugin:
     @utils.async_scope_log(logger.info)
     async def kill_runner(self):
         try:
-            logger.info("Killing MoonDeck runner and moonlight!")
-            utils.ProcessReaper("moondeckrun.py").send_terminate(children=False)
-            await MoonlightProxy.terminate_all_instances()
+            await runnercontrol.stop_runner()
 
         except Exception:
             logger.exception("Unhandled exception")
@@ -259,7 +258,7 @@ class Plugin:
     async def suspend_runner(self):
         try:
             utils.ProcessReaper(utils.get_runner_pid()).send_usr1()
-            await utils.wait_moondeck_runner_suspended_state(expected_suspended=True)
+            await utils.wait_runner_suspended_state(expected_suspended=True)
             return True
 
         except Exception:
@@ -270,7 +269,7 @@ class Plugin:
     async def unsuspend_runner(self):
         try:
             utils.ProcessReaper(utils.get_runner_pid()).send_usr2()
-            await utils.wait_moondeck_runner_suspended_state(expected_suspended=False)
+            await utils.wait_runner_suspended_state(expected_suspended=False)
             return True
 
         except Exception:
@@ -280,7 +279,7 @@ class Plugin:
     @utils.async_scope_log(logger.info)
     async def is_runner_active(self):
         try:
-            return utils.ProcessReaper("moondeckrun.py").exists()
+            return runnercontrol.is_runner_active()
 
         except Exception:
             logger.exception("Unhandled exception")
@@ -311,17 +310,19 @@ class Plugin:
             logger.exception("Unhandled exception")
 
     @utils.async_scope_log(logger.info)
-    async def get_game_stream_app_names(self, host_name: str, moonlight_exec_path: str | None, timeout: float):
+    async def get_game_stream_app_names(self, address: str, pyrolight_exec_path: str | None, timeout: float):
         try:
-            async with asyncio.timeout(timeout):
-                async with MoonlightProxy(moonlight_exec_path) as client:
-                    apps = await client.get_apps(host_name)
-                    if apps is None:
-                        logger.error("Failed to get Moonlight apps!")
-                    return apps
+            exec_path = find_pyrolight(pyrolight_exec_path)
+            if exec_path is None:
+                logger.error("Pyrolight is not installed!")
+                return None
 
-        except asyncio.TimeoutError:
-            logger.error("Failed to get Moonlight apps (timeout)!")
+            async with PyrolightProxy(exec_path) as client:
+                app_list = await client.list_apps(address, timeout=timeout)
+                return sorted({app.name for app in app_list.apps})
+
+        except (PyrolightListError, TimeoutError) as err:
+            logger.error(f"Failed to get the host's apps from Pyrolight: {err}")
             return None
 
         except Exception:

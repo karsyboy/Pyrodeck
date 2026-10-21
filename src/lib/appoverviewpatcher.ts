@@ -5,7 +5,7 @@ import { ObservableObjectAdministration } from "mobx/dist/internal";
 import { cloneDeep } from "lodash";
 import { logger } from "./logger";
 
-const patchKey = Symbol("MoonDeck");
+const patchKey = Symbol("PyroDeck");
 type SetterPredicate<T> = (currentValue: T, newValue: T) => boolean;
 interface GenericObject<T> {
   [key: string | symbol]: T;

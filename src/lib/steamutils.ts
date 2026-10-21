@@ -6,15 +6,18 @@ import { logger } from "./logger";
 import { throttleAll } from "promise-throttle-all";
 export * from "../steam-utils";
 
+// Launch options of PyroDeck's shortcuts, read by the runner
+// (defaults/python/lib/runner/envparser.py). The prefix keeps them apart from
+// the original MoonDeck plugin's shortcuts.
 export enum EnvVars {
-  AppType = "MOONDECK_APP_TYPE",
-  AutoResolution = "MOONDECK_AUTO_RES",
-  LinkedAudio = "MOONDECK_LINKED_AUDIO",
-  LinkedDisplay = "MOONDECK_LINKED_DISPLAY",
-  SteamAppId = "MOONDECK_STEAM_APP_ID",
-  SteamUserId = "MOONDECK_STEAM_USER_ID",
-  AppName = "MOONDECK_APP_NAME",
-  Python = "MOONDECK_PYTHON"
+  AppType = "PYRODECK_APP_TYPE",
+  AutoResolution = "PYRODECK_AUTO_RES",
+  LinkedAudio = "PYRODECK_LINKED_AUDIO",
+  LinkedDisplay = "PYRODECK_LINKED_DISPLAY",
+  SteamAppId = "PYRODECK_STEAM_APP_ID",
+  AppName = "PYRODECK_APP_NAME",
+  Action = "PYRODECK_ACTION",
+  Python = "PYRODECK_PYTHON"
 }
 
 export enum AppType {
@@ -40,15 +43,18 @@ export async function getMoonDeckRunPath(): Promise<string | null> {
   }
 
   try {
-    MoonDeckRunPath = await call<[], string | null>("get_moondeckrun_path");
+    MoonDeckRunPath = await call<[], string | null>("get_runner_path");
   } catch (message) {
-    logger.critical("Error while getting moondeckrun.sh path: ", message);
+    logger.critical("Error while getting pyrodeckrun.sh path: ", message);
   }
   return MoonDeckRunPath;
 }
 
+// Only shortcuts that run PyroDeck's own runner are PyroDeck's. The original
+// MoonDeck plugin's shortcuts (moondeckrun.sh) are never adopted or removed.
+export const runnerScriptName = "pyrodeckrun.sh";
 export function isMoonDeckShortcut(details: AppDetails): boolean {
-  return details.strShortcutExe.includes("moondeckrun.sh");
+  return details.strShortcutExe.includes(runnerScriptName);
 }
 
 export function checkExecPathMatch(execPath: string, shortcutExe: string): boolean {

@@ -31,7 +31,7 @@ class Logger {
   toast(entry: string, options: { duration?: number; output?: "debug" | "log" | "warn" | "error" | null } = {}): void {
     const { duration = 5000, output = "log" } = options;
     const critical = output === "error";
-    toaster.toast({ title: "MoonDeck", body: entry, duration, critical });
+    toaster.toast({ title: "PyroDeck", body: entry, duration, critical });
 
     switch (output) {
       case "debug":

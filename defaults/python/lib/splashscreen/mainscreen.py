@@ -11,7 +11,7 @@ class MainScreenLabel(Overlay):
 
         self.__label_main = pyglet.text.Label(anchor_x='center', anchor_y='bottom',
                                               font_name=DEFAULT_FONT, weight="bold", color=TEXT_COLOR,
-                                              text="MoonDeck")
+                                              text="PyroDeck")
         
         self.__label_secondary = pyglet.text.Label(anchor_x='center', anchor_y='top',
                                                    font_name=DEFAULT_FONT, weight="normal")

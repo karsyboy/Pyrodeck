@@ -34,7 +34,7 @@ export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({ onClick, buttonPosit
   })();
 
   return (
-    <Focusable className={joinClassNames(basicAppDetailsSectionStylerClasses.AppButtons, "moondeck-container")}>
+    <Focusable className={joinClassNames(basicAppDetailsSectionStylerClasses.AppButtons, "pyrodeck-container")}>
       <OffsetStyle buttonPosition={buttonPosition} />
       <ContainerStyle buttonPosition={buttonPosition} />
       <ButtonStyle theme={buttonStyle.theme} />
@@ -42,7 +42,7 @@ export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({ onClick, buttonPosit
         <Button
           disabled={clickPending}
           noFocusRing={!buttonStyle.showFocusRing}
-          className={joinClassNames(playSectionClasses.MenuButton, "moondeck-button")}
+          className={joinClassNames(playSectionClasses.MenuButton, "pyrodeck-button")}
           onClick={handleClick}
         >
           <MoonDeckMain />
@@ -148,7 +148,7 @@ export const MoonDeckLaunchButtonAnchor: FC<Props> = (props) => {
   }, []);
 
   return (
-    <div id="moondeck" ref={ref} style={{ position: `var(${achorPositionName}, relative)` as CSSProperties["position"], height: 0 }}>
+    <div id="pyrodeck" ref={ref} style={{ position: `var(${achorPositionName}, relative)` as CSSProperties["position"], height: 0 }}>
       {
         show &&
         <MoonDeckLaunchButton {...props} />

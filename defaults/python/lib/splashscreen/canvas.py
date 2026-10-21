@@ -10,7 +10,7 @@ class Canvas(pyglet.window.Window, OverlayStack):
         self.__overlays: list[Overlay] = []
         self.__last_size = {}
 
-        super().__init__(fullscreen=True, visible=False, resizable=True, caption="MoonDeck")
+        super().__init__(fullscreen=True, visible=False, resizable=True, caption="PyroDeck")
         self.set_mouse_visible(False)
 
     def push_overlay(self, overlay: Overlay) -> None:

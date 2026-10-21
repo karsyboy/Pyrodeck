@@ -5,10 +5,10 @@ interface Props {
   buttonPosition?: UserSettings["buttonPosition"];
 }
 
-export const achorPositionName = "--moondeck-anchor-pos";
-export const xOffsetName = "--moondeck-x-offset";
-export const yOffsetName = "--moondeck-y-offset";
-export const ySpecialOffsetName = "--moondeck-y-special-offset";
+export const achorPositionName = "--pyrodeck-anchor-pos";
+export const xOffsetName = "--pyrodeck-x-offset";
+export const yOffsetName = "--pyrodeck-y-offset";
+export const ySpecialOffsetName = "--pyrodeck-y-special-offset";
 
 export const OffsetStyle: FC<Props> = ({ buttonPosition }) => {
   if (!buttonPosition) {

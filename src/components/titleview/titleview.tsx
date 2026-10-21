@@ -5,7 +5,7 @@ import { SettingsMain } from "../icons";
 export const TitleView: FC = () => {
   const onSettingsClick = (): void => {
     Navigation.CloseSideMenus();
-    Navigation.Navigate("/moondeck");
+    Navigation.Navigate("/pyrodeck");
   };
 
   return (

@@ -1,11 +1,11 @@
 {
-  "name": "MoonDeck",
-  "author": "FrogTheFrog",
+  "name": "PyroDeck",
+  "author": "karsyboy",
   "flags": [],
   "api_version": 1,
   "publish": {
-    "tags": ["gamestream", "moonlight", "moondeck", "streaming"],
-    "description": "MoonDeck lets you play any of your Steam games via Moonlight without needing to add them to Sunshine first, providing a similar experience to GeForce GameStream or Steam Remote Play.",
+    "tags": ["gamestream", "pyroshine", "pyrolight", "pyrodeck", "streaming"],
+    "description": "PyroDeck streams the Steam games installed on your Pyroshine host to the Steam Deck through Pyrolight, launched from the game's own library page. Based on MoonDeck by FrogTheFrog.",
     "image": "https://github.com/FrogTheFrog/moondeck/raw/main/.github/assets/quickmenu.png"
   }
 }

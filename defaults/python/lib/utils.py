@@ -224,14 +224,14 @@ async def wake_on_lan(hostname: str, address: str, mac: str, port: int = 9, cust
             try_send_magic_packet(address_info, family)
 
 
-def is_moondeck_runner_ready():
+def is_runner_ready():
     # Lazy import to improve CLI performance
     import pathlib
 
     return pathlib.Path(RUNNER_READY_FILE).exists()
 
 
-def change_moondeck_runner_ready_state(make_ready: bool):
+def change_runner_ready_state(make_ready: bool):
     # Lazy import to improve CLI performance
     import pathlib
 
@@ -242,14 +242,14 @@ def change_moondeck_runner_ready_state(make_ready: bool):
         path.unlink(missing_ok=True)
 
 
-def is_moondeck_runner_suspended():
+def is_runner_suspended():
     # Lazy import to improve CLI performance
     import pathlib
 
     return pathlib.Path(RUNNER_SUSPENDED_FILE).exists()
 
 
-def change_moondeck_runner_suspended_state(make_suspended: bool):
+def change_runner_suspended_state(make_suspended: bool):
     # Lazy import to improve CLI performance
     import pathlib
 
@@ -260,13 +260,13 @@ def change_moondeck_runner_suspended_state(make_suspended: bool):
         path.unlink(missing_ok=True)
 
 
-async def wait_moondeck_runner_suspended_state(expected_suspended: bool):
+async def wait_runner_suspended_state(expected_suspended: bool):
     # Lazy import to improve CLI performance
     import asyncio
 
     async with asyncio.timeout(10):
         while True:
-            if is_moondeck_runner_suspended() == expected_suspended:
+            if is_runner_suspended() == expected_suspended:
                 return
             
             await asyncio.sleep(0.25)
@@ -334,18 +334,29 @@ async def create_subprocess_shell(program: str, stderr_to_devnull = False):
                                                  env=env)
 
 
-async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = False):
+async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = False, separate_stderr = False):
     # Lazy import to improve CLI performance
     import asyncio
     import os
 
-    # workaround for the "undefined symbol: rl_trim_arg_from_keyseq"
+    # Steam's runtime LD_LIBRARY_PATH breaks host binaries and AppImages
+    # ("undefined symbol: rl_trim_arg_from_keyseq"). Everything else, in
+    # particular the display (WAYLAND_DISPLAY, DISPLAY) and Steam's game
+    # identity (SteamGameId) that Pyrolight's Gamescope integration reads, is
+    # passed through unchanged.
     env = os.environ.copy()
     env.pop("LD_LIBRARY_PATH", None)
 
+    if separate_stderr:
+        stderr = asyncio.subprocess.PIPE
+    elif stderr_to_devnull:
+        stderr = asyncio.subprocess.DEVNULL
+    else:
+        stderr = asyncio.subprocess.STDOUT
+
     return await asyncio.create_subprocess_exec(program, *args,
                                                 stdout=asyncio.subprocess.PIPE,
-                                                stderr=asyncio.subprocess.DEVNULL if stderr_to_devnull else asyncio.subprocess.STDOUT,
+                                                stderr=stderr,
                                                 env=env)
 
 
@@ -492,7 +503,8 @@ class TimedPooler:
 class ProcessReaper:
     __PROCESS_UNAVAILABLE_ERRORS = (FileNotFoundError, ProcessLookupError, PermissionError)
 
-    def __init__(self, pattern_or_pid: str | int) -> None:
+    def __init__(self, pattern_or_pid: str | int, expected_start_time: Optional[int] = None) -> None:
+        """Track processes by PID (optionally only if it still has `expected_start_time`) or command-line pattern."""
         if isinstance(pattern_or_pid, int):
             pids = [pattern_or_pid]
         else:
@@ -501,9 +513,21 @@ class ProcessReaper:
         self.__stats: dict[int, tuple[int, int]] = {}
         for pid in pids:
             try:
-                self.__stats[pid] = self.__get_stat(pid)
+                stat = self.__get_stat(pid)
             except self.__PROCESS_UNAVAILABLE_ERRORS:
                 continue
+            if expected_start_time is not None and stat[1] != expected_start_time:
+                # The PID was reused by another process.
+                continue
+            self.__stats[pid] = stat
+
+    @staticmethod
+    def start_time(pid: int) -> Optional[int]:
+        """Start time of `pid` (clock ticks since boot), or None if it is gone."""
+        try:
+            return ProcessReaper.__get_stat(pid)[1]
+        except ProcessReaper.__PROCESS_UNAVAILABLE_ERRORS:
+            return None
 
     def exists(self) -> bool:
         for pid, (_, create_time) in self.__stats.items():

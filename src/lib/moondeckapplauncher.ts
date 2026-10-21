@@ -1,4 +1,4 @@
-import { AppStartResult, AppType, ControllerConfigOption, EnvVars, checkExecPathMatch, getAppDetails, getAudioDevices, getCurrentDisplayModeString, getCurrentUserSteamId, getDisplayIdentifiers, getMoonDeckRunPath, getSystemNetworkStore, launchApp, registerForGameLaunchIntercept, registerForGameLifetime, registerForSuspendNotifications, setAppHiddenState, setAppLaunchOptions, setAppResolutionOverride, setOverrideResolutionForInternalDisplay, setShortcutName } from "./steamutils";
+import { AppStartResult, AppType, ControllerConfigOption, EnvVars, checkExecPathMatch, getAppDetails, getAudioDevices, getCurrentDisplayModeString, getDisplayIdentifiers, getMoonDeckRunPath, getSystemNetworkStore, launchApp, registerForGameLaunchIntercept, registerForGameLifetime, registerForSuspendNotifications, setAppHiddenState, setAppLaunchOptions, setAppResolutionOverride, setOverrideResolutionForInternalDisplay, setShortcutName } from "./steamutils";
 import { ControllerConfigValues, Dimension, HostResolution, HostSettings, SettingsManager } from "./settingsmanager";
 import { Subscription, pairwise } from "rxjs";
 import { getEnvKeyValueString, makeEnvKeyValue } from "./envutils";
@@ -66,16 +66,6 @@ function getSelectedAppResolution(mode: string | null, display: string | null, h
 function getLaunchOptionsString(currentValue: string, appId: number, appType: AppType, displayMode: string | null, autoResolution: boolean, currentAudioDevice: string | null, currentDisplay: string | null, pythonExecPath: string): string | null {
   const launchOptions: string[] = [];
   launchOptions.push(makeEnvKeyValue(EnvVars.AppType, appType));
-
-  if (appType !== AppType.GameStream) {
-    const userId = getCurrentUserSteamId();
-    if (userId === null) {
-      logger.error(`Failed to get set user id in launch options for ${appId}!`);
-      return null;
-    }
-
-    launchOptions.push(makeEnvKeyValue(EnvVars.SteamUserId, userId));
-  }
 
   if (appType === AppType.MoonDeck) {
     launchOptions.push(makeEnvKeyValue(EnvVars.SteamAppId, appId));
@@ -353,7 +343,7 @@ export class MoonDeckAppLauncher {
 
       const execPath = await getMoonDeckRunPath();
       if (execPath === null) {
-        logger.toast("Failed to get moondeckrun.sh path!", { output: "error" });
+        logger.toast("Failed to get pyrodeckrun.sh path!", { output: "error" });
         return;
       }
 

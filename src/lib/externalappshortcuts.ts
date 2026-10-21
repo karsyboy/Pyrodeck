@@ -154,12 +154,6 @@ export class ExternalAppShortcuts {
         continue;
       }
 
-      // Add app info for legacy GameStream apps so that they can be removed/updated.
-      if (details.strLaunchOptions.includes("MOONDECK_MANAGED=1")) {
-        addAppInfo(details, AppType.GameStream);
-        continue;
-      }
-
       if (details.strLaunchOptions.includes(makeEnvKeyValue(EnvVars.AppType, AppType.GameStream))) {
         const appType = AppType.GameStream;
         this.managedApps.set(details.unAppID, { appId: details.unAppID, appName: details.strDisplayName, appType, gameId: overview.gameid });
@@ -258,7 +252,7 @@ export class ExternalAppShortcuts {
 
       const execPath = await getMoonDeckRunPath();
       if (execPath === null) {
-        logger.toast("Failed to get moondeckrun.sh path!", { output: "error" });
+        logger.toast("Failed to get pyrodeckrun.sh path!", { output: "error" });
         return;
       }
 
@@ -391,7 +385,7 @@ export class ExternalAppShortcuts {
   }
 
   async updateCollection(): Promise<void> {
-    const collectionTag = "MoonDeck";
+    const collectionTag = "PyroDeck";
     const collection = await getOrCreateCollection(collectionTag, true);
     if (collection !== null || this.managedApps.size > 0) {
       const collectionApps = collection ? Array.from(collection.apps.keys()) : [];

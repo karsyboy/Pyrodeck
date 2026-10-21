@@ -18,12 +18,10 @@ import contextlib
 import signal
 import logging
 
-from lib.buddyrequests import BuddyException
-from lib.runner.moondeckapprunner import MoonDeckAppRunner
-from lib.runner.moonlightonlyrunner import MoonlightOnlyRunner
+from lib.runner.pyroshinerunner import PyroshineRunner
 from lib.logger import logger, set_logger_settings
-from lib.utils import is_moondeck_runner_ready, change_moondeck_runner_suspended_state, acquire_runner_pid_lock
-from lib.runner.settingsparser import MoonDeckAppRunnerSettings, MoonlightOnlyRunnerSettings, parse_settings, RunnerType
+from lib.utils import is_runner_ready, change_runner_suspended_state, acquire_runner_pid_lock
+from lib.runner.settingsparser import RunnerSettings, parse_settings
 from lib.splashscreen.splashscreen import SplashScreen
 from lib.splashscreen.mainscreen import MainScreenRunning, MainScreenSuspended
 from lib.splashscreen.overlay import OverlayStack
@@ -35,14 +33,11 @@ import lib.runnerresult as runnerresult
 set_logger_settings(logger, constants.RUNNER_LOG_FILE, rotate=False)
 
 
-async def run_runner(settings: MoonDeckAppRunnerSettings | MoonlightOnlyRunnerSettings, overlay_stack: OverlayStack):
-    if settings["runner_type"] == RunnerType.MoonDeck:
-        await MoonDeckAppRunner.run(settings, overlay_stack)
-    else:
-        await MoonlightOnlyRunner.run(settings, overlay_stack)
+async def run_runner(settings: RunnerSettings, overlay_stack: OverlayStack):
+    await PyroshineRunner.run(settings, overlay_stack)
 
 
-async def run_with_suspend_resume(settings: MoonDeckAppRunnerSettings | MoonlightOnlyRunnerSettings):
+async def run_with_suspend_resume(settings: RunnerSettings):
     suspend_requested = asyncio.Event()
     resume_requested = asyncio.Event()
 
@@ -64,8 +59,8 @@ async def run_with_suspend_resume(settings: MoonDeckAppRunnerSettings | Moonligh
                     try:
                         await runner_task
                     except asyncio.CancelledError as nested_err:
-                        # Propagate the BuddyException all the way from the launcher to
-                        # to the main try...except
+                        # Propagate the cause of the runner's failure to the
+                        # main try...except
                         if nested_err.__cause__ is not None:
                             err.__cause__ = nested_err.__cause__
                     raise
@@ -80,16 +75,16 @@ async def run_with_suspend_resume(settings: MoonDeckAppRunnerSettings | Moonligh
                     return
                 
                 async with MainScreenSuspended(screen.canvas):
-                    logger.info("MoonDeck runner is being suspended!")
+                    logger.info("PyroDeck runner is being suspended!")
                     runner_task.cancel(msg=constants.RUNNER_SUSPEND_CANCEL_MSG)
                     with contextlib.suppress(asyncio.CancelledError):
                         await runner_task
-                    change_moondeck_runner_suspended_state(True)
+                    change_runner_suspended_state(True)
 
                     resume_requested.clear()
                     await resume_requested.wait()
-                    logger.info("MoonDeck runner is being resumed!")
-                    change_moondeck_runner_suspended_state(False)
+                    logger.info("PyroDeck runner is being resumed!")
+                    change_runner_suspended_state(False)
 
 
 async def main():
@@ -103,10 +98,15 @@ async def main():
         with acquire_runner_pid_lock():
             logger.info("Resetting runner result and suspended state")
             runnerresult.set_result(runnerresult.Result.ClosedPrematurely, log_result=False)
-            change_moondeck_runner_suspended_state(False)
+            change_runner_suspended_state(False)
 
-            if not is_moondeck_runner_ready():
+            if not is_runner_ready():
                 raise runnerresult.RunnerError(runnerresult.Result.RunnerNotReady)
+
+            import os
+            logger.info("Display environment: WAYLAND_DISPLAY=%s DISPLAY=%s XDG_SESSION_TYPE=%s XDG_CURRENT_DESKTOP=%s SteamGameId=%s",
+                        os.environ.get("WAYLAND_DISPLAY"), os.environ.get("DISPLAY"), os.environ.get("XDG_SESSION_TYPE"),
+                        os.environ.get("XDG_CURRENT_DESKTOP"), os.environ.get("SteamGameId"))
 
             logger.info("Parsing runner settings")
             settings = await parse_settings()
@@ -118,17 +118,13 @@ async def main():
             runnerresult.set_result(None)
 
     except asyncio.CancelledError as err:
-        if isinstance(err.__cause__, BuddyException):
-            runnerresult.set_result(err.__cause__.result)
+        if isinstance(err.__cause__, runnerresult.RunnerError):
+            runnerresult.set_result(err.__cause__)
         else:
             runnerresult.set_result(runnerresult.Result.Terminated)
 
     except runnerresult.RunnerError as err:
-        runnerresult.set_result(err.result)
-
-    except BuddyException as err:
-        logger.exception("Buddy exception")
-        runnerresult.set_result(err.result)
+        runnerresult.set_result(err)
 
     except Exception:
         logger.exception("Unhandled exception")

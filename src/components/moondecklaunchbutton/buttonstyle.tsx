@@ -9,15 +9,15 @@ const HighContrastStyle = (
   <style>
     {
       `
-        .moondeck-button {
+        .pyrodeck-button {
           background: #222;
         }
         
-        .moondeck-button:hover {
+        .pyrodeck-button:hover {
           background: #50555D;
         }
         
-        .moondeck-button:focus {
+        .pyrodeck-button:focus {
           background: #fff;
         }
       `
@@ -29,11 +29,11 @@ const CleanStyle = (
   <style>
     {
       `
-        .moondeck-button {
+        .pyrodeck-button {
           background: rgba(14, 20, 27, 0.5);
         }
         
-        .moondeck-button:hover {
+        .pyrodeck-button:hover {
           background: rgba(14, 20, 27, 0.75);
         }
       `
@@ -59,11 +59,11 @@ export const ButtonStyle: FC<Props> = ({ theme }) => {
       <style>
         {
           `
-            .moondeck-button {
+            .pyrodeck-button {
               margin: 0 !important;
             }
 
-            .moondeck-button svg path {
+            .pyrodeck-button svg path {
               fill: currentcolor;
             }
           `

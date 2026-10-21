@@ -18,7 +18,7 @@ export const ContainerStyle: FC<Props> = ({ buttonPosition }) => {
     <style>
       {
         `
-          .moondeck-container {
+          .pyrodeck-container {
             position: absolute;
             z-index: ${buttonPosition.zIndex || "auto"};
             ${buttonPosition.verticalAlignment}: calc(${defaultVerticalOffset} + var(${xOffsetName}));
