@@ -17,6 +17,7 @@ export const ChangelogView: FC = () => {
               <div>&bull; PyroDeck only stops the Pyrolight it started; other Pyrolight, Moonlight or MoonDeck processes are left alone.</div>
               <div>&bull; PyroDeck can be installed next to MoonDeck: its settings, shortcuts, logs and collection are its own. MoonDeck's hosts and preferences are imported once.</div>
               <div>&bull; New Pyrolight options: PyroWave codec and VRR presentation, used only when the installed Pyrolight offers them.</div>
+              <div>&bull; The quick access menu and Host Info show whether Steam is launching, updating or running the game on the host.</div>
               <div>&bull; Removed: Buddy pairing, Steam control on the host, host restart/shutdown/suspend, Non-Steam app sync and the CLI.</div>
             </>
           }

@@ -1,7 +1,7 @@
 import { ButtonItem, PanelSection, PanelSectionRow, showModal } from "@decky/ui";
 import { CurrentHostSettings, useCommandExecutionStatus } from "../../hooks";
 import { FC, useContext } from "react";
-import { GameStreamHost, ServerStatus, executeAsyncWrapper, logger } from "../../lib";
+import { GameStreamHost, ServerStatus, executeAsyncWrapper, hostGameStateLabels, logger } from "../../lib";
 import { EndHostGameModal } from "../shared";
 import { MoonDeckContext } from "../../contexts";
 
@@ -31,7 +31,7 @@ export const HostControlPanel: FC<Props> = ({ serverStatus, hostInfo }) => {
       <PanelSectionRow>
         <ButtonItem
           layout="below"
-          description={gameRunning ? "A game is running on the host." : "No game is running on the host."}
+          description={gameRunning ? (hostInfo?.gameState ? hostGameStateLabels[hostInfo.gameState] : "A game is running on the host.") : "No game is running on the host."}
           disabled={!gameRunning}
           onClick={() => {
             showModal(<EndHostGameModal onConfirm={() => { moonDeckAppLauncher.endHostGame().catch((e) => logger.critical(e)); }} />);

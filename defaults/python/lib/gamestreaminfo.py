@@ -12,6 +12,9 @@ class GameStreamHost(TypedDict):
     appSources: int
     # The host app currently running (its GameStream ID), 0 when idle.
     currentGame: int
+    # What Steam reports about that game ("launching", "updating", "running",
+    # "exited"), when it is a Steam game on a Pyroshine host; None otherwise.
+    gameState: str | None
 
 
 def getGameSteamListener():
@@ -126,6 +129,10 @@ async def get_server_info(address: str, port: int, timeout: float):
                 result = re.search("<hostname>(.*?)</hostname>", data)
                 return html.unescape(str(result.group(1))) if result else None
 
+        def get_game_state(data: str) -> str | None:
+            result = re.search("<PyroshineGameState>(launching|updating|running|exited)</PyroshineGameState>", data or "")
+            return result.group(1) if result else None
+
         def get_number(data: str, tag: str) -> int:
             result = re.search(f"<{tag}>\\s*(\\d+)\\s*</{tag}>", data or "")
             return int(result.group(1)) if result else 0
@@ -146,6 +153,7 @@ async def get_server_info(address: str, port: int, timeout: float):
                     "uniqueId": unique_id,
                     "appSources": get_number(data, "PyroshineAppSources"),
                     "currentGame": get_number(data, "currentgame"),
+                    "gameState": get_game_state(data),
                 })
 
     except asyncio.TimeoutError:

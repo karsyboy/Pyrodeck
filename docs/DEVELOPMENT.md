@@ -34,7 +34,10 @@ special host application.
 **Pyroshine → Pyrolight** (GameStream extension, see Pyroshine's
 [`docs/CLIENT_INTEGRATION.md`](https://github.com/karsyboy/pyroshine/blob/main/docs/CLIENT_INTEGRATION.md)):
 `/applist` carries `<PyroshineSource>steam:892970</PyroshineSource>` per app,
-for paired clients only; `/serverinfo` advertises `<PyroshineAppSources>1`.
+for paired clients only; `/serverinfo` advertises `<PyroshineAppSources>1` and,
+while a Steam game's session is live, `<PyroshineGameState>` (`launching`,
+`updating`, `running`, `exited`) next to `currentgame`. PyroDeck shows the
+state in the quick access menu and Host Info (`lib/gamestreaminfo.py`).
 
 **Pyrolight → PyroDeck**: `pyrolight list --json HOST` prints one line,
 

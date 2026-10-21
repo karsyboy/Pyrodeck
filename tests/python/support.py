@@ -96,10 +96,13 @@ class FakePyrolight:
 class FakeHost:
     """A minimal GameStream HTTP endpoint answering /serverinfo."""
 
-    def __init__(self, unique_id: str = HOST_ID, hostname: str = "SuperCube", app_sources: int | None = 1):
+    def __init__(self, unique_id: str = HOST_ID, hostname: str = "SuperCube", app_sources: int | None = 1,
+                 current_game: int = 0, game_state: str | None = None):
         self.unique_id = unique_id
         self.hostname = hostname
         self.app_sources = app_sources
+        self.current_game = current_game
+        self.game_state = game_state
         self.requests: list[str] = []
         self.server: asyncio.base_events.Server | None = None
         self.port = 0
@@ -119,8 +122,10 @@ class FakeHost:
         path = request.split(b" ")[1].decode()
         self.requests.append(path)
         sources = "" if self.app_sources is None else f"<PyroshineAppSources>{self.app_sources}</PyroshineAppSources>"
+        state = "" if self.game_state is None else f"<PyroshineGameState>{self.game_state}</PyroshineGameState>"
         body = (f"<root status_code=\"200\"><hostname>{self.hostname}</hostname><uniqueid>{self.unique_id}</uniqueid>"
-                f"{sources}<currentgame>0</currentgame><state>MOONSHINE_SERVER_FREE</state></root>").encode()
+                f"{sources}<currentgame>{self.current_game}</currentgame>{state}"
+                "<state>MOONSHINE_SERVER_FREE</state></root>").encode()
         writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/xml\r\nConnection: close\r\n"
                      + f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
         await writer.drain()

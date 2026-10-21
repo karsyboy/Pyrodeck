@@ -15,7 +15,18 @@ export interface GameStreamHost {
   appSources: number;
   // GameStream ID of the app running on the host; 0 when idle.
   currentGame: number;
+  // What Steam reports about that game on a Pyroshine host, if it is a Steam game.
+  gameState: HostGameState | null;
 }
+
+export type HostGameState = "launching" | "updating" | "running" | "exited";
+
+export const hostGameStateLabels: Record<HostGameState, string> = {
+  launching: "Steam is launching the game on the host.",
+  updating: "Steam is updating the game on the host.",
+  running: "The game is running on the host.",
+  exited: "The game exited; Steam is still open on the host."
+};
 
 export type ServerStatus = "Offline" | "Online";
 

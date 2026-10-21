@@ -3,6 +3,7 @@ import { useCurrentHostSettings, useHostInfo } from "../../hooks";
 import { FC } from "react";
 import { HostOff } from "../icons";
 import { LabelWithIcon } from "../shared";
+import { hostGameStateLabels } from "../../lib";
 
 export const HostInfoView: FC = () => {
   const hostSettings = useCurrentHostSettings();
@@ -48,6 +49,10 @@ export const HostInfoView: FC = () => {
         <Field label="Running app ID" focusable={true}>
           {hostInfo === null ? "Unknown (host offline)" : (hostInfo.currentGame === 0 ? "None" : hostInfo.currentGame)}
         </Field>
+        {hostInfo !== null && hostInfo.gameState !== null &&
+          <Field label="Steam game state" focusable={true}>
+            {hostGameStateLabels[hostInfo.gameState]}
+          </Field>}
       </DialogControlsSection>
     </DialogBody>
   );
