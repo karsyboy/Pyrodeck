@@ -86,6 +86,22 @@ class Capabilities:
     vrr: bool
 
 
+DEFAULT_HTTP_PORT = 47989
+
+
+def pyrolight_host(address: str, port: int) -> str:
+    """The host argument for Pyrolight: the address, with the HTTP port when it is not the default.
+
+    Pyrolight matches it against the hosts it knows by `address:port` and adds
+    an unknown one manually the same way.
+    """
+    if port == DEFAULT_HTTP_PORT:
+        return address
+    if ":" in address and not address.startswith("["):
+        return f"[{address}]:{port}"
+    return f"{address}:{port}"
+
+
 def is_executable_file(path: str) -> bool:
     import os
 

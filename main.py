@@ -26,7 +26,7 @@ from lib.plugin.settings import UserSettings, UserSettingsManager
 from lib.logger import logger, set_logger_settings, get_logger
 from lib.utils import wake_on_lan, change_runner_ready_state
 from lib.runnerresult import set_result, get_result
-from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight
+from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight, pyrolight_host
 from lib import runnercontrol
 
 set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=True)
@@ -179,7 +179,7 @@ class Plugin:
             return False
 
     @utils.async_scope_log(logger.info)
-    async def get_game_stream_app_names(self, address: str, pyrolight_exec_path: str | None, timeout: float):
+    async def get_game_stream_app_names(self, address: str, port: int, pyrolight_exec_path: str | None, timeout: float):
         try:
             exec_path = find_pyrolight(pyrolight_exec_path)
             if exec_path is None:
@@ -187,7 +187,7 @@ class Plugin:
                 return None
 
             async with PyrolightProxy(exec_path) as client:
-                app_list = await client.list_apps(address, timeout=timeout)
+                app_list = await client.list_apps(pyrolight_host(address, port), timeout=timeout)
                 return sorted({app.name for app in app_list.apps})
 
         except (PyrolightListError, TimeoutError) as err:
@@ -208,7 +208,7 @@ class Plugin:
             return None
 
     @utils.async_scope_log(logger.info)
-    async def get_pairing_status(self, address: str, host_id: str, configured_path: Optional[str], timeout: float):
+    async def get_pairing_status(self, address: str, port: int, host_id: str, configured_path: Optional[str], timeout: float):
         """Whether Pyrolight is paired with the host, by asking it for the app list.
 
         One of "Paired", "NotPaired", "Unreachable", "WrongHost", "Outdated",
@@ -221,7 +221,7 @@ class Plugin:
                 return "NotInstalled"
 
             async with PyrolightProxy(exec_path) as client:
-                app_list = await client.list_apps(address, timeout=timeout)
+                app_list = await client.list_apps(pyrolight_host(address, port), timeout=timeout)
             if app_list.host_uuid.lower() != host_id.lower():
                 return "WrongHost"
             return "Paired"

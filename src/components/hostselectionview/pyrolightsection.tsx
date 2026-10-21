@@ -48,7 +48,7 @@ export const PyrolightSection: FC<Props> = ({ hostSettings, pyrolightExecPath, s
 
   const check = (): void => {
     setStatus("Checking");
-    getPairingStatus(hostSettings.address, hostSettings.currentHostId, pyrolightExecPath)
+    getPairingStatus(hostSettings.address, hostSettings.hostInfoPort, hostSettings.currentHostId, pyrolightExecPath)
       .then(setStatus)
       .catch((e) => { logger.critical(e); setStatus("Error"); });
   };

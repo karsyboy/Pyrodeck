@@ -17,9 +17,9 @@ export const pairingStatusDescriptions: Record<PairingStatus, string> = {
   Error: "Pyrolight failed. See /tmp/pyrodeck-backend.log."
 };
 
-export async function getPairingStatus(address: string, hostId: string, pyrolightExecPath: string | null): Promise<PairingStatus> {
+export async function getPairingStatus(address: string, port: number, hostId: string, pyrolightExecPath: string | null): Promise<PairingStatus> {
   try {
-    return await call<[string, string, string | null, number], PairingStatus>("get_pairing_status", address, hostId, pyrolightExecPath, 45);
+    return await call<[string, number, string, string | null, number], PairingStatus>("get_pairing_status", address, port, hostId, pyrolightExecPath, 45);
   } catch (message) {
     logger.critical("Error while checking Pyrolight pairing: ", message);
   }

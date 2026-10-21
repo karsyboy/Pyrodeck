@@ -64,6 +64,8 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
 
     async def run_runner(self, fake_host: FakeHost | None = None, **kwargs):
         async with (fake_host or FakeHost()) as host:
+            # Not GameStream's default port, so Pyrolight gets "address:port".
+            self.host_arg = f"127.0.0.1:{host.port}"
             with record_connections() as connections:
                 await PyroshineRunner.run(settings(host.port, str(self.pyrolight.executable), **kwargs), None)  # type: ignore[arg-type]
         return host, connections
@@ -79,7 +81,7 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
 
         streams = self.pyrolight.streams()
         self.assertEqual(len(streams), 1, "exactly one Pyrolight stream process per launch")
-        self.assertEqual(streams[0][-3:], ["stream", "127.0.0.1", "Valheim"])
+        self.assertEqual(streams[0][-3:], ["stream", self.host_arg, "Valheim"])
         self.assertIn("--no-quit-after", streams[0])
         self.assertNotIn("--quit-after", streams[0])
         self.assertIn("/serverinfo", host.requests)
@@ -184,7 +186,7 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_gamestream_apps_stream_by_exact_name(self):
         await self.run_runner(runner_type=RunnerType.GameStreamApp, app_name="desktop")
-        self.assertEqual(self.pyrolight.streams()[0][-3:], ["stream", "127.0.0.1", "Desktop"])
+        self.assertEqual(self.pyrolight.streams()[0][-3:], ["stream", self.host_arg, "Desktop"])
 
         self.pyrolight.set_apps([DESKTOP, {**DESKTOP, "id": 7}])
         await self.assert_fails(Result.HostAppAmbiguous, runner_type=RunnerType.GameStreamApp, app_name="Desktop")
@@ -197,10 +199,10 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
     async def test_utility_actions_run_without_resolving_an_app(self):
         await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Quit)
         argvs = [entry["argv"] for entry in self.pyrolight.invocations()]
-        self.assertEqual(argvs, [["quit", "127.0.0.1"]])
+        self.assertEqual(argvs, [["quit", self.host_arg]])
 
         await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Pair)
-        self.assertEqual(self.pyrolight.invocations()[-1]["argv"], ["pair", "127.0.0.1"])
+        self.assertEqual(self.pyrolight.invocations()[-1]["argv"], ["pair", self.host_arg])
 
     async def test_codec_and_vrr_are_only_passed_when_the_build_offers_them(self):
         self.pyrolight.set(help="  --vrr  Use variable refresh rate\n  --video-codec <video-codec>  Select video codec:\n      AV1/H.264/HEVC/auto.\n")

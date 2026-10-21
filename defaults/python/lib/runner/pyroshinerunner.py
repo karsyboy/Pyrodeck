@@ -23,7 +23,7 @@ from .envparser import RunnerType, UtilityAction
 from ..runnerresult import Result, RunnerError
 from ..gamestreaminfo import GameStreamHost, get_server_info
 from ..logger import logger
-from ..pyrolightproxy import HostApp, HostAppList, PyrolightListError, PyrolightProxy, build_stream_args, find_pyrolight, needs_capability_probe
+from ..pyrolightproxy import HostApp, HostAppList, PyrolightListError, PyrolightProxy, build_stream_args, find_pyrolight, needs_capability_probe, pyrolight_host
 from ..splashscreen.overlay import OverlayStack
 
 
@@ -97,7 +97,7 @@ class PyroshineRunner:
     @staticmethod
     async def list_host_apps(proxy: PyrolightProxy, settings: RunnerSettings) -> HostAppList:
         try:
-            app_list = await proxy.list_apps(settings["address"])
+            app_list = await proxy.list_apps(pyrolight_host(settings["address"], settings["host_port"]))
         except PyrolightListError as err:
             if err.reason == "not_paired":
                 raise RunnerError(Result.PyrolightNotPaired) from err
@@ -161,12 +161,12 @@ class PyroshineRunner:
                 action: Optional[UtilityAction] = settings["action"]
                 assert action is not None
                 logger.info(f"Running Pyrolight action: {action.value}")
-                await cls.run_pyrolight(proxy, [action.value, settings["address"]])
+                await cls.run_pyrolight(proxy, [action.value, pyrolight_host(settings["address"], settings["host_port"])])
                 return
 
             app = await cls.resolve_target(proxy, settings, server_info)
             capabilities = None
             if needs_capability_probe(settings["cmd_options"]):
                 capabilities = await proxy.probe_capabilities()
-            args = build_stream_args(settings["address"], app.name, settings["cmd_options"], capabilities)
+            args = build_stream_args(pyrolight_host(settings["address"], settings["host_port"]), app.name, settings["cmd_options"], capabilities)
             await cls.run_pyrolight(proxy, args)

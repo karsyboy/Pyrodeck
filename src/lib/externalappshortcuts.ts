@@ -34,9 +34,9 @@ interface GameStreamHostData {
 type HostData = GameStreamHostData;
 type GameStreamAppNames = string[] | null;
 
-async function getGameStreamAppNames(address: string, pyrolightExecPath: string | null, timeout: number): Promise<GameStreamAppNames> {
+async function getGameStreamAppNames(address: string, port: number, pyrolightExecPath: string | null, timeout: number): Promise<GameStreamAppNames> {
   try {
-    return await call<[string, string | null, number], GameStreamAppNames>("get_game_stream_app_names", address, pyrolightExecPath, timeout);
+    return await call<[string, number, string | null, number], GameStreamAppNames>("get_game_stream_app_names", address, port, pyrolightExecPath, timeout);
   } catch (message) {
     logger.critical("Error while fetching gamestream apps: ", message);
   }
@@ -47,7 +47,7 @@ async function getGameStreamAppNames(address: string, pyrolightExecPath: string 
 // Every app the host offers, as Steam shortcuts that stream it by name (for
 // apps that are not Steam library games, such as Desktop or Lutris games).
 async function getHostData(settings: UserSettings, hostSettings: HostSettings): Promise<HostData[] | null> {
-  const gameStreamApps = await getGameStreamAppNames(hostSettings.address, settings.useMoonlightExec ? settings.moonlightExecPath : null, 45);
+  const gameStreamApps = await getGameStreamAppNames(hostSettings.address, hostSettings.hostInfoPort, settings.useMoonlightExec ? settings.moonlightExecPath : null, 45);
   if (gameStreamApps === null) {
     logger.toast("Failed to get the host's app list from Pyrolight!", { output: "error" });
     return null;

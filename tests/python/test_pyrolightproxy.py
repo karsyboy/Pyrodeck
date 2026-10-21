@@ -12,7 +12,7 @@ import support  # noqa: F401  (sets sys.path)
 
 from lib.pyrolightproxy import (Capabilities, CommandLineOptions, PyrolightListError, build_stream_args,
                                 classify_list_failure, find_pyrolight, needs_capability_probe, parse_app_list,
-                                parse_capabilities)
+                                parse_capabilities, pyrolight_host)
 
 # `pyrolight stream --help` of Pyrolight 6.2.7 with PyroWave, as Qt wraps it.
 PYROLIGHT_HELP = """Usage: /opt/pyrolight/usr/bin/pyrolight [options] stream <host> "<app>"
@@ -72,6 +72,14 @@ class StreamArgumentsTest(unittest.TestCase):
         self.assertFalse(needs_capability_probe(options(video_codec="Auto", enable_v_sync=True)))
         self.assertTrue(needs_capability_probe(options(video_codec="PyroWave")))
         self.assertTrue(needs_capability_probe(options(enable_vrr=False)))
+
+
+class HostArgumentTest(unittest.TestCase):
+    def test_the_port_is_added_only_when_it_is_not_the_default(self):
+        self.assertEqual(pyrolight_host("192.168.1.10", 47989), "192.168.1.10")
+        self.assertEqual(pyrolight_host("192.168.1.10", 48089), "192.168.1.10:48089")
+        self.assertEqual(pyrolight_host("host.lan", 50000), "host.lan:50000")
+        self.assertEqual(pyrolight_host("fd00::5", 48089), "[fd00::5]:48089")
 
 
 class AppListTest(unittest.TestCase):
