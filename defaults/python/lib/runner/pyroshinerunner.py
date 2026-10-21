@@ -79,7 +79,7 @@ class PyroshineRunner:
         # Lazy import to improve CLI performance
         from .wolsplashscreen import WolSplashScreen
 
-        async with WolSplashScreen(overlay_stack, None, None, settings["address"], settings["mac"],
+        async with WolSplashScreen(overlay_stack, settings["address"], settings["mac"],
                                    settings["timeouts"]["wakeOnLan"], settings["hostname"], settings["wol_port"],
                                    settings["send_wol_once"], settings["custom_wol_exec_path"]) as splash:
             while True:
@@ -87,7 +87,7 @@ class PyroshineRunner:
                                                     port=settings["host_port"],
                                                     timeout=settings["timeouts"]["servicePing"])
                 online = server_info is not None and server_info["uniqueId"] == settings["host_id"]
-                if not await splash.update(None, online):
+                if not await splash.update(online):
                     if not online or server_info is None:
                         raise RunnerError(Result.GameStreamDead)
                     return server_info

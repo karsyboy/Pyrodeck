@@ -18,7 +18,10 @@
     "deploy:extract": "echo \"\ud83d\udce6 Extracting '$TMP_FILE' to '$PLUGIN_DIR'\" && echo \"$DECK_PASS\" | ssh $SSH_OPTS \"$SUDO -- bsdtar -xzp -f '$TMP_FILE' -C '$PLUGIN_DIR' --strip-components=1 --fflags\"",
     "deploy:restart": "echo \"\u267b\ufe0f  Restarting Decky\" && echo \"$DECK_PASS\" | ssh $SSH_OPTS \"$SUDO -- systemctl restart plugin_loader\"",
     "watch": "rollup -c -w",
-    "test": "npx eslint src/**"
+    "test": "npx eslint src/**",
+    "typecheck": "tsc --noEmit --skipLibCheck -p .",
+    "test:unit": "vitest run",
+    "test:python": "python3 -m unittest discover -s tests/python -t tests/python"
   },
   "repository": {
     "type": "git",
@@ -51,7 +54,8 @@
     "eslint": "^9.39.1",
     "rollup": "^4.53.3",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.48.0"
+    "typescript-eslint": "^8.48.0",
+    "vitest": "3.2.4"
   },
   "dependencies": {
     "@decky/api": "^1.1.3",

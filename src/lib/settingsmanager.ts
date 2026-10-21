@@ -12,8 +12,7 @@ export const verticalAlignmentValues = ["left", "right"] as const;
 export const minBitrate = 0 as const;
 export const minFps = 0 as const;
 export const audioOptions = ["stereo", "5.1-surround", "7.1-surround"] as const;
-export const closeSteamOption = ["Client", "BigPictureMode"] as const;
-export const videoCodecOptions = ["AV1", "HEVC", "H.264", "Auto"] as const;
+export const videoCodecOptions = ["AV1", "HEVC", "H.264", "PyroWave", "Auto"] as const;
 
 export enum ControllerConfigValues {
   Disable = "Disable Steam Input",
@@ -26,38 +25,15 @@ export function getControllerConfigDropdownValues(): Array<{ id: keyof typeof Co
   });
 }
 
-export const buddyRequestsDefault = 5 as const;
 export const servicePingDefault = 5 as const;
-export const initialConditionsDefault = 30 as const;
-export const streamReadinessDefault = 30 as const;
-export const steamReadinessDefault = 60 as const;
-export const userSwitch = 60 as const;
-export const appLaunchDefault = 30 as const;
-export const appLaunchStabilityDefault = 15 as const;
-export const appUpdateDefault = 15 as const;
-export const streamEndDefault = 15 as const;
 export const wakeOnLanDefault = 60 as const;
 export const steamLaunchDefault = 5 as const;
 
-export type OsType = "Windows" | "Linux" | "Other";
-
+// Mirrors defaults/python/lib/plugin/settings.py, which validates every write.
 export interface RunnerTimeouts {
-  buddyRequests: number;
   servicePing: number;
-  initialConditions: number;
-  streamReadiness: number;
-  steamReadiness: number;
-  userSwitch: number;
-  appLaunch: number;
-  appLaunchStability: number;
-  streamEnd: number;
   wakeOnLan: number;
   steamLaunch: number;
-}
-
-export interface HostApp {
-  selectedAppIndex: number;
-  apps: string[];
 }
 
 export interface Dimension {
@@ -88,19 +64,7 @@ export interface AudioSettings {
   linkedAudio: { [key in typeof audioOptions[number]]?: string[] };
 }
 
-export interface BuddySettings {
-  bigPictureMode: boolean;
-  port: number;
-  closeSteam: typeof closeSteamOption[number] | null;
-  hostApp: HostApp;
-  hibernateHost: boolean;
-}
-
 export interface GameStreamAppsSettings {
-  showQuickAccessButton: boolean;
-}
-
-export interface NonSteamAppsSettings {
   showQuickAccessButton: boolean;
 }
 
@@ -117,26 +81,22 @@ export interface HostSettings {
   staticAddress: boolean;
   hostName: string;
   mac: string;
-  os: OsType;
   resolution: HostResolution;
   audio: AudioSettings;
   passToMoonlight: boolean;
   showPerformanceStats: boolean | null;
   enableVSync: boolean | null;
   enableFramePacing: boolean | null;
+  enableVrr: boolean | null;
   videoCodec: typeof videoCodecOptions[number] | null;
   runnerTimeouts: RunnerTimeouts;
-  buddy: BuddySettings;
   gameStreamApps: GameStreamAppsSettings;
-  nonSteamApps: NonSteamAppsSettings;
   wolSettings: WolSettings;
 }
 
 export interface GameSessionSettings {
   autoApplyAppId: boolean;
-  closeHostAppOnExit: boolean;
   resumeAfterSuspend: boolean;
-  autoSuspendHost: boolean;
   controllerConfig: keyof typeof ControllerConfigValues | null;
 }
 
@@ -156,7 +116,6 @@ export interface ButtonStyleSettings {
 
 export interface UserSettings {
   version: number;
-  clientId: string;
   currentHostId: string | null;
   gameSession: GameSessionSettings;
   buttonPosition: ButtonPositionSettings;

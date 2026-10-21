@@ -10,7 +10,7 @@ from ..splashscreen.wolscreen import WolScreen
 
 
 class WolSplashScreen:
-    def __init__(self, stack: OverlayStack, gamestream_status: bool | None, buddy_status: bool | None, address: str, mac: str, timeout: int, hostname: str, wol_port: int, send_wol_once: bool, custom_wol_exec: Optional[str]):        
+    def __init__(self, stack: OverlayStack, address: str, mac: str, timeout: int, hostname: str, wol_port: int, send_wol_once: bool, custom_wol_exec: Optional[str]):
         self.__address = address
         self.__hostname = hostname
         self.__mac = mac
@@ -22,7 +22,7 @@ class WolSplashScreen:
         if timeout > 0:
             self.__timeout_data = {
                 "end": datetime.now(timezone.utc) + timedelta(seconds=timeout),
-                "wol_screen": WolScreen(stack, self.__hostname, gamestream_status, buddy_status),
+                "wol_screen": WolScreen(stack, self.__hostname, None, None),
                 "wol_shown": False
             }
         else:
@@ -71,28 +71,18 @@ class WolSplashScreen:
             if self.__timeout_data["wol_shown"]:
                 await self.__timeout_data["wol_screen"].__aexit__(exc_type, exc, tb)
 
-    async def update(self, buddy_status: bool | None, server_status: bool | None) -> bool:
-        logger.info(f"Buddy: {buddy_status}, Server: {server_status}")
+    async def update(self, server_status: bool) -> bool:
+        """Whether to keep waiting for the host: False once it is online or the timeout passed."""
+        logger.info(f"Host online: {server_status}")
         if self.__timeout_data is None:
             return False
 
-        buddy_status_is_irrelevant = buddy_status is None
-        server_status_is_irrelevant = server_status is None
-
-        buddy_is_on = buddy_status_is_irrelevant or buddy_status
-        server_is_on = server_status_is_irrelevant or server_status
         timeout_elapsed = datetime.now(timezone.utc) > self.__timeout_data["end"]
-        if (buddy_is_on and server_is_on) or timeout_elapsed:
+        if server_status or timeout_elapsed:
             return False
 
-        buddy_is_off = buddy_status_is_irrelevant or not buddy_status
-        server_is_off = server_status_is_irrelevant or not server_status
-        if buddy_is_off and server_is_off and self.__send_wol_once:
+        if self.__send_wol_once:
             await self.__do_wol()
             self.__send_wol_once = None
-        
-        show_status = not buddy_status_is_irrelevant and not server_status_is_irrelevant
-        self.__timeout_data["wol_screen"].set_status(gamestream=server_status if show_status else None,
-                                                     buddy=buddy_status if show_status else None)
-        
+
         return True

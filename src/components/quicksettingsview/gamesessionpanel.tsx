@@ -1,6 +1,7 @@
 import { AppType, MoonDeckAppData, logger } from "../../lib";
-import { ButtonItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
+import { ButtonItem, Field, Navigation, PanelSection, PanelSectionRow, ToggleField, showModal } from "@decky/ui";
 import { FC, useContext, useState } from "react";
+import { EndHostGameModal } from "../shared";
 import { MoonDeckContext } from "../../contexts";
 
 interface Props {
@@ -27,12 +28,17 @@ export const GameSessionPanel: FC<Props> = ({ appData }) => {
       .finally(() => setIsDisabled(false));
   };
 
-  const handleSteamClose = (): void => {
-    setIsDisabled(true);
-    Navigation.CloseSideMenus();
-    moonDeckAppLauncher.moonDeckApp.closeSteamOnHost()
-      .catch((e) => logger.critical(e))
-      .finally(() => setIsDisabled(false));
+  const handleEndHostGame = (): void => {
+    showModal(
+      <EndHostGameModal onConfirm={() => {
+        setIsDisabled(true);
+        Navigation.CloseSideMenus();
+        moonDeckAppLauncher.endHostGame()
+          .catch((e) => logger.critical(e))
+          .finally(() => setIsDisabled(false));
+      }}
+      />
+    );
   };
 
   let gameSession = null;
@@ -50,41 +56,35 @@ export const GameSessionPanel: FC<Props> = ({ appData }) => {
       </PanelSection>;
   }
 
-  let closeSteam = null;
-  if (appData.appType !== AppType.GameStream) {
-    closeSteam =
-      <PanelSectionRow>
-        <ButtonItem
-          disabled={isDisabled}
-          layout="below"
-          onClick={() => handleSteamClose()}
-        >
-          Close Steam on host
-        </ButtonItem>
-      </PanelSectionRow>;
-  }
-
   return (
     <>
       {gameSession}
-      <PanelSection title="Kill Session">
+      <PanelSection title="Stream">
         <PanelSectionRow>
           <Field
             bottomSeparator="none"
-            description="Last somewhat graceful resort for when MoonDeck or host misbehaves."
+            description="Disconnect closes Pyrolight; the game keeps running on the host and you can reconnect from its library page."
           />
         </PanelSectionRow>
         <PanelSectionRow>
           <ButtonItem
             disabled={isDisabled}
             layout="below"
-            bottomSeparator={closeSteam ? "none" : "standard"}
+            bottomSeparator="none"
             onClick={() => handleTermination()}
           >
-            Exit MoonDeck
+            Disconnect
           </ButtonItem>
         </PanelSectionRow>
-        {closeSteam}
+        <PanelSectionRow>
+          <ButtonItem
+            disabled={isDisabled}
+            layout="below"
+            onClick={() => handleEndHostGame()}
+          >
+            End Game on Host
+          </ButtonItem>
+        </PanelSectionRow>
       </PanelSection>
     </>
   );

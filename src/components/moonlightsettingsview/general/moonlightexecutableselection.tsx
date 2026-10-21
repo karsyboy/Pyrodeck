@@ -29,8 +29,8 @@ export const MoonlightExecutableSelection: FC = () => {
   return (
     <>
       <ToggleField
-        label="Use custom Moonlight executable"
-        description="Use provided executable instead of Flatpak version"
+        label="Use a specific Pyrolight executable"
+        description="By default PyroDeck finds Pyrolight on PATH or the newest Pyrolight AppImage in ~/Applications, ~/AppImages, ~/Downloads or your home folder."
         bottomSeparator="none"
         value={userSettings.useMoonlightExec}
         setValue={(value) => settingsManager.update((userSettings) => { userSettings.useMoonlightExec = value; })}

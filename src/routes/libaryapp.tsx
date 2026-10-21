@@ -4,10 +4,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Navigation, afterPatch, appDetailsClasses, createReactTreePatcher, findInReactTree } from "@decky/ui";
 import { RoutePatch, routerHook } from "@decky/api";
+import { getLibraryAppData, logger } from "../lib";
 import { MoonDeckLaunchButtonAnchor } from "../components/moondecklaunchbutton";
 import { ReactElement } from "react";
 import { getDefaultContext } from "../contexts";
-import { logger } from "../lib";
 
 function patchLibraryApp(route: string): RoutePatch {
   const { moonDeckAppLauncher, settingsManager } = getDefaultContext();
@@ -28,28 +28,14 @@ function patchLibraryApp(route: string): RoutePatch {
               return null;
             }
 
-            const overview = children.props?.overview;
-            if (typeof overview !== "object") {
+            // The PyroDeck button streams the entry this page shows, by its Steam app ID.
+            const data = getLibraryAppData(children.props?.overview);
+            if (data === null) {
               logger.error(`Failed to patch ${route}, @overview!`);
               return null;
             }
 
-            if (typeof overview.app_type !== "number") {
-              logger.error(`Failed to patch ${route}, @app_type!`);
-              return null;
-            }
-
-            if (typeof overview.appid !== "number") {
-              logger.error(`Failed to patch ${route}, @appid!`);
-              return null;
-            }
-
-            if (typeof overview.display_name !== "string") {
-              logger.error(`Failed to patch ${route}, @display_name!`);
-              return null;
-            }
-
-            ({ app_type: appType, appid: appId, display_name: appName } = overview);
+            ({ appType, appId, appName } = data);
             return children;
           }
         ], (_: Array<Record<string, unknown>>, ret?: ReactElement) => {

@@ -21,12 +21,12 @@ export const AppResolutionOverrideSection: FC<Props> = ({ hostSettings }) => {
             <div>Sets the app shortcut resolution property which informs the Gamescope on how to perform scaling.</div>
             <br />
             <div>The following options are available:</div>
-            <div>&bull; "Custom Resolution" (MoonDeck's default) - if custom resolution is enabled and selected, it will be used for scaling.</div>
+            <div>&bull; "Custom Resolution" (PyroDeck's default) - if custom resolution is enabled and selected, it will be used for scaling.</div>
             <div>&bull; "Display Resolution" - will use the resolution of the primary display for scaling.</div>
             <div>&bull; "Native" - technically should be the same as "Display Resolution", however one user reported that it still performs some unnecessary scaling once the stream starts.</div>
             <div>&bull; "Default" - this is the Valve's default scaling option. It is just bad...</div>
             <br />
-            <div>If for whatever reason MoonDeck fails to retrieve either a custom resolution (because it's disabled) or the display resolution, the following fallback chain will ensure that at least something is set:</div>
+            <div>If for whatever reason PyroDeck fails to retrieve either a custom resolution (because it's disabled) or the display resolution, the following fallback chain will ensure that at least something is set:</div>
             <div>"Custom Resolution" -&gt; "Display Resolution" -&gt; "Native"</div>
           </>
         }

@@ -85,7 +85,7 @@ export class MoonDeckAppShortcuts {
 
     this.appInfoSubject.next(appInfo);
     if (shortcutsPurgeIsNeeded) {
-      logger.toast("MoonDeck cache is corrupted! Please purge all MoonDeck apps!", { output: "error" });
+      logger.toast("PyroDeck cache is corrupted! Please purge all PyroDeck library shortcuts!", { output: "error" });
     }
   }
 

@@ -38,8 +38,8 @@ export const MoonDeckAppsView: FC = () => {
         currentSettings !== null &&
         <DialogControlsSection>
           <ToggleField
-            label="Enable the MoonDeck shortcuts"
-            description="Disabling this will remove the MoonDeck button!"
+            label="Enable the PyroDeck shortcuts"
+            description="Disabling this will remove the PyroDeck button!"
             value={currentSettings.enableMoondeckShortcuts}
             setValue={(value) => settingsManager.update((settings) => { settings.enableMoondeckShortcuts = value; })}
           />
@@ -54,7 +54,7 @@ export const MoonDeckAppsView: FC = () => {
       <DialogControlsSection>
         <DialogControlsSectionHeader>Cleanup</DialogControlsSectionHeader>
         <Field
-          label="Purge all the MoonDeck shortcuts!"
+          label="Purge all the PyroDeck shortcuts!"
           description="Steam client will be restarted afterwards!"
           childrenContainerWidth="fixed"
         >

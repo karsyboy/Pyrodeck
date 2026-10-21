@@ -13,6 +13,10 @@ class SettingsManager(Generic[TD], metaclass=ABCMeta):
         self.filepath: Path = Path(filepath)
 
     async def read(self):
+        return await self.read_path(self.filepath)
+
+    async def read_path(self, filepath):
+        """Read and migrate settings from `filepath` without writing anything."""
         # Lazy import to improve CLI performance
         import copy
         import json
@@ -20,7 +24,7 @@ class SettingsManager(Generic[TD], metaclass=ABCMeta):
         settings: Optional[TD] = None
         migrated = False
         try:
-            with open(self.filepath, "r") as file:
+            with open(filepath, "r") as file:
                 data: AnyTypedDict = json.load(file)
                 try:
                     settings = from_dict(self.settings_type, data)
@@ -47,7 +51,7 @@ class SettingsManager(Generic[TD], metaclass=ABCMeta):
     async def read_or_update(self):
         settings, migrated = await self.read()
         if settings is None:
-            settings = self._default_settings()
+            settings = await self._initial_settings()
             await self.write(settings)
         elif migrated:
             await self.write(settings)
@@ -69,6 +73,10 @@ class SettingsManager(Generic[TD], metaclass=ABCMeta):
     @abstractmethod
     def _default_settings(self) -> TD:
         pass
+
+    async def _initial_settings(self) -> TD:
+        """Settings to write when there is no settings file yet."""
+        return self._default_settings()
 
     @abstractmethod
     def _migrate_settings(self, data: Any):

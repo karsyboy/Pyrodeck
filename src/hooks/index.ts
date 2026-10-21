@@ -1,4 +1,3 @@
-export * from "./usebuddystatus";
 export * from "./usecommandexecutionstatus";
 export * from "./usecurrentdisplayidentifier";
 export * from "./usecurrenthostsettings";
@@ -7,5 +6,5 @@ export * from "./useserverstatus";
 export * from "./usecurrentsettings";
 export * from "./usemoondeckappshortcuts";
 export * from "./usegamestreamappshortcuts";
-export * from "./usenonsteamappshortcuts";
+export * from "./usehostinfo";
 export * from "./useappsyncstate";

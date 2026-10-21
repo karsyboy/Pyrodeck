@@ -1,9 +1,9 @@
-import { HostSettings, SettingsManager, appLaunchDefault, appLaunchStabilityDefault, buddyRequestsDefault, initialConditionsDefault, servicePingDefault, steamLaunchDefault, steamReadinessDefault, streamEndDefault, streamReadinessDefault, userSwitch, wakeOnLanDefault } from "./settingsmanager";
+import { HostSettings, SettingsManager, servicePingDefault, steamLaunchDefault, wakeOnLanDefault } from "./settingsmanager";
 import { BehaviorSubject } from "rxjs";
-import { BuddyProxy } from "./buddyproxy";
 import { Mutex } from "async-mutex";
 import { ReadonlySubject } from "./readonlysubject";
 import { call } from "@decky/api";
+import { isEqual } from "lodash";
 import { logger } from "./logger";
 
 export interface GameStreamHost {
@@ -11,10 +11,13 @@ export interface GameStreamHost {
   port: number;
   hostName: string;
   uniqueId: string;
+  // Version of Pyroshine's launcher identities; 0 when the host has none.
+  appSources: number;
+  // GameStream ID of the app running on the host; 0 when idle.
+  currentGame: number;
 }
 
 export type ServerStatus = "Offline" | "Online";
-export type PairingStartStatus = "PairingStarted" | "Offline" | (string & {});
 
 async function scanForHosts(timeout: number): Promise<GameStreamHost[]> {
   try {
@@ -43,33 +46,18 @@ async function getServerInfo(address: string, port: number, timeout: number): Pr
   return null;
 }
 
-async function startPairing(address: string, buddyPort: number, clientId: string, pin: number, timeout: number): Promise<PairingStartStatus> {
-  try {
-    return await call<[string, number, string, number, number], PairingStartStatus>("start_pairing", address, buddyPort, clientId, pin, timeout);
-  } catch (message) {
-    logger.critical("Error while pairing with buddy: ", message);
-  }
-  return "Offline";
-}
-
-async function abortPairing(address: string, buddyPort: number, clientId: string, timeout: number): Promise<void> {
-  try {
-    await call<[string, number, string, number], unknown>("abort_pairing", address, buddyPort, clientId, timeout);
-  } catch (message) {
-    logger.critical("Error while aborting pairing: ", message);
-  }
-}
-
 export class ServerProxy {
   private readonly settingsManager: SettingsManager;
-  private readonly buddyProxy: BuddyProxy;
 
   private readonly mutex = new Mutex();
   private readonly statusSubject = new BehaviorSubject<ServerStatus>("Offline");
   private readonly refreshingSubject = new BehaviorSubject<boolean>(false);
+  private readonly hostInfoSubject = new BehaviorSubject<GameStreamHost | null>(null);
 
   readonly status = new ReadonlySubject(this.statusSubject);
   readonly refreshing = new ReadonlySubject(this.refreshingSubject);
+  // The selected host's last serverinfo while it is online.
+  readonly hostInfo = new ReadonlySubject(this.hostInfoSubject);
 
   private updateHostSettingsUnlocked(host: GameStreamHost, selectHost: boolean, staticAddress: boolean | null): void {
     this.settingsManager.update((settings) => {
@@ -80,7 +68,6 @@ export class ServerProxy {
         staticAddress: staticAddress ?? (currentSettings?.staticAddress ?? false),
         hostName: host.hostName,
         mac: currentSettings?.mac ?? "00:00:00:00:00:00",
-        os: currentSettings?.os ?? "Other",
         resolution: {
           automatic: currentSettings?.resolution.automatic ?? true,
           appResolutionOverride: currentSettings?.resolution.appResolutionOverride ?? "CustomResolution",
@@ -102,35 +89,15 @@ export class ServerProxy {
         showPerformanceStats: currentSettings?.showPerformanceStats ?? null,
         enableVSync: currentSettings?.enableVSync ?? null,
         enableFramePacing: currentSettings?.enableFramePacing ?? null,
+        enableVrr: currentSettings?.enableVrr ?? null,
         videoCodec: currentSettings?.videoCodec ?? null,
         runnerTimeouts: {
-          buddyRequests: currentSettings?.runnerTimeouts.buddyRequests ?? buddyRequestsDefault,
           servicePing: currentSettings?.runnerTimeouts.servicePing ?? servicePingDefault,
-          initialConditions: currentSettings?.runnerTimeouts.initialConditions ?? initialConditionsDefault,
-          streamReadiness: currentSettings?.runnerTimeouts.streamReadiness ?? streamReadinessDefault,
-          steamReadiness: currentSettings?.runnerTimeouts.steamReadiness ?? steamReadinessDefault,
-          userSwitch: currentSettings?.runnerTimeouts.userSwitch ?? userSwitch,
-          appLaunch: currentSettings?.runnerTimeouts.appLaunch ?? appLaunchDefault,
-          appLaunchStability: currentSettings?.runnerTimeouts.appLaunchStability ?? appLaunchStabilityDefault,
-          streamEnd: currentSettings?.runnerTimeouts.streamEnd ?? streamEndDefault,
           wakeOnLan: currentSettings?.runnerTimeouts.wakeOnLan ?? wakeOnLanDefault,
           steamLaunch: currentSettings?.runnerTimeouts.steamLaunch ?? steamLaunchDefault
         },
-        buddy: {
-          bigPictureMode: currentSettings?.buddy.bigPictureMode ?? true,
-          port: currentSettings?.buddy.port ?? 59999,
-          closeSteam: currentSettings?.buddy.closeSteam ?? null,
-          hostApp: {
-            selectedAppIndex: currentSettings?.buddy.hostApp.selectedAppIndex ?? -1,
-            apps: currentSettings?.buddy.hostApp.apps ?? []
-          },
-          hibernateHost: currentSettings?.buddy.hibernateHost ?? false
-        },
         gameStreamApps: {
           showQuickAccessButton: currentSettings?.gameStreamApps.showQuickAccessButton ?? false
-        },
-        nonSteamApps: {
-          showQuickAccessButton: currentSettings?.nonSteamApps.showQuickAccessButton ?? false
         },
         wolSettings: {
           useCustomWolExec: currentSettings?.wolSettings.useCustomWolExec ?? false,
@@ -151,9 +118,8 @@ export class ServerProxy {
     }
   }
 
-  constructor(settingsManager: SettingsManager, buddyProxy: BuddyProxy) {
+  constructor(settingsManager: SettingsManager) {
     this.settingsManager = settingsManager;
-    this.buddyProxy = buddyProxy;
   }
 
   async refreshStatus(): Promise<void> {
@@ -169,6 +135,7 @@ export class ServerProxy {
       const hostId = this.settingsManager.settings.value?.currentHostId ?? null;
       if (hostId === null) {
         this.updateStatus("Offline");
+        this.hostInfoSubject.next(null);
         return;
       }
 
@@ -181,8 +148,12 @@ export class ServerProxy {
       }
 
       if (this.settingsManager.settings.value?.currentHostId === hostId) {
-        const newStatus = result?.uniqueId === hostId ? "Online" : "Offline";
-        this.updateStatus(newStatus);
+        const online = result?.uniqueId === hostId;
+        this.updateStatus(online ? "Online" : "Offline");
+        const hostInfo = online ? result : null;
+        if (!isEqual(this.hostInfoSubject.value, hostInfo)) {
+          this.hostInfoSubject.next(hostInfo);
+        }
       }
 
       if (result?.uniqueId === hostId) {
@@ -200,37 +171,6 @@ export class ServerProxy {
 
   async scanForHosts(): Promise<GameStreamHost[]> {
     return await scanForHosts(5);
-  }
-
-  async startPairing(pin: number): Promise<PairingStartStatus> {
-    const hostSettings = this.settingsManager.hostSettings;
-
-    const address = hostSettings?.address ?? null;
-    const buddyPort = hostSettings?.buddy.port ?? null;
-    const clientId = this.settingsManager.settings.value?.clientId ?? null;
-
-    if (address === null || buddyPort === null || clientId === null) {
-      return "Offline";
-    }
-
-    const result = await startPairing(address, buddyPort, clientId, pin, 5);
-    await this.buddyProxy.refreshStatus();
-    return result;
-  }
-
-  async abortPairing(): Promise<void> {
-    const hostSettings = this.settingsManager.hostSettings;
-
-    const address = hostSettings?.address ?? null;
-    const buddyPort = hostSettings?.buddy.port ?? null;
-    const clientId = this.settingsManager.settings.value?.clientId ?? null;
-
-    if (address === null || buddyPort === null || clientId === null) {
-      return;
-    }
-
-    await abortPairing(address, buddyPort, clientId, 5);
-    await this.buddyProxy.refreshStatus();
   }
 
   async updateHostSettings(host: GameStreamHost, selectHost: boolean, staticAddress: boolean): Promise<void> {

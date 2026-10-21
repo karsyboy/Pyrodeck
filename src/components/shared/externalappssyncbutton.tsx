@@ -19,8 +19,8 @@ export const ExternalAppsSyncButton: FC<Props> = ({ text, appType, noConfirmatio
   const handleClick = (): void => {
     const onOk = (): void => {
       if (serverStatus === "Offline" && appType === AppType.GameStream) {
-        // Querying for gamestream apps may wake up host (as opposed to querying Buddy). Let's avoid that...
-        logger.toast("GameStream server is offline!", { output: "error" });
+        // Querying the host's apps through Pyrolight may wake up the host. Let's avoid that...
+        logger.toast("The host is offline!", { output: "error" });
         return;
       }
 

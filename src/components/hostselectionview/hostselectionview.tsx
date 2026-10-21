@@ -1,19 +1,18 @@
-import { BuddyStatusField, NumericTextInput, ServerStatusField, SettingsLoadingField } from "../shared";
 import { DialogBody, DialogControlsSection, DialogControlsSectionHeader, Field } from "@decky/ui";
 import { FC, useContext, useState } from "react";
-import { useBuddyStatus, useCurrentHostSettings, useCurrentSettings, useServerStatus } from "../../hooks";
+import { ServerStatusField, SettingsLoadingField } from "../shared";
+import { useCurrentHostSettings, useCurrentSettings, useServerStatus } from "../../hooks";
 import { AddHostButton } from "./addhostbutton";
-import { BuddyPairButton } from "./buddypairbutton";
 import { HostForgetButton } from "./hostforgetbutton";
 import { HostScanButton } from "./hostscanbutton";
 import { HostSelectionDropdown } from "./hostselectiondropdown";
 import { MoonDeckContext } from "../../contexts";
+import { PyrolightSection } from "./pyrolightsection";
 
 export const HostSelectionView: FC = () => {
   const { settingsManager } = useContext(MoonDeckContext);
   const [isScanning, setIsScanning] = useState(false);
   const [serverStatus, serverRefreshStatus] = useServerStatus();
-  const [buddyStatus, buddyRefreshStatus] = useBuddyStatus();
   const settings = useCurrentSettings();
   const hostSettings = useCurrentHostSettings();
 
@@ -21,38 +20,15 @@ export const HostSelectionView: FC = () => {
     return <SettingsLoadingField />;
   }
 
-  let buddySettings = null;
-  if (hostSettings) {
-    buddySettings =
-      <DialogControlsSection>
-        <DialogControlsSectionHeader>MoonDeck Buddy</DialogControlsSectionHeader>
-        <BuddyStatusField label="Status" status={buddyStatus} isRefreshing={buddyRefreshStatus} />
-        <Field label="Buddy port" childrenContainerWidth="fixed">
-          <NumericTextInput
-            min={1}
-            max={65535}
-            value={hostSettings.buddy.port}
-            setValue={(value) => { settingsManager.updateHost((hostSettings) => { hostSettings.buddy.port = value; }); }}
-          />
-        </Field>
-        <Field
-          label="Pair with Buddy"
-          childrenContainerWidth="fixed"
-        >
-          <BuddyPairButton disabled={isScanning || buddyStatus !== "NotPaired"} />
-        </Field>
-      </DialogControlsSection>;
-  }
-
   return (
     <DialogBody>
       <DialogControlsSection>
-        <DialogControlsSectionHeader>GameStream Server</DialogControlsSectionHeader>
+        <DialogControlsSectionHeader>Pyroshine Host</DialogControlsSectionHeader>
         <ServerStatusField label="Status" status={serverStatus} isRefreshing={serverRefreshStatus} />
         <Field
           label="Current host"
           childrenContainerWidth="fixed"
-          description="Select the GameStream host you would like to connect to."
+          description="Select the Pyroshine host to stream from."
         >
           <HostSelectionDropdown
             disabled={isScanning}
@@ -62,7 +38,7 @@ export const HostSelectionView: FC = () => {
         </Field>
         <Field
           label="Scan local network"
-          description="The GameStream service broadcasts itself on the local network for discovery (proxy on the host might prevent that)."
+          description="Pyroshine announces itself on the local network (mDNS). A firewall or VPN can prevent discovery; add the host manually then."
           childrenContainerWidth="fixed"
         >
           <HostScanButton
@@ -96,7 +72,13 @@ export const HostSelectionView: FC = () => {
           />
         </Field>
       </DialogControlsSection>
-      {buddySettings}
+      {hostSettings &&
+        <PyrolightSection
+          hostSettings={hostSettings}
+          pyrolightExecPath={settings.useMoonlightExec ? settings.moonlightExecPath : null}
+          serverStatus={serverStatus}
+          disabled={isScanning}
+        />}
     </DialogBody>
   );
 };

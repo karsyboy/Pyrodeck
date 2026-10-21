@@ -1,11 +1,12 @@
 import { DialogBody, DialogControlsSection, Field } from "@decky/ui";
+import { useCurrentHostSettings, useHostInfo } from "../../hooks";
 import { FC } from "react";
 import { HostOff } from "../icons";
 import { LabelWithIcon } from "../shared";
-import { useCurrentHostSettings } from "../../hooks";
 
 export const HostInfoView: FC = () => {
   const hostSettings = useCurrentHostSettings();
+  const hostInfo = useHostInfo();
   if (hostSettings === null) {
     return (
       <DialogBody>
@@ -23,14 +24,8 @@ export const HostInfoView: FC = () => {
   return (
     <DialogBody>
       <DialogControlsSection>
-        <Field label="MoonDeck client ID" focusable={true}>
-          {hostSettings.clientId}
-        </Field>
-        <Field label="GameStream client ID" focusable={true}>
+        <Field label="Host ID" focusable={true}>
           {hostSettings.currentHostId}
-        </Field>
-        <Field label="Operating System" focusable={true}>
-          {hostSettings.os}
         </Field>
         <Field label="Hostname" focusable={true}>
           {hostSettings.hostName}
@@ -47,8 +42,11 @@ export const HostInfoView: FC = () => {
         <Field label="Host info port" focusable={true}>
           {hostSettings.hostInfoPort}
         </Field>
-        <Field label="Buddy port" focusable={true}>
-          {hostSettings.buddy.port}
+        <Field label="Steam app IDs" focusable={true} description="Whether the host reports which Steam game each app starts (Pyroshine with app sources).">
+          {hostInfo === null ? "Unknown (host offline)" : (hostInfo.appSources > 0 ? `Reported (version ${hostInfo.appSources})` : "Not reported - update Pyroshine")}
+        </Field>
+        <Field label="Running app ID" focusable={true}>
+          {hostInfo === null ? "Unknown (host offline)" : (hostInfo.currentGame === 0 ? "None" : hostInfo.currentGame)}
         </Field>
       </DialogControlsSection>
     </DialogBody>

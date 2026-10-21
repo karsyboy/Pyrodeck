@@ -1,9 +1,8 @@
-import { useBuddyStatus, useCurrentHostSettings, useCurrentSettings, useMoonDeckAppData, useServerStatus } from "../../hooks";
+import { useCurrentHostSettings, useCurrentSettings, useHostInfo, useMoonDeckAppData, useServerStatus } from "../../hooks";
 import { ExternalAppsPanel } from "./externalappspanel";
 import { FC } from "react";
 import { GameSessionPanel } from "./gamesessionpanel";
-import { HostAppPanel } from "./hostapppanel";
-import { HostCommandPanel } from "./hostcommandpanel";
+import { HostControlPanel } from "./hostcontrolpanel";
 import { HostStatusPanel } from "./hoststatuspanel";
 import { ResolutionPanel } from "./resolutionpanel";
 import { useQuickAccessVisible } from "@decky/api";
@@ -11,7 +10,7 @@ import { useQuickAccessVisible } from "@decky/api";
 export const QuickSettingsView: FC = () => {
   const isVisible = useQuickAccessVisible();
   const [serverStatus, serverRefreshStatus] = useServerStatus(isVisible);
-  const [buddyStatus, buddyRefreshStatus] = useBuddyStatus(isVisible);
+  const hostInfo = useHostInfo();
   const currentHostSettings = useCurrentHostSettings();
   const currentSettings = useCurrentSettings();
   const appData = useMoonDeckAppData();
@@ -21,14 +20,13 @@ export const QuickSettingsView: FC = () => {
       {appData !== null ?
           <GameSessionPanel appData={appData} /> :
           <>
-            <HostStatusPanel currentHostSettings={currentHostSettings} currentSettings={currentSettings} serverStatus={serverStatus} serverRefreshStatus={serverRefreshStatus} buddyStatus={buddyStatus} buddyRefreshStatus={buddyRefreshStatus} />
+            <HostStatusPanel currentHostSettings={currentHostSettings} currentSettings={currentSettings} serverStatus={serverStatus} serverRefreshStatus={serverRefreshStatus} hostInfo={hostInfo} />
             <ExternalAppsPanel currentHostSettings={currentHostSettings} />
-            <HostAppPanel currentHostSettings={currentHostSettings} currentSettings={currentSettings} />
             <ResolutionPanel currentHostSettings={currentHostSettings} currentSettings={currentSettings} />
           </>}
       {
         currentHostSettings !== null &&
-        <HostCommandPanel serverStatus={serverStatus} buddyStatus={buddyStatus} currentHostSettings={currentHostSettings} />
+        <HostControlPanel serverStatus={serverStatus} hostInfo={hostInfo} currentHostSettings={currentHostSettings} />
       }
     </>
   );

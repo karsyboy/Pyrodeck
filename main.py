@@ -24,10 +24,8 @@ import lib.utils as utils
 from typing import Optional
 from lib.plugin.settings import UserSettings, UserSettingsManager
 from lib.logger import logger, set_logger_settings, get_logger
-from lib.buddyrequests import SteamUiMode, SteamUiModeResponse, CurrentUserResponse, BuddyException
-from lib.buddyclient import BuddyClient, AbortHostStateChangeResult
-from lib.utils import wake_on_lan, change_runner_ready_state, TimedPooler
-from lib.runnerresult import Result, set_result, get_result
+from lib.utils import wake_on_lan, change_runner_ready_state
+from lib.runnerresult import set_result, get_result
 from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight
 from lib import runnercontrol
 
@@ -36,7 +34,7 @@ set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=Tru
 frontend_logger = get_logger("frontend")
 set_logger_settings(frontend_logger, constants.FRONTEND_LOG_FILE, rotate=True, log_preamble="", verbose=True)
 
-settings_manager = UserSettingsManager(constants.get_config_file_path())
+settings_manager = UserSettingsManager(constants.get_config_file_path(), constants.get_moondeck_config_file_path())
 
 
 class Plugin:
@@ -119,116 +117,11 @@ class Plugin:
             return None
 
     @utils.async_scope_log(logger.info)
-    async def get_buddy_info(self, address: str, buddy_port: int, client_id: str, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                info = await client.get_host_info()
-                return {"status": "Online", "info": info}
-
-        except BuddyException as err:
-            return {"status": err.result.name, "info": None}
-
-        except Exception:
-            logger.exception("Unhandled exception")
-            return {"status": "Exception", "info": None}
-
-    @utils.async_scope_log(logger.info)
-    async def start_pairing(self, address: str, buddy_port: int, client_id: str, pin: int, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.start_pairing(pin)
-                return "PairingStarted"
-
-        except BuddyException as err:
-            logger.exception("Buddy exception while pairing")
-            return err.result.name
-
-        except Exception:
-            logger.exception("Unhandled exception")
-            return "Exception"
-
-    @utils.async_scope_log(logger.info)
-    async def abort_pairing(self, address: str, buddy_port: int, client_id: str, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.abort_pairing()
-
-        except BuddyException:
-            logger.exception("Buddy exception while aborting pairing")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
     async def wake_on_lan(self, hostname: str, address: str, mac: str, port: int, custom_exec: Optional[str]):
         try:
             await wake_on_lan(hostname, address, mac, port, custom_exec)
         except Exception:
             logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
-    async def restart_host(self, address: str, buddy_port: int, client_id: str, delay_s: int, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.restart_host(delay_s)
-
-        except BuddyException:
-            logger.exception("Buddy exception while restarting host")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
-    async def shutdown_host(self, address: str, buddy_port: int, client_id: str, delay_s: int, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.shutdown_host(delay_s)
-
-        except BuddyException:
-            logger.exception("Buddy exception while shutting down host")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
-    async def suspend_host(self, address: str, buddy_port: int, client_id: str, delay_s: int, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.suspend_host(delay_s)
-
-        except BuddyException:
-            logger.exception("Buddy exception while suspending host")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
-    async def hibernate_host(self, address: str, buddy_port: int, client_id: str, delay_s: int, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.hibernate_host(delay_s)
-
-        except BuddyException:
-            logger.exception("Buddy exception while hibernating host")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
-    async def abort_host_state_change(self, address: str, buddy_port: int, client_id: str, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.abort_host_state_change()
-                return True
-
-        except BuddyException as err:
-            if err.result != AbortHostStateChangeResult.BuddyRefused:
-                logger.exception("Buddy exception while trying to abort host state change")
-            return False
-
-        except Exception:
-            logger.exception("Unhandled exception")
-            return False
 
     @utils.async_scope_log(logger.info)
     async def get_runner_path(self):
@@ -286,30 +179,6 @@ class Plugin:
             return False
 
     @utils.async_scope_log(logger.info)
-    async def close_steam(self, address: str, buddy_port: int, client_id: str, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.close_steam()
-
-        except BuddyException:
-            logger.exception("Buddy exception while closing steam")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
-    async def end_stream(self, address: str, buddy_port: int, client_id: str, timeout: float):
-        try:
-            async with BuddyClient(address, buddy_port, client_id, timeout) as client:
-                await client.end_stream()
-
-        except BuddyException:
-            logger.exception("Buddy exception while ending stream")
-
-        except Exception:
-            logger.exception("Unhandled exception")
-
-    @utils.async_scope_log(logger.info)
     async def get_game_stream_app_names(self, address: str, pyrolight_exec_path: str | None, timeout: float):
         try:
             exec_path = find_pyrolight(pyrolight_exec_path)
@@ -330,31 +199,39 @@ class Plugin:
             return None
 
     @utils.async_scope_log(logger.info)
-    async def get_non_steam_app_data(self, address: str, buddy_port: int, client_id: str, user_id: str,
-                                     buddy_timeout: float, ready_timeout: int):
+    async def get_pyrolight_path(self, configured_path: Optional[str]):
+        """The Pyrolight executable the runner would use, or None."""
         try:
-            async with BuddyClient(address, buddy_port, client_id, buddy_timeout) as client:
-                logger.info(f"Sending request to launch Steam if needed")
-                await client.launch_steam(big_picture_mode=False, username=None)
-
-                logger.info("Waiting for Steam to be ready")
-                pooler = TimedPooler(timeout=ready_timeout,
-                                     exception_on_timeout=BuddyException(Result.SteamDidNotReadyUpInTime))
-
-                async with pooler(await client.notify_on_changes(SteamUiModeResponse, CurrentUserResponse)) as notifications:
-                    async for n1, n2 in notifications:
-                        mode = n1["mode"]
-                        current_user = n2["user"]
-                        
-                        if mode != SteamUiMode.Unknown or current_user != None:
-                            break
-
-                return await client.get_non_steam_app_data(user_id=user_id)
-
-        except BuddyException:
-            logger.exception("While retrieving non-Steam app data")
-            return None
-
+            return find_pyrolight(configured_path)
         except Exception:
             logger.exception("Unhandled exception")
             return None
+
+    @utils.async_scope_log(logger.info)
+    async def get_pairing_status(self, address: str, host_id: str, configured_path: Optional[str], timeout: float):
+        """Whether Pyrolight is paired with the host, by asking it for the app list.
+
+        One of "Paired", "NotPaired", "Unreachable", "WrongHost", "Outdated",
+        "NotInstalled" or "Error". Runs Pyrolight's headless `list` command
+        once; nothing is polled.
+        """
+        try:
+            exec_path = find_pyrolight(configured_path)
+            if exec_path is None:
+                return "NotInstalled"
+
+            async with PyrolightProxy(exec_path) as client:
+                app_list = await client.list_apps(address, timeout=timeout)
+            if app_list.host_uuid.lower() != host_id.lower():
+                return "WrongHost"
+            return "Paired"
+
+        except PyrolightListError as err:
+            return {"not_paired": "NotPaired", "unreachable": "Unreachable", "outdated": "Outdated"}.get(err.reason, "Error")
+
+        except TimeoutError:
+            return "Unreachable"
+
+        except Exception:
+            logger.exception("Unhandled exception")
+            return "Error"

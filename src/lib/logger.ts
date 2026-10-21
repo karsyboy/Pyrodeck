@@ -7,7 +7,7 @@ function serialize(...args: unknown[]) {
 
 function criticalConsoleLog(...args: unknown[]) {
   console.error(
-    "%c MoonDeck %c Critical:",
+    "%c PyroDeck %c Critical:",
     "background: #16a085; color: black;",
     "background: transparent;",
     ...args
@@ -53,7 +53,7 @@ class Logger {
 
   debug(...args: unknown[]): void {
     console.debug(
-      "%c MoonDeck %c Debug %c",
+      "%c PyroDeck %c Debug %c",
       "background: #16a085; color: black;",
       "background: #1abc9c; color: black;",
       "background: transparent;",
@@ -64,7 +64,7 @@ class Logger {
 
   log(...args: unknown[]): void {
     console.log(
-      "%c MoonDeck %c Info %c",
+      "%c PyroDeck %c Info %c",
       "background: #16a085; color: black;",
       "background: #1abc9c; color: black;",
       "background: transparent;",
@@ -75,7 +75,7 @@ class Logger {
 
   warn(...args: unknown[]): void {
     console.log(
-      "%c MoonDeck %c Warning %c",
+      "%c PyroDeck %c Warning %c",
       "background: #16a085; color: black;",
       "background: #FFEA35; color: black;",
       "background: transparent;",
@@ -86,7 +86,7 @@ class Logger {
 
   error(...args: unknown[]): void {
     console.log(
-      "%c MoonDeck %c Error %c",
+      "%c PyroDeck %c Error %c",
       "background: #16a085; color: black;",
       "background: #FF3A35; color: black;",
       "background: transparent;",

@@ -1,6 +1,5 @@
 import { AppType, setShortcutName, terminateApp } from "./steamutils";
 import { BehaviorSubject } from "rxjs";
-import { CommandProxy } from "./commandproxy";
 import { ReadonlySubject } from "./readonlysubject";
 import { call } from "@decky/api";
 import { isEqual } from "lodash";
@@ -71,11 +70,8 @@ export interface MoonDeckAppData {
 }
 
 export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
-  private readonly commandProxy: CommandProxy;
-
-  constructor(commandProxy: CommandProxy) {
+  constructor() {
     super(new BehaviorSubject<MoonDeckAppData | null>(null));
-    this.commandProxy = commandProxy;
   }
 
   setApp(steamAppId: number, moonDeckAppId: number, name: string, appType: AppType, sessionOptions: SessionOptions): void {
@@ -155,14 +151,6 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
 
     await this.changeName(false);
     this.subject.next(null);
-  }
-
-  async closeSteamOnHost(): Promise<void> {
-    if (this.subject.value === null) {
-      return;
-    }
-
-    await this.commandProxy.closeSteam(false);
   }
 
   async killApp(forceCleanup = false): Promise<void> {

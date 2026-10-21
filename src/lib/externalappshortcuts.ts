@@ -4,7 +4,6 @@ import { getEnvKeyValueString, makeEnvKeyValue } from "./envutils";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { AppSyncState } from "./appsyncstate";
 import { BehaviorSubject } from "rxjs";
-import { BuddyProxy } from "./buddyproxy";
 import { ReadonlySubject } from "./readonlysubject";
 import { call } from "@decky/api";
 import { logger } from "./logger";
@@ -15,13 +14,7 @@ export interface GameStreamAppInfo {
   appType: AppType.GameStream;
 }
 
-export interface NonSteamAppInfo {
-  appId: number;
-  appName: string;
-  appType: AppType.NonSteam;
-}
-
-export type ExternalAppInfo = GameStreamAppInfo | NonSteamAppInfo;
+export type ExternalAppInfo = GameStreamAppInfo;
 export type ExternalAppType = ExternalAppInfo["appType"];
 
 export interface ManagedApp {
@@ -38,20 +31,12 @@ interface GameStreamHostData {
   entryType: EnvVars.AppName;
 }
 
-interface NonSteamHostData {
-  appType: AppType.NonSteam;
-  appName: string;
-  appId: string;
-  entryId: string;
-  entryType: EnvVars.SteamAppId;
-}
-
-type HostData = GameStreamHostData | NonSteamHostData;
+type HostData = GameStreamHostData;
 type GameStreamAppNames = string[] | null;
 
-async function getGameStreamAppNames(hostName: string, moonlightExecPath: string | null, timeout: number): Promise<GameStreamAppNames> {
+async function getGameStreamAppNames(address: string, pyrolightExecPath: string | null, timeout: number): Promise<GameStreamAppNames> {
   try {
-    return await call<[string, string | null, number], GameStreamAppNames>("get_game_stream_app_names", hostName, moonlightExecPath, timeout);
+    return await call<[string, string | null, number], GameStreamAppNames>("get_game_stream_app_names", address, pyrolightExecPath, timeout);
   } catch (message) {
     logger.critical("Error while fetching gamestream apps: ", message);
   }
@@ -59,31 +44,16 @@ async function getGameStreamAppNames(hostName: string, moonlightExecPath: string
   return null;
 }
 
-async function getHostData(appType: ExternalAppType, buddyProxy: BuddyProxy, settings: UserSettings, hostSettings: HostSettings): Promise<HostData[] | null> {
-  if (appType === AppType.GameStream) {
-    let gameStreamApps = await getGameStreamAppNames(hostSettings.hostName, settings.useMoonlightExec ? settings.moonlightExecPath : null, 15);
-    if (gameStreamApps === null) {
-      logger.toast("Failed to get GameStream app list!", { output: "error" });
-      return null;
-    }
-
-    const moonDeckHostApps = hostSettings.buddy.hostApp.apps;
-    if (!moonDeckHostApps.includes("MoonDeckStream")) {
-      moonDeckHostApps.push("MoonDeckStream");
-    }
-
-    // Filter out the custom MoonDeck host apps
-    gameStreamApps = gameStreamApps.filter((app) => !moonDeckHostApps.includes(app));
-    return gameStreamApps.map((appName) => { return { appType: AppType.GameStream, appName, entryId: appName, entryType: EnvVars.AppName }; });
-  }
-
-  const nonSteamApps = await buddyProxy.getNonSteamAppData();
-  if (nonSteamApps === null) {
-    logger.toast("Failed to get Non-Steam app data!", { output: "error" });
+// Every app the host offers, as Steam shortcuts that stream it by name (for
+// apps that are not Steam library games, such as Desktop or Lutris games).
+async function getHostData(settings: UserSettings, hostSettings: HostSettings): Promise<HostData[] | null> {
+  const gameStreamApps = await getGameStreamAppNames(hostSettings.address, settings.useMoonlightExec ? settings.moonlightExecPath : null, 45);
+  if (gameStreamApps === null) {
+    logger.toast("Failed to get the host's app list from Pyrolight!", { output: "error" });
     return null;
   }
 
-  return nonSteamApps.map(({ app_id: appId, app_name: appName }) => { return { appType: AppType.NonSteam, appId, appName, entryId: appId, entryType: EnvVars.SteamAppId }; });
+  return gameStreamApps.map((appName) => { return { appType: AppType.GameStream, appName, entryId: appName, entryType: EnvVars.AppName }; });
 }
 
 function makeLaunchOptions(data: HostData): string {
@@ -160,13 +130,6 @@ export class ExternalAppShortcuts {
         addAppInfo(details, appType);
         continue;
       }
-
-      if (details.strLaunchOptions.includes(makeEnvKeyValue(EnvVars.AppType, AppType.NonSteam))) {
-        const appType = AppType.NonSteam;
-        this.managedApps.set(details.unAppID, { appId: details.unAppID, appName: details.strDisplayName, appType, gameId: overview.gameid });
-        addAppInfo(details, appType);
-        continue;
-      }
     }
 
     this.appInfoSubject.next(new Map([...this.appInfoSubject.value, ...appInfo]));
@@ -187,7 +150,7 @@ export class ExternalAppShortcuts {
     return success;
   }
 
-  constructor(private readonly appSyncState: AppSyncState, private readonly buddyProxy: BuddyProxy, private readonly settingsManager: SettingsManager) {
+  constructor(private readonly appSyncState: AppSyncState, private readonly settingsManager: SettingsManager) {
   }
 
   init(allDetails: AppDetails[]): void {
@@ -256,7 +219,7 @@ export class ExternalAppShortcuts {
         return;
       }
 
-      const hostData = await getHostData(appType, this.buddyProxy, settings, hostSettings);
+      const hostData = await getHostData(settings, hostSettings);
       if (hostData === null) {
         // Error already logged
         return;
@@ -269,18 +232,10 @@ export class ExternalAppShortcuts {
 
       const existingApps = new Map<string, AppDetails>();
       for (const shortcut of currentAppDetails) {
-        if (appType === AppType.GameStream) {
-          const appName = getEnvKeyValueString(shortcut.strLaunchOptions, EnvVars.AppName);
-          if (appName !== null) {
-            existingApps.set(`${EnvVars.AppName}_${appName}`, shortcut);
-            continue;
-          }
-        } else if (appType === AppType.NonSteam) {
-          const appId = getEnvKeyValueString(shortcut.strLaunchOptions, EnvVars.SteamAppId);
-          if (appId !== null) {
-            existingApps.set(`${EnvVars.SteamAppId}_${appId}`, shortcut);
-            continue;
-          }
+        const appName = getEnvKeyValueString(shortcut.strLaunchOptions, EnvVars.AppName);
+        if (appName !== null) {
+          existingApps.set(`${EnvVars.AppName}_${appName}`, shortcut);
+          continue;
         }
 
         // Add app to the map so that it's deleted later

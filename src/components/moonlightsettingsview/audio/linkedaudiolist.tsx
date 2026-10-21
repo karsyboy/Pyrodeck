@@ -78,7 +78,7 @@ export const LinkedAudioList: FC<Props> = ({ hostSettings }) => {
     <>
       <ToggleField
         label="Enable audio linking"
-        description="Here you can link the audio output to the Moonlight's audio option. MoonDeck will then automatically select the linked audio option based on the currently active audio output."
+        description="Here you can link the audio output to the Pyrolight's audio option. PyroDeck will then automatically select the linked audio option based on the currently active audio output."
         value={hostSettings.audio.useLinkedAudio}
         setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.audio.useLinkedAudio = value; })}
         bottomSeparator="none"

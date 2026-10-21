@@ -1,4 +1,3 @@
-import { BuddySettingsView } from "../components/buddysettingsview";
 import { ButtonStyleView } from "../components/buttonstyleview";
 import { ChangelogView } from "../components/changelogview";
 import { FC } from "react";
@@ -8,7 +7,6 @@ import { HostInfoView } from "../components/hostinfoview";
 import { HostSelectionView } from "../components/hostselectionview";
 import { MoonDeckAppsView } from "../components/moondeckappsview";
 import { MoonlightSettingsView } from "../components/moonlightsettingsview";
-import { NonSteamAppsView } from "../components/nonsteamappsview/nonsteamappsview";
 import { RunnerSettingsView } from "../components/runnersettingsview";
 import { SetupGuideView } from "../components/setupguideview";
 import { SidebarNavigation } from "@decky/ui";
@@ -53,15 +51,9 @@ const MoonDeckRouter: FC<object> = () => {
         },
         "separator",
         {
-          title: "Moonlight Settings",
+          title: "Pyrolight Settings",
           content: <MoonlightSettingsView />,
           route: "/pyrodeck/resolution-settings",
-          visible: true
-        },
-        {
-          title: "Buddy Settings",
-          content: <BuddySettingsView />,
-          route: "/pyrodeck/buddy-settings",
           visible: true
         },
         {
@@ -78,21 +70,15 @@ const MoonDeckRouter: FC<object> = () => {
         },
         "separator",
         {
-          title: "MoonDeck Apps",
+          title: "Library Shortcuts",
           content: <MoonDeckAppsView />,
           route: "/pyrodeck/moondeck-apps",
           visible: true
         },
         {
-          title: "GameStream Apps",
+          title: "Host Apps",
           content: <GameStreamAppsView />,
           route: "/pyrodeck/gamestream-apps",
-          visible: true
-        },
-        {
-          title: "Non-Steam Apps",
-          content: <NonSteamAppsView />,
-          route: "/pyrodeck/non-steam-apps",
           visible: true
         },
         "separator",

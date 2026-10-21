@@ -3,29 +3,14 @@ from ..settingsmanager import SettingsManager
 
 
 ControllerConfigOption = Literal["Disable", "Default", "Enable"]
-VideoCodecOption = Literal["AV1", "HEVC", "H.264", "Auto"]
+VideoCodecOption = Literal["AV1", "HEVC", "H.264", "PyroWave", "Auto"]
 AudioOption = Literal["stereo", "5.1-surround", "7.1-surround"]
-CloseSteamOption = Literal["Client", "BigPictureMode"]
-OsType = Literal["Windows", "Linux", "Other"]
 
 
 class RunnerTimeouts(TypedDict):
-    buddyRequests: int
     servicePing: int
-    initialConditions: int
-    streamReadiness: int
-    steamReadiness: int
-    userSwitch: int
-    appLaunch: int
-    appLaunchStability: int
-    streamEnd: int
     wakeOnLan: int
     steamLaunch: int
-
-
-class HostApp(TypedDict):
-    selectedAppIndex: int
-    apps: List[str]
 
 
 class Dimension(TypedDict):
@@ -57,19 +42,7 @@ class AudioSettings(TypedDict):
     linkedAudio: Dict[AudioOption, list[str]]
 
 
-class BuddySettings(TypedDict):
-    bigPictureMode: bool
-    port: int
-    closeSteam: Optional[CloseSteamOption]
-    hostApp: HostApp
-    hibernateHost: bool
-
-
 class GameStreamAppsSettings(TypedDict):
-    showQuickAccessButton: bool
-
-
-class NonSteamAppsSettings(TypedDict):
     showQuickAccessButton: bool
 
 
@@ -86,26 +59,23 @@ class HostSettings(TypedDict):
     staticAddress: bool
     hostName: str
     mac: str
-    os: OsType
     resolution: HostResolution
     audio: AudioSettings
     runnerTimeouts: RunnerTimeouts
+    # "Moonlight" keys keep MoonDeck's names: they hold Pyrolight's options.
     passToMoonlight: bool
     showPerformanceStats : Optional[bool]
     enableVSync : Optional[bool]
     enableFramePacing : Optional[bool]
+    enableVrr: Optional[bool]
     videoCodec: Optional[VideoCodecOption]
-    buddy: BuddySettings
     gameStreamApps: GameStreamAppsSettings
-    nonSteamApps: NonSteamAppsSettings
     wolSettings: WolSettings
 
 
 class GameSessionSettings(TypedDict):
     autoApplyAppId: bool
-    closeHostAppOnExit: bool
     resumeAfterSuspend: bool
-    autoSuspendHost: bool
     controllerConfig: Optional[ControllerConfigOption]
 
 
@@ -124,8 +94,8 @@ class ButtonStyleSettings(TypedDict):
 
 
 class UserSettings(TypedDict):
-    version: Literal[43]
-    clientId: str
+    # Continues MoonDeck's numbering: 44 is the first PyroDeck schema.
+    version: Literal[44]
     currentHostId: Optional[str]
     gameSession: GameSessionSettings
     buttonPosition: ButtonPositionSettings
@@ -134,25 +104,25 @@ class UserSettings(TypedDict):
     enableMoondeckButtonPrompt: bool
     hostSettings: Dict[str, HostSettings]
     runnerDebugLogs: bool
+    # Pyrolight executable: found automatically unless useMoonlightExec is set.
     useMoonlightExec: bool
     moonlightExecPath: str
     pythonExecPath: str
 
 
 class UserSettingsManager(SettingsManager[UserSettings]):
-    def _default_settings(self):
-        # Lazy import to improve CLI performance
-        import uuid
+    def __init__(self, filepath, seed_filepath=None):
+        """`seed_filepath`: MoonDeck settings to start from when PyroDeck has none (read only)."""
+        super().__init__(filepath)
+        self.seed_filepath = seed_filepath
 
+    def _default_settings(self):
         return UserSettings({
             "version": get_args(UserSettings.__annotations__["version"])[0],
-            "clientId": str(uuid.uuid4()),
             "currentHostId": None,
             "gameSession": {
                 "autoApplyAppId": False,
-                "closeHostAppOnExit": False,
                 "resumeAfterSuspend": False,
-                "autoSuspendHost": False,
                 "controllerConfig": None
             },
             "buttonPosition": {
@@ -175,6 +145,27 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             "moonlightExecPath": "",
             "pythonExecPath": ""
         })
+
+    async def _initial_settings(self) -> UserSettings:
+        """Hosts and stream preferences from an installed MoonDeck, else defaults.
+
+        MoonDeck's file is only read. Its client executable pointed at
+        Moonlight, which PyroDeck cannot use, so the executable is detected
+        again.
+        """
+        from ..logger import logger
+
+        if self.seed_filepath is not None:
+            try:
+                settings, _ = await self.read_path(self.seed_filepath)
+                if settings is not None:
+                    settings["useMoonlightExec"] = False
+                    settings["moonlightExecPath"] = ""
+                    logger.info(f"Imported hosts and preferences from {self.seed_filepath}")
+                    return settings
+            except Exception:
+                logger.exception(f"Could not import {self.seed_filepath}; starting with defaults")
+        return self._default_settings()
 
     def _migrate_settings(self, data: dict):
         if data["version"] == 1:
@@ -404,3 +395,24 @@ class UserSettingsManager(SettingsManager[UserSettings]):
         if data["version"] == 42:
             data["version"] = 43
             data["gameSession"]["closeHostAppOnExit"] = False
+        if data["version"] == 43:
+            # PyroDeck: Pyroshine and Pyrolight replace MoonDeck Buddy. Its
+            # client ID, pairing, Steam control, host power commands, Non-Steam
+            # sync and launch timeouts have no counterpart; closing the stream
+            # never ends the host game, which is an explicit action instead.
+            data["version"] = 44
+            data.pop("clientId", None)
+            data["gameSession"].pop("closeHostAppOnExit", None)
+            data["gameSession"].pop("autoSuspendHost", None)
+            for host in data["hostSettings"].keys():
+                host_settings = data["hostSettings"][host]
+                host_settings.pop("os", None)
+                host_settings.pop("buddy", None)
+                host_settings.pop("nonSteamApps", None)
+                timeouts = host_settings["runnerTimeouts"]
+                host_settings["runnerTimeouts"] = {
+                    "servicePing": timeouts["servicePing"],
+                    "wakeOnLan": timeouts["wakeOnLan"],
+                    "steamLaunch": timeouts["steamLaunch"],
+                }
+                host_settings["enableVrr"] = None

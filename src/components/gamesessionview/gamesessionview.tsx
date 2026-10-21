@@ -15,7 +15,7 @@ export const GameSessionView: FC = () => {
   return (
     <DialogBody>
       <Field
-        description="Contains configurable settings that are applied for the game sessions. Additional settings can be found in the quick access menu when the game is running."
+        description="Settings applied to every stream. Closing a stream never ends the game on the host: use End Game on Host in the quick access menu for that."
         focusable={true}
       />
       <DialogControlsSection>
@@ -37,7 +37,7 @@ export const GameSessionView: FC = () => {
             <>
               <div>Choose how to configure Steam Input before the game is launched for the external controllers.</div>
               <br />
-              <div>Disabling Steam Input is preferable in most cases as the Moonlight can then see the actual controller instead of a generic XBox one that Steam exposes.</div>
+              <div>Disabling Steam Input is preferable in most cases as Pyrolight can then see the actual controller instead of a generic XBox one that Steam exposes.</div>
               <br />
               <div>This means that the motion data becomes available for PS4/Dualsense controllers and the rumble works better in most cases.</div>
             </>
@@ -45,7 +45,7 @@ export const GameSessionView: FC = () => {
           focusable={true}
         />
         <ToggleField
-          label="Automatic title switch to AppId (MoonDeck app only)"
+          label="Automatic title switch to AppId (library games only)"
           description={
             <>
               <div>Switch the game title to AppId after it launches. This will give access to community layouts for the controller and the friends will see what you're playing (you can also switch midgame from right panel and with some finesse export the layouts that way).</div>
@@ -59,34 +59,10 @@ export const GameSessionView: FC = () => {
           setValue={(value) => settingsManager.update((settings) => { settings.gameSession.autoApplyAppId = value; })}
         />
         <ToggleField
-          label="Close Steam app on host on user game exit"
-          description={
-            <>
-              <div>Whenever the MoonDeck runner is manually terminated (after it launches the app on host), Buddy will try to close the Steam app on host.</div>
-              <br />
-              <div>This only works if the app is already running on host. If it is updating or being installed, it will not work.</div>
-            </>
-          }
-          value={settings.gameSession.closeHostAppOnExit}
-          setValue={(value) => settingsManager.update((settings) => { settings.gameSession.closeHostAppOnExit = value; })}
-        />
-        <ToggleField
           label="Resume stream after system suspension"
-          description="Will try to resume stream once the system resumes from suspension."
+          description="Suspending the Steam Deck disconnects the stream and the game keeps running on the host. With this on, PyroDeck reconnects to it when the Deck wakes up; otherwise the stream stays closed."
           value={settings.gameSession.resumeAfterSuspend}
           setValue={(value) => settingsManager.update((settings) => { settings.gameSession.resumeAfterSuspend = value; })}
-        />
-        <ToggleField
-          label="Suspend (or hibernate) the PC when the system is being suspended"
-          description={
-            <>
-              <div>Use with caution and only if your PC is capable!</div>
-              <br />
-              <div>Some PCs don't like being suspended, especially under heavy load like a game and might crash!</div>
-            </>
-          }
-          value={settings.gameSession.autoSuspendHost}
-          setValue={(value) => settingsManager.update((settings) => { settings.gameSession.autoSuspendHost = value; })}
         />
       </DialogControlsSection>
     </DialogBody>

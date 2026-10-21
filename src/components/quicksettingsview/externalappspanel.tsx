@@ -9,47 +9,21 @@ interface Props {
 }
 
 export const ExternalAppsPanel: FC<Props> = ({ currentHostSettings }) => {
-  if (currentHostSettings === null) {
-    return null;
-  }
-
-  let nonSteamView = null;
-  if (currentHostSettings.nonSteamApps.showQuickAccessButton) {
-    nonSteamView =
-      <PanelSectionRow>
-        <Field
-          childrenContainerWidth="fixed"
-          spacingBetweenLabelAndChild="none"
-          childrenLayout="below"
-        >
-          <ExternalAppsSyncButton text="Sync Non-Steam Apps" appType={AppType.NonSteam} noConfirmationDialog={true} />
-        </Field>
-      </PanelSectionRow>;
-  }
-
-  let gameStreamView = null;
-  if (currentHostSettings.gameStreamApps.showQuickAccessButton) {
-    gameStreamView =
-      <PanelSectionRow>
-        <Field
-          childrenContainerWidth="fixed"
-          spacingBetweenLabelAndChild="none"
-          childrenLayout="below"
-          bottomSeparator={nonSteamView ? "none" : "standard"}
-        >
-          <ExternalAppsSyncButton text="Sync GameStream Apps" appType={AppType.GameStream} noConfirmationDialog={true} />
-        </Field>
-      </PanelSectionRow>;
-  }
-
-  if (!gameStreamView && !nonSteamView) {
+  if (currentHostSettings === null || !currentHostSettings.gameStreamApps.showQuickAccessButton) {
     return null;
   }
 
   return (
     <PanelSection title="EXTERNAL APPS">
-      {gameStreamView}
-      {nonSteamView}
+      <PanelSectionRow>
+        <Field
+          childrenContainerWidth="fixed"
+          spacingBetweenLabelAndChild="none"
+          childrenLayout="below"
+        >
+          <ExternalAppsSyncButton text="Sync Host Apps" appType={AppType.GameStream} noConfirmationDialog={true} />
+        </Field>
+      </PanelSectionRow>
     </PanelSection>
   );
 };

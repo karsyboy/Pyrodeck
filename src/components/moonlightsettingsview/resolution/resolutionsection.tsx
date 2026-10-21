@@ -32,7 +32,7 @@ export const ResolutionSection: FC<Props> = ({ hostSettings }) => {
       </Field>
       <Field
         label="Default FPS (optional)"
-        description="FPS to be applied when starting stream. Will be overridden by the one from custom resolution if provided. Providing FPS without bitrate will trigger Moonlight to automatically calculate the bitrate!"
+        description="FPS to be applied when starting stream. Will be overridden by the one from custom resolution if provided. Providing FPS without bitrate will trigger Pyrolight to automatically calculate the bitrate!"
         childrenContainerWidth="fixed"
       >
         <NumericTextInput

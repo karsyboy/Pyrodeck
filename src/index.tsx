@@ -32,7 +32,7 @@ export default definePlugin(() => {
         moonDeckAppShortcuts.init(allAppDetails);
         settingsManager.init();
         connectivityManager.init();
-        moonDeckAppLauncher.init();
+        moonDeckAppLauncher.init(allAppDetails);
 
         // Always the last
         routeManager.init();

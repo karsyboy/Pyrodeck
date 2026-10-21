@@ -78,7 +78,7 @@ export const LinkedDisplayList: FC<Props> = ({ hostSettings }) => {
         label="Enable display linking"
         description={
           <>
-            <div>Here you can link the display to the custom resolution. MoonDeck will automatically select the linked resolution for the primary display in this list. This will work regardless of whether the custom resolution option is enabled or not.</div>
+            <div>Here you can link the display to the custom resolution. PyroDeck will automatically select the linked resolution for the primary display in this list. This will work regardless of whether the custom resolution option is enabled or not.</div>
             <br />
             <div>Note: Steam provides a very limited information about the displays, so nearly identical displays cannot be differentiated.</div>
           </>

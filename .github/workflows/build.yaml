@@ -28,13 +28,35 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Run tests
+      - name: Lint
         run: pnpm run test
+
+      - name: Type-check
+        run: pnpm run typecheck
+
+      - name: Frontend unit tests
+        run: pnpm run test:unit
+
+  test-python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          # SteamOS's Python; the vendored externals are built for it.
+          python-version: "3.13"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests/python -t tests/python -v
 
   build-plugin:
     name: Build plugin
     runs-on: ubuntu-latest
-    needs: [test-plugin]
+    needs: [test-plugin, test-python]
     steps:
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -58,59 +80,9 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
-          name: moondeck
-          path: out/moondeck.zip
+          name: pyrodeck
+          path: out/*.zip
           if-no-files-found: error
-
-  build-cli:
-    name: Build CLI
-    strategy:
-      matrix:
-        config:
-          - os: ubuntu-22.04
-            ext: bin
-            artifact-postix: linux
-            sep: ":"
-          - os: windows-latest
-            ext: exe
-            artifact-postix: win
-            sep: ";"
-    runs-on: ${{ matrix.config.os }}
-    needs: [test-plugin]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Download externals
-        shell: bash
-        run: "cd ./defaults/python && rm externals -rf && pip install -r ./requirements.txt -t ./externals"
-
-      - name: Build
-        uses: Nuitka/Nuitka-Action@main
-        env:
-          PYTHONPATH: "./lib${{ matrix.config.sep }}./externals"
-        with:
-          working-directory: ./defaults/python
-          nuitka-version: 4.0.8
-          script-name: cli.py
-          mode: onefile
-          include-data-files: ./ssl/moondeck_cert.pem=./ssl/moondeck_cert.pem
-          include-package: lib.cli
-          prefer-source-code: true
-          output-file: moondeck-cli-${{ matrix.config.artifact-postix }}.${{ matrix.config.ext }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: moondeck-cli-${{ matrix.config.artifact-postix }}
-          path: ./defaults/python/build/*.${{ matrix.config.ext }}
 
   release-pre-check:
     name: Check for release conditions
@@ -124,7 +96,7 @@ jobs:
 
   release:
     name: Nightly release
-    needs: [build-plugin, build-cli, release-pre-check]
+    needs: [build-plugin, release-pre-check]
     runs-on: ubuntu-latest
     if: ${{ needs.release-pre-check.outputs.do-release == 'true' }}
     steps:
@@ -143,5 +115,4 @@ jobs:
           tag_name: nightly
           name: 'Nightly Release'
           files: |
-            ./artifacts/moondeck/moondeck.zip
-            ./artifacts/moondeck-cli-*/*
+            ./artifacts/pyrodeck/*.zip

@@ -1,7 +1,7 @@
 import { DialogBody, DialogControlsSection, DialogControlsSectionHeader, Field } from "@decky/ui";
 import { FC, useContext } from "react";
 import { LabelWithIcon, NumericTextInput, ToggleField } from "../shared";
-import { appLaunchDefault, appLaunchStabilityDefault, buddyRequestsDefault, initialConditionsDefault, servicePingDefault, steamLaunchDefault, steamReadinessDefault, streamEndDefault, streamReadinessDefault, userSwitch, wakeOnLanDefault } from "../../lib";
+import { servicePingDefault, steamLaunchDefault, wakeOnLanDefault } from "../../lib";
 import { useCurrentHostSettings, useCurrentSettings } from "../../hooks";
 import { HostOff } from "../icons";
 import { MoonDeckContext } from "../../contexts";
@@ -43,102 +43,14 @@ export const RunnerSettingsView: FC = () => {
           focusable={true}
         />
         <Field
-          label={`buddyRequests (default: ${buddyRequestsDefault})`}
-          description="HTTP/HTTPS request(s) to Buddy timeouts."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={1}
-            value={hostSettings.runnerTimeouts.buddyRequests}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.buddyRequests = value; })}
-          />
-        </Field>
-        <Field
           label={`servicePing (default: ${servicePingDefault})`}
-          description="GameStream service initial ping timeout."
+          description="Timeout for each host status request (serverinfo)."
           childrenContainerWidth="fixed"
         >
           <NumericTextInput
             min={1}
             value={hostSettings.runnerTimeouts.servicePing}
             setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.servicePing = value; })}
-          />
-        </Field>
-        <Field
-          label={`initialConditions (default: ${initialConditionsDefault})`}
-          description="Required initial host conditions for streaming timeout."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={1}
-            value={hostSettings.runnerTimeouts.initialConditions}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.initialConditions = value; })}
-          />
-        </Field>
-        <Field
-          label={`streamReadiness (default: ${streamReadinessDefault})`}
-          description="MoonDeckStream-related readiness timeout."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={1}
-            value={hostSettings.runnerTimeouts.streamReadiness}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.streamReadiness = value; })}
-          />
-        </Field>
-        <Field
-          label={`steamReadiness (default: ${steamReadinessDefault})`}
-          description="Steam-related readiness timeout. Used for waiting till Steam fully reaches desktop or BPM state."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={1}
-            value={hostSettings.runnerTimeouts.steamReadiness}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.steamReadiness = value; })}
-          />
-        </Field>
-        <Field
-          label={`userSwitch (default: ${userSwitch})`}
-          description="Timeout for how long to wait for the user account to be switched if needed."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={5}
-            value={hostSettings.runnerTimeouts.userSwitch}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.userSwitch = value; })}
-          />
-        </Field>
-        <Field
-          label={`appLaunch (default: ${appLaunchDefault})`}
-          description="App launch on host timeout."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={1}
-            value={hostSettings.runnerTimeouts.appLaunch}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.appLaunch = value; })}
-          />
-        </Field>
-        <Field
-          label={`appLaunchStability (default: ${appLaunchStabilityDefault})`}
-          description="Additional app launch timeout to deal with game launchers."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={1}
-            value={hostSettings.runnerTimeouts.appLaunchStability}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.appLaunchStability = value; })}
-          />
-        </Field>
-        <Field
-          label={`streamEnd (default: ${streamEndDefault})`}
-          description="Timeout for when we are waiting for stream to end after successful session."
-          childrenContainerWidth="fixed"
-        >
-          <NumericTextInput
-            min={0}
-            value={hostSettings.runnerTimeouts.streamEnd}
-            setValue={(value) => settingsManager.updateHost((hostSettings) => { hostSettings.runnerTimeouts.streamEnd = value; })}
           />
         </Field>
         <Field
@@ -154,7 +66,7 @@ export const RunnerSettingsView: FC = () => {
         </Field>
         <Field
           label={`steamLaunch (default: ${steamLaunchDefault})`}
-          description="Timeout for how long to wait until Steam launches MoonDeck app."
+          description="Timeout for how long to wait until Steam launches the PyroDeck shortcut."
           childrenContainerWidth="fixed"
         >
           <NumericTextInput

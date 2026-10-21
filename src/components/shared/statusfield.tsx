@@ -1,10 +1,11 @@
-import { BuddyStatus, ServerStatus } from "../../lib";
 import { Field, Spinner } from "@decky/ui";
 import { FC } from "react";
 import { IconType } from "react-icons";
 import { LabelWithIcon } from "./labelwithicon";
+import { PairingStatus } from "../../lib/pairing";
+import { ServerStatus } from "../../lib";
 
-export function stringifyStatus<T extends BuddyStatus | ServerStatus>(value: T): string {
+export function stringifyStatus<T extends string>(value: T): string {
   return value.replace(/([A-Z])/g, " $1");
 }
 
@@ -19,7 +20,7 @@ interface ExtendedProps<T> extends StatusFieldProps<T> {
   icon: IconType;
 }
 
-export const StatusField: FC<ExtendedProps<BuddyStatus | ServerStatus>> = ({ status, isRefreshing, label, noSeparator, icon }) => {
+export const StatusField: FC<ExtendedProps<ServerStatus | PairingStatus>> = ({ status, isRefreshing, label, noSeparator, icon }) => {
   return (
     <Field
       label={<LabelWithIcon icon={icon} label={label} />}

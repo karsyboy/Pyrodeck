@@ -1,11 +1,12 @@
-import { BuddyStatusField, SettingsLoadingField } from "../shared";
 import { DialogBody, DialogButton, DialogControlsSection, DialogControlsSectionHeader, Field, Navigation } from "@decky/ui";
 import { FC } from "react";
 import { MoonDeckLaunchButtonShell } from "../moondecklaunchbutton";
+import { SettingsLoadingField } from "../shared";
 import { useCurrentSettings } from "../../hooks";
 
-const moondeckBuddyLink = "https://github.com/FrogTheFrog/moondeck-buddy";
-const moondeckWikiLink = "https://github.com/FrogTheFrog/moondeck/wiki";
+const pyroshineLink = "https://github.com/karsyboy/pyroshine#readme";
+const pyrolightLink = "https://github.com/karsyboy/pyrolight/releases";
+const pyrodeckLink = "https://github.com/karsyboy/pyrodeck#troubleshooting";
 
 export const SetupGuideView: FC = () => {
   const settings = useCurrentSettings();
@@ -16,44 +17,32 @@ export const SetupGuideView: FC = () => {
   return (
     <DialogBody>
       <DialogControlsSection>
-        <DialogControlsSectionHeader>How to get this plugin working?</DialogControlsSectionHeader>
+        <DialogControlsSectionHeader>How to get PyroDeck working</DialogControlsSectionHeader>
         <Field
-          label="Step 1 - Configure Moonlight client to work with GameStream service (e.g. Sunshine)"
-          description="Download the flatpak version or AppImage (via Desktop) of the Moonlight client and make sure it is configured."
+          label="Step 1 - Run Pyroshine on the host PC"
+          description="Install Pyroshine and Steam on the host and install your games there. Nothing else is needed on the host."
+        >
+          <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(pyroshineLink); }}>Open</DialogButton>
+        </Field>
+        <Field
+          label="Step 2 - Install Pyrolight on the Steam Deck"
+          description="In Desktop Mode, download the Pyrolight AppImage into ~/Applications and make it executable. PyroDeck finds it there."
+        >
+          <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(pyrolightLink); }}>Open</DialogButton>
+        </Field>
+        <Field
+          label="Step 3 - Select the host"
+          description="On the left, open &quot;Host Selection&quot;, scan the network (or add the host by address) and select it."
           focusable={true}
         />
         <Field
-          label="Step 2 - Download and setup Buddy on host PC"
-          description="Requires Buddy v1.9.0 or above."
-        >
-          <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(moondeckBuddyLink); }}>Click me!</DialogButton>
-        </Field>
-        <Field
-          label="Step 3 - Scan for the host PC on the local network"
-          description="On the left navigation panel go to &quot;Host Selection&quot;, click scan button and select your host PC."
+          label="Step 4 - Pair Pyrolight"
+          description="On &quot;Host Selection&quot;, press Pair. Pyrolight shows a PIN: approve it on the host in Pyroshine's web interface or with `pyroshine pair`. Press Check to confirm the pairing."
           focusable={true}
         />
         <Field
-          label="Step 4 - Pair the MoonDeck with Buddy"
-          description="In the &quot;Host Selection&quot; you should see that the Buddy is waiting to be paired (see example above). Simply click the &quot;Pair&quot; button and enter the PIN key on the host PC (if you see some other status indicator, check the &quot;Status Indicators&quot; page on the left)."
-          childrenLayout="below"
-          spacingBetweenLabelAndChild="none"
-          focusable={true}
-        >
-          <BuddyStatusField label="Status" status="NotPaired" isRefreshing={false} noSeparator={true} />
-        </Field>
-        <Field
-          label="Step 5 - Verify that the pairing was successful"
-          description="If the pairing was successful, you will see the previous panel change to this ^. Otherwise try again."
-          childrenLayout="below"
-          spacingBetweenLabelAndChild="none"
-          focusable={true}
-        >
-          <BuddyStatusField label="Status" status="Online" isRefreshing={false} noSeparator={true} />
-        </Field>
-        <Field
-          label="Step 6 - Launch the game via MoonDeck"
-          description="Go to any of your owned games and click the button with the MoonDeck icon!"
+          label="Step 5 - Launch a game from its library page"
+          description="Open any Steam game installed on the host and press the PyroDeck button. Closing the stream keeps the game running on the host; End Game on Host in the quick access menu closes it."
           focusable={true}
         >
           <MoonDeckLaunchButtonShell buttonStyle={settings.buttonStyle} />
@@ -61,8 +50,8 @@ export const SetupGuideView: FC = () => {
       </DialogControlsSection>
       <DialogControlsSection>
         <DialogControlsSectionHeader>Troubleshooting</DialogControlsSectionHeader>
-        <Field label="If you encounter any issues, be sure to check this!">
-          <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(moondeckWikiLink); }}>Click me!</DialogButton>
+        <Field label="Common errors and what to do about them">
+          <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(pyrodeckLink); }}>Open</DialogButton>
         </Field>
       </DialogControlsSection>
     </DialogBody>

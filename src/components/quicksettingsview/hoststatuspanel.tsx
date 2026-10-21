@@ -1,7 +1,7 @@
-import { BuddyStatus, ServerStatus, UserSettings } from "../../lib";
-import { BuddyStatusField, LabelWithIcon, ServerStatusField } from "../shared";
 import { FC, useContext } from "react";
 import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { GameStreamHost, ServerStatus, UserSettings } from "../../lib";
+import { LabelWithIcon, ServerStatusField } from "../shared";
 import { CurrentHostSettings } from "../../hooks";
 import { HostOff } from "../icons";
 import { HostSelectionDropdown } from "../hostselectionview/hostselectiondropdown";
@@ -12,11 +12,10 @@ interface Props {
   currentSettings: UserSettings | null;
   serverStatus: ServerStatus;
   serverRefreshStatus: boolean;
-  buddyStatus: BuddyStatus;
-  buddyRefreshStatus: boolean;
+  hostInfo: GameStreamHost | null;
 }
 
-export const HostStatusPanel: FC<Props> = ({ currentHostSettings, currentSettings, serverStatus, serverRefreshStatus, buddyStatus, buddyRefreshStatus }) => {
+export const HostStatusPanel: FC<Props> = ({ currentHostSettings, currentSettings, serverStatus, serverRefreshStatus, hostInfo }) => {
   const { settingsManager } = useContext(MoonDeckContext);
 
   if (currentHostSettings === null || currentSettings === null) {
@@ -50,11 +49,15 @@ export const HostStatusPanel: FC<Props> = ({ currentHostSettings, currentSetting
         </Field>
       </PanelSectionRow>
       <PanelSectionRow>
-        <ServerStatusField label="GameStream" status={serverStatus} isRefreshing={serverRefreshStatus} noSeparator={true} />
+        <ServerStatusField label="Pyroshine" status={serverStatus} isRefreshing={serverRefreshStatus} noSeparator={hostInfo === null || hostInfo.appSources > 0} />
       </PanelSectionRow>
-      <PanelSectionRow>
-        <BuddyStatusField label="Buddy" status={buddyStatus} isRefreshing={buddyRefreshStatus} />
-      </PanelSectionRow>
+      {hostInfo !== null && hostInfo.appSources === 0 &&
+        <PanelSectionRow>
+          <Field
+            bottomSeparator="standard"
+            description="This host does not report Steam app IDs, so library games cannot be matched. Update Pyroshine on the host."
+          />
+        </PanelSectionRow>}
     </PanelSection>
   );
 };

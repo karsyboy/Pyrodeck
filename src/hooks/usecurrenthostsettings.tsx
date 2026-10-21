@@ -4,7 +4,6 @@ import { MoonDeckContext } from "../contexts";
 import { cloneDeep } from "lodash";
 
 export interface CurrentHostSettings extends HostSettings {
-  clientId: string;
   currentHostId: string;
 }
 
@@ -18,7 +17,7 @@ function getCurrentHostSettings(settings: Readonly<UserSettings> | null): Curren
     return null;
   }
 
-  return { clientId: settings.clientId, currentHostId: settings.currentHostId, ...hostSettings };
+  return { currentHostId: settings.currentHostId, ...hostSettings };
 }
 
 export function useCurrentHostSettings(): CurrentHostSettings | null {

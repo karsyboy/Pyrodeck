@@ -1,10 +1,9 @@
-import { AppStartResult, AppType, ControllerConfigOption, EnvVars, checkExecPathMatch, getAppDetails, getAudioDevices, getCurrentDisplayModeString, getDisplayIdentifiers, getMoonDeckRunPath, getSystemNetworkStore, launchApp, registerForGameLaunchIntercept, registerForGameLifetime, registerForSuspendNotifications, setAppHiddenState, setAppLaunchOptions, setAppResolutionOverride, setOverrideResolutionForInternalDisplay, setShortcutName } from "./steamutils";
+import { AppStartResult, AppType, ControllerConfigOption, EnvVars, addShortcut, checkExecPathMatch, getAppDetails, getAudioDevices, getCurrentDisplayModeString, getDisplayIdentifiers, getMoonDeckRunPath, getSystemNetworkStore, isMoonDeckShortcut, launchApp, registerForGameLaunchIntercept, registerForGameLifetime, registerForSuspendNotifications, removeShortcut, setAppHiddenState, setAppLaunchOptions, setAppResolutionOverride, setOverrideResolutionForInternalDisplay, setShortcutName } from "./steamutils";
 import { ControllerConfigValues, Dimension, HostResolution, HostSettings, SettingsManager } from "./settingsmanager";
 import { Subscription, pairwise } from "rxjs";
-import { getEnvKeyValueString, makeEnvKeyValue } from "./envutils";
+import { UtilityAction, getLaunchOptionsString } from "./launchenv";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { AppSyncState } from "./appsyncstate";
-import { CommandProxy } from "./commandproxy";
 import { EThirdPartyControllerConfiguration } from "@decky/ui/dist/globals/steam-client/Input";
 import { ExternalAppShortcuts } from "./externalappshortcuts";
 import { MoonDeckAppProxy } from "./moondeckapp";
@@ -12,6 +11,7 @@ import { MoonDeckAppShortcuts } from "./moondeckappshortcuts";
 import { call } from "@decky/api";
 import { executeAsync } from "./executeasync";
 import { logger } from "./logger";
+import { makeEnvKeyValue } from "./envutils";
 
 async function setRunnerReady(): Promise<void> {
   try {
@@ -63,50 +63,6 @@ function getSelectedAppResolution(mode: string | null, display: string | null, h
   }
 }
 
-function getLaunchOptionsString(currentValue: string, appId: number, appType: AppType, displayMode: string | null, autoResolution: boolean, currentAudioDevice: string | null, currentDisplay: string | null, pythonExecPath: string): string | null {
-  const launchOptions: string[] = [];
-  launchOptions.push(makeEnvKeyValue(EnvVars.AppType, appType));
-
-  if (appType === AppType.MoonDeck) {
-    launchOptions.push(makeEnvKeyValue(EnvVars.SteamAppId, appId));
-  } else if (appType === AppType.GameStream) {
-    const appNameFromOptions = getEnvKeyValueString(currentValue, EnvVars.AppName);
-    if (appNameFromOptions === null) {
-      logger.error(`Failed to get app name from launch options for ${appId}!`);
-      return null;
-    }
-
-    launchOptions.push(makeEnvKeyValue(EnvVars.AppName, appNameFromOptions));
-  } else {
-    const appIdFromOptions = getEnvKeyValueString(currentValue, EnvVars.SteamAppId);
-    if (appIdFromOptions === null) {
-      logger.error(`Failed to get app id from launch options for ${appId}!`);
-      return null;
-    }
-
-    launchOptions.push(makeEnvKeyValue(EnvVars.SteamAppId, appIdFromOptions));
-  }
-
-  if (autoResolution && displayMode !== null) {
-    launchOptions.push(makeEnvKeyValue(EnvVars.AutoResolution, displayMode));
-  }
-
-  if (currentAudioDevice !== null) {
-    launchOptions.push(makeEnvKeyValue(EnvVars.LinkedAudio, currentAudioDevice));
-  }
-
-  if (currentDisplay !== null) {
-    launchOptions.push(makeEnvKeyValue(EnvVars.LinkedDisplay, currentDisplay));
-  }
-
-  if (pythonExecPath.length > 0) {
-    launchOptions.push(makeEnvKeyValue(EnvVars.Python, pythonExecPath));
-  }
-
-  launchOptions.push("%command%");
-  return launchOptions.join(" ");
-}
-
 export function updateControllerConfig(appId: number, controllerConfig: keyof typeof ControllerConfigValues | null): void {
   if (controllerConfig !== null) {
     logger.log(`Setting controller config to ${controllerConfig} for ${appId}.`);
@@ -121,7 +77,40 @@ export class MoonDeckAppLauncher {
   private unregisterInterceptor: (() => void) | null = null;
   private interceptedLaunch = false;
   private subscription: Subscription | null = null;
+  // The hidden "PyroDeck" shortcut that runs Pyrolight's pair and quit actions.
+  private utilityAppId: number | null = null;
   readonly moonDeckApp: MoonDeckAppProxy;
+
+  private findUtilityShortcut(allDetails: AppDetails[]): void {
+    const marker = makeEnvKeyValue(EnvVars.AppType, AppType.Utility);
+    const found = allDetails.find((details) => isMoonDeckShortcut(details) && details.strLaunchOptions.includes(marker));
+    this.utilityAppId = found?.unAppID ?? null;
+  }
+
+  private async ensureUtilityShortcut(execPath: string): Promise<number | null> {
+    if (this.utilityAppId !== null && await getAppDetails(this.utilityAppId) === null) {
+      // Removed by the user since; make a new one.
+      this.utilityAppId = null;
+    }
+
+    if (this.utilityAppId === null) {
+      const appId = await addShortcut("PyroDeck", execPath);
+      if (appId === null) {
+        return null;
+      }
+      // Mark it before anything else so it is found again after a restart.
+      if (!await setAppLaunchOptions(appId, `${makeEnvKeyValue(EnvVars.AppType, AppType.Utility)} %command%`)) {
+        await removeShortcut(appId);
+        return null;
+      }
+      this.utilityAppId = appId;
+    }
+
+    if (!await setAppHiddenState(this.utilityAppId, true)) {
+      logger.error(`Failed to hide the PyroDeck utility shortcut ${this.utilityAppId}!`);
+    }
+    return this.utilityAppId;
+  }
 
   private async ensureAppDetails(steamAppId: number, execPath: string, appName: string, appType: AppType): Promise<AppDetails | null> {
     let appId: number | null = null;
@@ -203,20 +192,13 @@ export class MoonDeckAppLauncher {
   }
 
   private initSuspension(): void {
+    // Suspending the Deck disconnects the stream; the host keeps the game
+    // (PyroDeck never suspends or shuts down the host). On resume the runner
+    // reconnects to it when "resume after suspend" is on.
     this.unregisterSuspension = registerForSuspendNotifications(async () => {
       if (this.moonDeckApp.value !== null) {
-        logger.log("Suspending MoonDeck app.");
+        logger.log("Suspending PyroDeck app.");
         await this.moonDeckApp.suspendApp();
-
-        // Always suspend how, even if suspending app could have failed.
-        const settings = this.settingsManager.settings.value;
-        if (settings && settings.gameSession.autoSuspendHost) {
-          // The buddy status state might not be up to date unless we have
-          // explicitly updated it, however if the app is running we can assume it is...
-          // Additionally, the delay is set to 30 secs to give user some time to cancel
-          // it in case the SteamDeck is being suspended by accident.
-          await this.commandProxy.suspendOrHibernatePC({ delay: 30, ignoreStatus: true });
-        }
       }
     }, async () => {
       const settings = this.settingsManager.settings.value;
@@ -265,13 +247,13 @@ export class MoonDeckAppLauncher {
     private readonly appSyncState: AppSyncState,
     private readonly settingsManager: SettingsManager,
     private readonly moonDeckAppShortcuts: MoonDeckAppShortcuts,
-    private readonly externalAppShortcuts: ExternalAppShortcuts,
-    readonly commandProxy: CommandProxy
+    private readonly externalAppShortcuts: ExternalAppShortcuts
   ) {
-    this.moonDeckApp = new MoonDeckAppProxy(commandProxy);
+    this.moonDeckApp = new MoonDeckAppProxy();
   }
 
-  init(): void {
+  init(allDetails: AppDetails[]): void {
+    this.findUtilityShortcut(allDetails);
     this.initLifetime();
     this.initSuspension();
     this.initMoonDeckAppTimestampUpdater();
@@ -297,7 +279,37 @@ export class MoonDeckAppLauncher {
     }
   }
 
-  async launchApp(appId: number, appName: string, appType: AppType): Promise<void> {
+  /**
+   * Run Pyrolight's pair or quit action through Steam, which gives its window
+   * Game Mode focus and controller input like a game. "quit" ends the game on
+   * the host: only ever started by an explicit user action.
+   */
+  async launchUtility(action: UtilityAction): Promise<void> {
+    const execPath = await getMoonDeckRunPath();
+    if (execPath === null) {
+      logger.toast("Failed to get pyrodeckrun.sh path!", { output: "error" });
+      return;
+    }
+
+    const appId = await this.ensureUtilityShortcut(execPath);
+    if (appId === null) {
+      logger.toast("Failed to create the PyroDeck shortcut (needs restart?)!", { output: "error" });
+      return;
+    }
+
+    await this.launchApp(appId, action === "pair" ? "PyroDeck - Pair" : "PyroDeck - End host game", AppType.Utility, action);
+  }
+
+  /** Disconnect a running stream (if any), then end the game on the host. */
+  async endHostGame(): Promise<void> {
+    if (this.moonDeckApp.value !== null || await this.moonDeckApp.isStillRunning()) {
+      await this.moonDeckApp.killApp(true);
+      await this.moonDeckApp.clearApp();
+    }
+    await this.launchUtility("quit");
+  }
+
+  async launchApp(appId: number, appName: string, appType: AppType, action?: UtilityAction): Promise<void> {
     if (this.moonDeckAppShortcuts.initializing || this.externalAppShortcuts.initializing) {
       logger.toast("Plugin is still initializing...");
       return;
@@ -319,7 +331,7 @@ export class MoonDeckAppLauncher {
     }
 
     if (await this.moonDeckApp.isStillRunning()) {
-      logger.toast("Some MoonDeck app is already running!");
+      logger.toast("A PyroDeck stream is already running!");
       return;
     }
 
@@ -387,7 +399,14 @@ export class MoonDeckAppLauncher {
         return;
       }
 
-      const launchOptions = getLaunchOptionsString(details.strLaunchOptions, appId, appType, mode, hostSettings.resolution.automatic, currentAudioDevice, currentDisplay, settings.pythonExecPath);
+      const launchOptions = getLaunchOptionsString(details.strLaunchOptions, appId, appType, {
+        displayMode: mode,
+        autoResolution: hostSettings.resolution.automatic,
+        currentAudioDevice,
+        currentDisplay,
+        pythonExecPath: settings.pythonExecPath,
+        action
+      });
       if (launchOptions === null || !await setAppLaunchOptions(details.unAppID, launchOptions)) {
         logger.toast("Failed to update shortcut launch options (needs restart?)!", { output: "error" });
         return;

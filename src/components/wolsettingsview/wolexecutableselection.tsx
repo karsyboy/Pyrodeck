@@ -31,8 +31,8 @@ export const WOLExecutableSelection: FC<Props> = ({ hostSettings }) => {
         label="Send WOL once"
         description={
           <>
-            <div>By default MoonDeck runner sends WOL multiple times.</div>
-            <div>This setting makes it send WOL only once when both Buddy and Host are definitelly off and there is still time for WOL.</div>
+            <div>By default the PyroDeck runner sends WOL multiple times.</div>
+            <div>This setting makes it send WOL only once when the host is definitely off and there is still time for WOL.</div>
           </>
         }
         value={hostSettings.wolSettings.sendOnce}

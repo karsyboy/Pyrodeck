@@ -16,7 +16,7 @@ export const ButtonStyleView: FC = () => {
     <DialogBody>
       <DialogControlsSection>
         <Field
-          label="Select theme for MoonDeck button"
+          label="Select theme for PyroDeck button"
           childrenContainerWidth="fixed"
         >
           <ListDropdown
@@ -58,7 +58,7 @@ export const ButtonStyleView: FC = () => {
         </Field>
         <ToggleField
           label="HLTB offset for Clean style"
-          description="Apply default offset so that the HLTB and MoonDeck button don't overlap"
+          description="Apply default offset so that the HLTB and PyroDeck button don't overlap"
           value={settings.buttonPosition.offsetForHltb}
           setValue={(value) => settingsManager.update((settings) => { settings.buttonPosition.offsetForHltb = value; })}
         />
