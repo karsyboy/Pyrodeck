@@ -11,6 +11,8 @@ vi.mock("@decky/api", () => ({
   toaster: { toast: vi.fn() }
 }));
 
+vi.mock("@decky/ui", () => ({ sleep: async (ms: number) => await new Promise((resolve) => setTimeout(resolve, Math.min(ms, 20))) }));
+
 // SteamClient is reached through steamutils only; mock it with real launch-env helpers.
 const steam = vi.hoisted(() => ({
   shortcuts: new Map<number, { unAppID: number; strShortcutExe: string; strLaunchOptions: string; strDisplayName: string }>(),
@@ -157,6 +159,20 @@ describe("ending the host game", () => {
     expect(utility).toHaveLength(1);
     expect(utility[0].strLaunchOptions).toContain("PYRODECK_ACTION=quit");
     expect(steam.launched).toEqual([utility[0].unAppID, utility[0].unAppID]);
+  });
+
+  it("disconnects a running stream first and waits for the runner to exit", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    let runnerChecks = 0;
+    // The runner is still exiting for a few checks after Steam ended the shortcut.
+    backend.is_runner_active = () => ++runnerChecks < 4;
+
+    await launcher.endHostGame();
+    const utility = [...steam.shortcuts.values()].find((shortcut) => shortcut.strLaunchOptions.includes("PYRODECK_ACTION=quit"))!;
+    expect(steam.terminated).toHaveLength(1);
+    expect(steam.launched.at(-1)).toBe(utility.unAppID);
+    expect(runnerChecks).toBeGreaterThanOrEqual(4);
   });
 
   it("finds the utility shortcut again after a restart", async () => {

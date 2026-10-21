@@ -12,6 +12,7 @@ import { call } from "@decky/api";
 import { executeAsync } from "./executeasync";
 import { logger } from "./logger";
 import { makeEnvKeyValue } from "./envutils";
+import { sleep } from "@decky/ui";
 
 async function setRunnerReady(): Promise<void> {
   try {
@@ -305,6 +306,11 @@ export class MoonDeckAppLauncher {
     if (this.moonDeckApp.value !== null || await this.moonDeckApp.isStillRunning()) {
       await this.moonDeckApp.killApp(true);
       await this.moonDeckApp.clearApp();
+
+      // The runner releases its lock as it exits; the quit launch needs it free.
+      for (let attempt = 0; attempt < 20 && await this.moonDeckApp.isStillRunning(); ++attempt) {
+        await sleep(500);
+      }
     }
     await this.launchUtility("quit");
   }
