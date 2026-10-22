@@ -3,6 +3,7 @@ import { FC, useContext } from "react";
 import { LabelWithIcon, NumericTextInput, ToggleField } from "../shared";
 import { servicePingDefault, steamLaunchDefault, wakeOnLanDefault } from "../../lib";
 import { useCurrentHostSettings, useCurrentSettings } from "../../hooks";
+import { AppResolutionOverrideSection } from "../moonlightsettingsview/appresolutionoverride/appresolutionoverridesection";
 import { HostOff } from "../icons";
 import { MoonDeckContext } from "../../contexts";
 import { PythonExecutableSection } from "./pythonexecutablesection";
@@ -36,6 +37,7 @@ export const RunnerSettingsView: FC = () => {
         />
         <PythonExecutableSection />
       </DialogControlsSection>
+      <AppResolutionOverrideSection hostSettings={hostSettings} />
       <DialogControlsSection>
         <DialogControlsSectionHeader>Timeouts</DialogControlsSectionHeader>
         <Field

@@ -11,6 +11,7 @@ RUNNER_PID_FILE = "/tmp/pyrodeck-runner-pid"
 # The Pyrolight process the runner started ("<pid> <start time>"), so the
 # backend can stop exactly that process if the runner itself is gone.
 RUNNER_CLIENT_FILE = "/tmp/pyrodeck-runner-client"
+SESSION_STATE_FILE = "/tmp/pyrodeck-session.json"
 RUNNER_SUSPEND_CANCEL_MSG = "suspended"
 
 def get_config_file_path():

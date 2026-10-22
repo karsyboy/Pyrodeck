@@ -218,6 +218,57 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("--vrr", stream)
 
 
+class NativeProfileRunnerTest(unittest.IsolatedAsyncioTestCase):
+    run_runner = RunnerTest.run_runner
+
+    def setUp(self):
+        isolate_state(self)
+        self.pyrolight = FakePyrolight(self)
+        self.pyrolight.set_apps([DESKTOP, VALHEIM, PORTAL])
+        import json
+        self.pyrolight.set(settings={"exit": 0, "stdout": json.dumps({"schema": 1, "ok": True, "revision": "native-revision", "values": {"fps": 90}})},
+                           help="--app-id ID --vrr Select video codec: auto / H.264 / HEVC / AV1 / PyroWave. ")
+
+    async def test_native_profile_owns_every_stream_option(self):
+        await self.run_runner(cmd_options=options(enable_v_sync=False, video_codec="HEVC", audio="7.1-surround"))
+        args = self.pyrolight.streams()[-1]
+        self.assertEqual(args[-2:], ["stream", HOST_ID])
+        self.assertNotIn("Valheim", args)
+        self.assertEqual(args[args.index("--app-id") + 1], "1001")
+        self.assertEqual(args[args.index("--settings-revision") + 1], "native-revision")
+        self.assertIn("--no-quit-after", args)
+        for option in ("--resolution", "--fps", "--no-vsync", "--video-codec", "--audio-config", "--quit-after"):
+            self.assertNotIn(option, args)
+
+    async def test_duplicate_names_launch_by_advertised_id(self):
+        self.pyrolight.set_apps([{**VALHEIM, "name": "Same name", "id": 31}, {**PORTAL, "name": "Same name", "id": 32}])
+        await self.run_runner(steam_app_id=620)
+        args = self.pyrolight.streams()[-1]
+        self.assertEqual(args[args.index("--app-id") + 1], "32")
+
+    async def test_reconnect_does_not_retarget_a_changed_catalog(self):
+        async with FakeHost() as host:
+            selected = settings(host.port, str(self.pyrolight.executable))
+            await PyroshineRunner.run(selected, None)
+            self.pyrolight.set_apps([{**VALHEIM, "id": 999}])
+            with self.assertRaises(RunnerError) as caught:
+                await PyroshineRunner.run(selected, None)
+            self.assertEqual(caught.exception.result, Result.HostAppNotFound)
+        self.assertEqual(len(self.pyrolight.streams()), 1)
+        self.assertFalse(any("quit" in entry["argv"] for entry in self.pyrolight.invocations()))
+
+    async def test_failure_event_is_not_overwritten_by_session_finished(self):
+        from lib import sessionstate
+        self.pyrolight.set(stream={"exit": 0, "events": [{"schema": 1, "state": "failed", "error": "Negotiation failed"}, {"schema": 1, "state": "disconnected"}]})
+        async with FakeHost() as host:
+            selected = settings(host.port, str(self.pyrolight.executable))
+            selected["generation"] = sessionstate.begin(selected)
+            with self.assertRaises(RunnerError):
+                await PyroshineRunner.run(selected, None)
+        self.assertEqual(sessionstate.read()["state"], "failed")
+        self.assertEqual(sessionstate.read()["error"], "Negotiation failed")
+
+
 class RunnerCancellationTest(unittest.IsolatedAsyncioTestCase):
     """Suspend, Steam's Exit Game and backend cleanup cancel the runner."""
 

@@ -61,14 +61,22 @@ class SettingsManager(Generic[TD], metaclass=ABCMeta):
     async def write(self, settings: TD):
         # Lazy import to improve CLI performance
         import json
+        import os
+        import tempfile
 
         # Verify that settings we are about to save are valid
         settings = from_dict(self.settings_type, settings)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.filepath, "w") as file:
-            json.dump(settings, file,
-                      ensure_ascii=False, allow_nan=False,
-                      indent=4)
+        fd, temporary = tempfile.mkstemp(prefix=self.filepath.name + ".", dir=self.filepath.parent)
+        try:
+            with os.fdopen(fd, "w") as file:
+                json.dump(settings, file, ensure_ascii=False, allow_nan=False, indent=4)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, self.filepath)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
     @abstractmethod
     def _default_settings(self) -> TD:

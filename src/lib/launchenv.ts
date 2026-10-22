@@ -12,6 +12,8 @@ export enum EnvVars {
   SteamAppId = "PYRODECK_STEAM_APP_ID",
   AppName = "PYRODECK_APP_NAME",
   Action = "PYRODECK_ACTION",
+  HostId = "PYRODECK_HOST_ID",
+  RemoteAppId = "PYRODECK_REMOTE_APP_ID",
   Python = "PYRODECK_PYTHON"
 }
 
@@ -22,7 +24,8 @@ export enum AppType {
   // A host app synced into Steam, streamed by name.
   GameStream,
   // Pyrolight pair/quit through the hidden "PyroDeck" shortcut.
-  Utility
+  Utility,
+  Remote
 }
 
 export type UtilityAction = "pair" | "quit";
@@ -41,6 +44,10 @@ export interface LaunchContext {
   currentDisplay: string | null;
   pythonExecPath: string;
   action?: UtilityAction;
+  hostId?: string;
+  remoteAppId?: number;
+  remoteAppName?: string;
+  reusableLauncher?: boolean;
 }
 
 /**
@@ -67,6 +74,9 @@ export function getLaunchOptionsString(currentValue: string, appId: number, appT
     }
 
     launchOptions.push(makeEnvKeyValue(EnvVars.AppName, appNameFromOptions));
+  } else if (appType === AppType.Remote) {
+    if (!context.remoteAppId || !Number.isInteger(context.remoteAppId) || !context.remoteAppName) return null;
+    launchOptions.push(makeEnvKeyValue(EnvVars.RemoteAppId, context.remoteAppId));
   } else {
     if (context.action === undefined) {
       logger.error(`No action given for utility launch ${appId}!`);
@@ -74,6 +84,9 @@ export function getLaunchOptionsString(currentValue: string, appId: number, appT
     }
     launchOptions.push(makeEnvKeyValue(EnvVars.Action, context.action));
   }
+
+  if (context.hostId) launchOptions.push(makeEnvKeyValue(EnvVars.HostId, context.hostId));
+  if (appType === AppType.Utility && context.remoteAppId) launchOptions.push(makeEnvKeyValue(EnvVars.RemoteAppId, context.remoteAppId));
 
   if (context.autoResolution && context.displayMode !== null) {
     launchOptions.push(makeEnvKeyValue(EnvVars.AutoResolution, context.displayMode));
@@ -91,6 +104,7 @@ export function getLaunchOptionsString(currentValue: string, appId: number, appT
     launchOptions.push(makeEnvKeyValue(EnvVars.Python, context.pythonExecPath));
   }
 
+  if (context.reusableLauncher) launchOptions.push("PYRODECK_LAUNCHER=1");
   launchOptions.push("%command%");
   return launchOptions.join(" ");
 }

@@ -38,17 +38,12 @@ export const MoonDeckAppsView: FC = () => {
         currentSettings !== null &&
         <DialogControlsSection>
           <ToggleField
-            label="Enable the PyroDeck shortcuts"
-            description="Disabling this will remove the PyroDeck button!"
+            label="Show Stream with Pyrolight in the Library"
+            description="Steam Play and Install remain available."
             value={currentSettings.enableMoondeckShortcuts}
             setValue={(value) => settingsManager.update((settings) => { settings.enableMoondeckShortcuts = value; })}
           />
-          <ToggleField
-            label="Enable confirmation prompt dialog for starting the stream"
-            description="In case you misclick a lot, you might want to enable this to prevent accidental streams."
-            value={currentSettings.enableMoondeckButtonPrompt}
-            setValue={(value) => settingsManager.update((settings) => { settings.enableMoondeckButtonPrompt = value; })}
-          />
+
         </DialogControlsSection>
       }
       <DialogControlsSection>

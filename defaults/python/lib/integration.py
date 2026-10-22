@@ -1,0 +1,158 @@
+"""PyroDeck orchestration. Pyrolight owns preferences, trust and GameStream."""
+
+import asyncio
+import time
+from dataclasses import asdict
+from . import runnercontrol, sessionstate, utils, history
+from .pyrolightproxy import PyrolightProxy, PyrolightListError, find_pyrolight, pyrolight_host
+
+
+def failure(code: str, message: str) -> dict:
+    return {"schema": 1, "ok": False, "error": {"code": code, "message": message}}
+
+
+class Integration:
+    def __init__(self):
+        self.lock = asyncio.Lock()
+        self.catalog_cache = {}
+        self.catalog_lock = asyncio.Lock()
+        self.artwork_cache = {}
+        self.artwork_slots = asyncio.Semaphore(2)
+
+    async def artwork(self, settings: dict, host_id: str, app_id: int) -> dict:
+        if host_id not in settings["hostSettings"] or type(app_id) is not int or app_id <= 0:
+            return failure("target", "Unknown host or app")
+        key = (self.executable(settings), host_id, app_id)
+        cached = self.artwork_cache.get(key)
+        if cached and time.monotonic() - cached[0] < 3600:
+            return cached[1]
+        host = settings["hostSettings"][host_id]
+        async with self.artwork_slots:
+            async with PyrolightProxy(key[0]) as proxy:
+                result = await proxy.artwork(pyrolight_host(host["address"], host["hostInfoPort"]), app_id)
+            if result.get("hostUuid", "").lower() != host_id.lower():
+                return failure("wrong_host", "The host at this address changed")
+            result = {"schema": 1, "ok": True, "image": result.get("image")}
+            if len(self.artwork_cache) >= 64:
+                self.artwork_cache.pop(next(iter(self.artwork_cache)))
+            self.artwork_cache[key] = (time.monotonic(), result)
+            return result
+
+    @staticmethod
+    def executable(settings: dict) -> str:
+        path = find_pyrolight(settings["moonlightExecPath"] if settings["useMoonlightExec"] else None)
+        if path is None:
+            raise PyrolightListError("not_installed", "Install Pyrolight or select its executable in Host Selection.")
+        return path
+
+    async def preferences(self, settings: dict, request: dict | None = None) -> dict:
+        async with PyrolightProxy(self.executable(settings)) as proxy:
+            return await proxy.settings(request)
+
+    async def network_tool(self, settings: dict, host_id: str, action: str) -> dict:
+        if host_id not in settings["hostSettings"] or action not in ("check", "calibrate", "fix"):
+            return failure("target", "Select a known host and network tool")
+        if action != "check" and runnercontrol.is_runner_active():
+            return failure("active_stream", "Disconnect before running calibration or changing system network buffers.")
+        async with PyrolightProxy(self.executable(settings)) as proxy:
+            result = await proxy.network_tool(host_id, action)
+        if result.get("hostUuid", "").lower() != host_id.lower():
+            return failure("wrong_host", "The host at this address changed")
+        return result
+
+    def status(self) -> dict:
+        value = sessionstate.read()
+        active = runnercontrol.is_runner_active()
+        value = {**value, "runnerActive": active}
+        if value.get("state") in ("connecting", "launching", "streaming", "reconnecting", "ending") and not active:
+            return {**value, "state": "failed", "error": "The PyroDeck runner exited. Launch again to resume the host game."}
+        return value
+
+    async def catalogs(self, settings: dict, refresh: bool = False) -> dict:
+        executable = self.executable(settings)
+        async with self.catalog_lock:
+            semaphore = asyncio.Semaphore(3)
+            async def fetch(host_id, host):
+                key = (executable, host_id, host["address"], host["hostInfoPort"])
+                cached = self.catalog_cache.get(key)
+                if not refresh and cached and time.monotonic() - cached[0] < 30:
+                    return cached[1]
+                async with semaphore:
+                    result = {"id": host_id, "name": host["hostName"], "apps": [], "status": "unreachable"}
+                    try:
+                        async with PyrolightProxy(executable) as proxy:
+                            catalog = await proxy.list_apps(pyrolight_host(host["address"], host["hostInfoPort"]), timeout=8)
+                        if catalog.host_uuid.lower() != host_id.lower():
+                            result["status"] = "wrong_host"
+                        else:
+                            result.update(status="paired", name=catalog.host_name,
+                                          apps=[asdict(app) for app in catalog.apps])
+                    except PyrolightListError as error:
+                        result.update(status=error.reason, error=str(error))
+                    except TimeoutError:
+                        result["error"] = "Host did not respond"
+                    self.catalog_cache[key] = (time.monotonic(), result)
+                    return result
+            hosts = await asyncio.gather(*(fetch(id, host) for id, host in settings["hostSettings"].items()))
+            played = history.read()
+            hosts = [{**host, "apps": [{**app, "lastPlayed": played.get(f"{host['id']}:{app['id']}")} for app in host["apps"]]} for host in hosts]
+            # A removed host or executable change must not retain unbounded cache entries.
+            valid_keys = {(executable, id, host["address"], host["hostInfoPort"]) for id, host in settings["hostSettings"].items()}
+            self.catalog_cache = {key: value for key, value in self.catalog_cache.items() if key in valid_keys}
+            return {"schema": 1, "ok": True, "defaultHostId": settings["currentHostId"], "hosts": hosts}
+
+    async def reconnect(self, expected_revision: str | None = None) -> dict:
+        if not runnercontrol.is_runner_active():
+            return failure("no_runner", "The stream has closed. Launch the same game again to resume it.")
+        before = sessionstate.read()
+        generation = before.get("generation")
+        if not generation or before.get("state") in ("ending", "ended", "none"):
+            return failure("no_session", "No resumable PyroDeck session")
+        runner = runnercontrol.get_active_runner()
+        try:
+            runner.send_usr1()
+            await asyncio.wait_for(utils.wait_runner_suspended_state(True), timeout=12)
+            if sessionstate.read().get("generation") != generation:
+                return failure("stale_session", "The active session changed")
+            attempt = sessionstate.read().get("attempt", 0)
+            sessionstate.update(generation, state="reconnecting")
+            runner.send_usr2()
+            await asyncio.wait_for(utils.wait_runner_suspended_state(False), timeout=12)
+            # Wait for a structured Session::connectionStarted event, never infer
+            # success from a running PID or preferences having been saved.
+            async with asyncio.timeout(60):
+                while True:
+                    current = self.status()
+                    if current.get("generation") != generation:
+                        return failure("stale_session", "The active session changed")
+                    if current.get("attempt", 0) > attempt and current["state"] == "streaming":
+                        if expected_revision and (current.get("effectivePreferences") or {}).get("revision") != expected_revision:
+                            return failure("conflict", "The Pyrolight profile changed during reconnect. Refresh before applying this draft.")
+                        return {"schema": 1, "ok": True, "session": current}
+                    if current.get("state") == "failed" or not runnercontrol.is_runner_active():
+                        return failure("reconnect_failed", current.get("error") or "Pyrolight closed before streaming started")
+                    await asyncio.sleep(0.1)
+        except (TimeoutError, ProcessLookupError) as error:
+            return failure("reconnect_failed", str(error) or "Pyrolight did not confirm a connection")
+
+    async def apply(self, settings: dict, request: dict, reconnect: bool) -> dict:
+        if self.lock.locked():
+            return failure("busy", "A settings or session operation is already in progress")
+        async with self.lock:
+            # Validate without interrupting gameplay. Patches are the only permitted
+            # operation here; profiles have their own next-launch transaction.
+            if request.get("operation") != "patch":
+                return failure("operation", "Expected a settings patch")
+            if reconnect and not runnercontrol.is_runner_active():
+                return failure("no_runner", "Launch the game again, or save for the next session.")
+            result = await self.preferences(settings, {**request, "operation": "validate"})
+            if not result.get("ok"):
+                return result
+            result = await self.preferences(settings, request)
+            if not result.get("ok"):
+                return result
+            if reconnect:
+                connection = await self.reconnect(result["revision"])
+                if not connection.get("ok"):
+                    return {**connection, "preferences": result, "persisted": True, "applied": False}
+            return {"schema": 1, "ok": True, "preferences": result, "applied": reconnect}

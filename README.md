@@ -3,13 +3,11 @@
 A [Decky Loader](https://decky.xyz/) plugin that streams the Steam games installed
 on your [Pyroshine](https://github.com/karsyboy/pyroshine) host to the Steam Deck
 through [Pyrolight](https://github.com/karsyboy/pyrolight): open a game's page in
-your Steam library, press the PyroDeck button and play.
+your Steam library, select **Stream with Pyrolight** and play. Steam’s local Play and Install buttons stay unchanged.
 
 PyroDeck is a fork of [MoonDeck](https://github.com/FrogTheFrog/moondeck) by
 FrogTheFrog. It keeps MoonDeck's Steam Deck integration and needs no extra
 program on the host: no MoonDeck Buddy, no special host app.
-
-![quicksettings](.github/assets/quickmenu.png)
 
 ## Requirements
 
@@ -17,7 +15,7 @@ program on the host: no MoonDeck Buddy, no special host app.
   installed there. Older Pyroshine versions and other GameStream hosts cannot
   tell PyroDeck which Steam game is which.
 - A Steam Deck (SteamOS 3.7 or newer) with [Decky Loader](https://decky.xyz/).
-- Pyrolight with `list --json` (the release after 6.2.7) on the Steam Deck.
+- A matching Pyrolight build with the schema-1 `settings` API, stable application IDs and integration events. Use the builds containing this integration in all three repositories.
 
 ## 1. Install Pyrolight on the Steam Deck
 
@@ -34,8 +32,7 @@ program on the host: no MoonDeck Buddy, no special host app.
 
 PyroDeck finds `pyrolight` on `PATH`, or the newest Pyrolight AppImage in
 `~/Applications`, `~/AppImages`, `~/Downloads` or your home folder. To use
-another file, set it under **Pyrolight Settings → Use a specific Pyrolight
-executable**.
+another file, set it under **Host Selection → Use a specific Pyrolight executable**.
 
 ## 2. Install PyroDeck
 
@@ -55,7 +52,7 @@ Open PyroDeck from the quick access menu, press the settings icon and go to
 - **Add host manually** adds a host by IP address or name when scanning cannot
   find it (VPN, other subnet, firewall).
 
-Select the host. **Host Info** shows whether it reports Steam app IDs.
+Select the default host. Pair each additional host separately. **Host Info** shows whether it reports Steam app IDs.
 
 ## 4. Pair
 
@@ -68,25 +65,50 @@ On **Host Selection**, under **Pyrolight**:
 
 Pairing is Pyrolight's own. PyroDeck never reads or copies its credentials.
 
-## 5. Launch a game
+## 5. Stream games
 
-Open any Steam game that is installed on the host and press the PyroDeck
-button on its library page. PyroDeck wakes the host if needed (Wake-on-LAN),
-finds that exact game on the host by its Steam app ID and starts Pyrolight
-through Steam, so Game Mode focus, Steam Input and the overlay work as for any
-game.
+Open a game’s Steam Library page and choose **Stream with Pyrolight**. The
+separate action appears when a paired, reachable host advertises that Steam
+App ID. Steam’s Play and Install buttons keep their local behavior. The
+eligible default host is selected; choose an alternative explicitly when the
+default is unavailable. That selection applies to this launch only.
 
-Apps that are not in your Steam library (Desktop, Lutris or Heroic games, your
-own Pyroshine entries) can be added as Steam shortcuts on the **Host Apps**
-page.
+Open **Remote Games** in Quick Access or the settings page to browse every
+application advertised by a host: Steam, Heroic, Lutris, desktop entries and
+manual applications. Search, filter by source and sort by name or recently
+played on this Deck. Select a card to launch. Adding games as Steam shortcuts
+is optional; the browser uses one shared hidden Steam launcher.
 
-## 6. Disconnect or end the game
+## 6. Profiles and streaming settings
 
-- **Disconnect** (or Steam's **Exit Game**, or suspending the Deck) closes
-  Pyrolight only. The game keeps running on the host; press the PyroDeck
-  button again to continue where you left off.
-- **End Game on Host** (quick access menu) closes the game on the host. It
-  asks first, and is the only PyroDeck action that stops anything there.
+Quick Access shows the active Pyrolight profile and stream state. Open
+**Streaming Profiles** to select, create, duplicate, rename or delete a profile,
+or restore its defaults. One manually selected profile governs subsequent
+launches. Pyrolight’s standalone GUI uses the same profiles. Docking never
+selects another profile automatically.
+
+Video & Display, Audio, Controller & Input, VRR Advanced, Advanced Streaming,
+and Connection & Diagnostics expose Pyrolight’s settings. Edits remain a draft
+when Quick Access closes. While streaming, select **Apply & Reconnect** to save
+and reconnect explicitly; no setting edit reconnects automatically. Without a
+running client, **Save for Next Session** saves without launching anything.
+Discarding the draft refreshes preferences from Pyrolight.
+
+If reconnect fails, the draft remains and the error explains that preferences
+were saved but not confirmed by a stream. Retry or launch the same game again.
+Unsaved drafts are discarded when the plugin unloads or you log out. Network
+calibration and system receive-buffer fixes require explicit actions and a
+disconnected client; a recommended bitrate is only staged when you choose it.
+
+## 7. Disconnect, reconnect or end the game
+
+- **Disconnect**, Steam’s **Exit Game**, and suspend close the client and
+  preserve the remote game under Pyroshine’s retention policy.
+- **Reconnect** in Session Controls resumes the pinned host/application using
+  the active profile. Launching the same library game again also resumes it.
+- **End Remote Game** asks for confirmation, then explicitly closes that game
+  on its original host. Update Pyroshine for conditional cancellation, which
+  refuses to terminate a different application that replaced it.
 
 PyroDeck never suspends, restarts or shuts down the host.
 
@@ -112,11 +134,11 @@ Logs:
 | Pyrolight output (each launch) | `/tmp/pyrodeck-runner-pyrolight.log` |
 | Frontend | `/tmp/pyrodeck-frontend.log` |
 
-Settings are stored in `~/.config/pyrodeck/settings.json`.
+Host/UI settings are stored in `~/.config/pyrodeck/settings.json`; confirmed play history is `recent-games.json` beside it. Streaming preferences and profiles remain in Pyrolight.
 
 ## Development
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the architecture, the
+See the [architecture and settings parity matrix](docs/INTEGRATION.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the architecture, the
 contract with Pyroshine and Pyrolight, building and tests.
 
 ## License

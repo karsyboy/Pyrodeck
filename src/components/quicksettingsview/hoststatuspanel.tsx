@@ -1,11 +1,12 @@
+import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { FC, useContext } from "react";
-import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { GameStreamHost, ServerStatus, UserSettings } from "../../lib";
 import { LabelWithIcon, ServerStatusField } from "../shared";
 import { CurrentHostSettings } from "../../hooks";
 import { HostOff } from "../icons";
 import { HostSelectionDropdown } from "../hostselectionview/hostselectiondropdown";
 import { MoonDeckContext } from "../../contexts";
+import { usePyrolight } from "../../hooks/usepyrolight";
 
 interface Props {
   currentHostSettings: CurrentHostSettings | null;
@@ -16,7 +17,8 @@ interface Props {
 }
 
 export const HostStatusPanel: FC<Props> = ({ currentHostSettings, currentSettings, serverStatus, serverRefreshStatus, hostInfo }) => {
-  const { settingsManager } = useContext(MoonDeckContext);
+  const session = usePyrolight().session;
+  const { settingsManager, connectivityManager } = useContext(MoonDeckContext);
 
   if (currentHostSettings === null || currentSettings === null) {
     return (
@@ -41,7 +43,7 @@ export const HostStatusPanel: FC<Props> = ({ currentHostSettings, currentSetting
         >
           <HostSelectionDropdown
             disableNoneOption={true}
-            disabled={false}
+            disabled={["connecting", "launching", "streaming", "reconnecting", "ending"].includes(session.state)}
             singleItemSelection={true}
             currentSettings={currentSettings}
             setHost={(value) => { settingsManager.update((settings) => { settings.currentHostId = value; }); }}
@@ -51,6 +53,7 @@ export const HostStatusPanel: FC<Props> = ({ currentHostSettings, currentSetting
       <PanelSectionRow>
         <ServerStatusField label="Pyroshine" status={serverStatus} isRefreshing={serverRefreshStatus} noSeparator={hostInfo === null || hostInfo.appSources > 0} />
       </PanelSectionRow>
+      {serverStatus === "Offline" && <PanelSectionRow><ButtonItem disabled={serverRefreshStatus} onClick={() => { void connectivityManager.commandProxy.wakeOnLan(); }}>Wake Default Host</ButtonItem></PanelSectionRow>}
       {hostInfo !== null && hostInfo.appSources === 0 &&
         <PanelSectionRow>
           <Field

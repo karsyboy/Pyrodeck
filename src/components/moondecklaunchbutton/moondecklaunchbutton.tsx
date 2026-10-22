@@ -1,10 +1,31 @@
 import { AppType, UserSettings, isAppTypeSupported, logger } from "../../lib";
-import { Button, Focusable, appDetailsClasses, appDetailsHeaderClasses, basicAppDetailsSectionStylerClasses, joinClassNames, playSectionClasses, showModal, sleep } from "@decky/ui";
-import { CSSProperties, FC, useContext, useEffect, useRef, useState } from "react";
+import {
+  Button,
+  DropdownItem,
+  Focusable,
+  appDetailsClasses,
+  appDetailsHeaderClasses,
+  basicAppDetailsSectionStylerClasses,
+  joinClassNames,
+  playSectionClasses
+} from "@decky/ui";
+import {
+  CSSProperties,
+  FC,
+  useContext,
+  useEffect,
+  useRef,
+  useState
+} from "react";
+import {
+  Catalog,
+  eligibleHosts,
+  preferredHost,
+  pyrolightIntegration
+} from "../../lib/pyrolightintegration";
 import { OffsetStyle, achorPositionName } from "./offsetstyle";
 import { ButtonStyle } from "./buttonstyle";
 import { ContainerStyle } from "./containerstyle";
-import { LaunchPromptModal } from "./launchpromptmodal";
 import { MoonDeckContext } from "../../contexts";
 import { MoonDeckMain } from "../icons";
 import { useCurrentSettings } from "../../hooks";
@@ -21,7 +42,11 @@ interface ShellProps {
   onClick?: (onDone: () => void) => void;
 }
 
-export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({ onClick, buttonPosition, buttonStyle }) => {
+export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({
+  onClick,
+  buttonPosition,
+  buttonStyle
+}) => {
   const [clickPending, setClickPending] = useState(false);
   const handleClick = (() => {
     if (onClick) {
@@ -34,7 +59,12 @@ export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({ onClick, buttonPosit
   })();
 
   return (
-    <Focusable className={joinClassNames(basicAppDetailsSectionStylerClasses.AppButtons, "pyrodeck-container")}>
+    <Focusable
+      className={joinClassNames(
+        basicAppDetailsSectionStylerClasses.AppButtons,
+        "pyrodeck-container"
+      )}
+    >
       <OffsetStyle buttonPosition={buttonPosition} />
       <ContainerStyle buttonPosition={buttonPosition} />
       <ButtonStyle theme={buttonStyle.theme} />
@@ -42,7 +72,10 @@ export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({ onClick, buttonPosit
         <Button
           disabled={clickPending}
           noFocusRing={!buttonStyle.showFocusRing}
-          className={joinClassNames(playSectionClasses.MenuButton, "pyrodeck-button")}
+          className={joinClassNames(
+            playSectionClasses.MenuButton,
+            "pyrodeck-button"
+          )}
           onClick={handleClick}
         >
           <MoonDeckMain />
@@ -55,28 +88,74 @@ export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({ onClick, buttonPosit
 const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
   const settings = useCurrentSettings();
-
-  if (!isAppTypeSupported(appType) || settings === null) {
-    return null;
-  }
-
-  return (
-    <MoonDeckLaunchButtonShell
-      buttonPosition={settings.buttonPosition}
-      buttonStyle={settings.buttonStyle}
-      onClick={(onDone: () => void) => {
-        const launchApp = async (): Promise<void> => {
-          await moonDeckAppLauncher.launchApp(appId, appName, AppType.MoonDeck);
-          await sleep(1000);
-        };
-
-        if (settings.enableMoondeckButtonPrompt) {
-          showModal(<LaunchPromptModal closeModal={() => { }} onDone={onDone} launchApp={launchApp} />);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [hostId, setHostId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!isAppTypeSupported(appType)) return;
+    let cancelled = false;
+    let initialized = false;
+    let loading = false;
+    const refresh = (force = false): void => {
+      if (loading) return;
+      loading = true;
+      void pyrolightIntegration.catalog(force).then((value) => {
+        if (cancelled) return;
+        const hosts = eligibleHosts(value, appId);
+        setCatalog(value);
+        if (!initialized) {
+          setHostId(preferredHost(hosts, settings?.currentHostId ?? value.defaultHostId));
+          initialized = true;
         } else {
-          launchApp().catch((e) => logger.critical(e)).finally(() => onDone());
+          setHostId((current) => hosts.some((host) => host.id === current) ? current : null);
         }
+      }).catch((error: unknown) => logger.debug(String(error))).finally(() => { loading = false; });
+    };
+    refresh();
+    const timer = setInterval(() => { if (!document.hidden) refresh(true); }, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [appId, appType, settings?.currentHostId]);
+  if (!isAppTypeSupported(appType) || !settings || !catalog) return null;
+  const hosts = eligibleHosts(catalog, appId);
+  if (!hosts.length) return null;
+  return (
+    <Focusable
+      style={{
+        padding: "12px 24px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8
       }}
-    />
+    >
+      {(hosts.length > 1 || hostId === null) && (
+        <DropdownItem
+          label="Streaming host"
+          selectedOption={hostId ?? ""}
+          rgOptions={[
+            { data: "", label: "Choose a host" },
+            ...hosts.map((host) => ({ data: host.id, label: host.name }))
+          ]}
+          onChange={(choice) => setHostId((choice.data as string) || null)}
+          disabled={busy}
+        />
+      )}
+      <Button
+        disabled={busy || !hostId}
+        onClick={() => {
+          if (!hostId || busy) return;
+          setBusy(true);
+          void moonDeckAppLauncher
+            .launchApp(appId, appName, AppType.MoonDeck, undefined, { hostId })
+            .catch((error: unknown) => logger.critical(error))
+            .finally(() => setBusy(false));
+        }}
+      >
+        Stream with Pyrolight
+        {hostId ?
+          ` · ${hosts.find((host) => host.id === hostId)?.name ?? ""}` :
+          ""}
+      </Button>
+    </Focusable>
   );
 };
 
@@ -135,24 +214,32 @@ export const MoonDeckLaunchButtonAnchor: FC<Props> = (props) => {
           className.includes(appDetailsHeaderClasses.FullscreenEnterDone) ||
           className.includes(appDetailsHeaderClasses.FullscreenExitStart) ||
           className.includes(appDetailsHeaderClasses.FullscreenExitActive);
-        const fullscreenAborted =
-          className.includes(appDetailsHeaderClasses.FullscreenExitDone);
+        const fullscreenAborted = className.includes(
+          appDetailsHeaderClasses.FullscreenExitDone
+        );
 
         setShow(!fullscreenMode || fullscreenAborted);
       }
     });
-    mutationObserver.observe(topCapsule, { attributes: true, attributeFilter: ["class"] });
+    mutationObserver.observe(topCapsule, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
     return () => {
       mutationObserver.disconnect();
     };
   }, []);
 
   return (
-    <div id="pyrodeck" ref={ref} style={{ position: `var(${achorPositionName}, relative)` as CSSProperties["position"], height: 0 }}>
-      {
-        show &&
-        <MoonDeckLaunchButton {...props} />
-      }
+    <div
+      id="pyrodeck"
+      ref={ref}
+      style={{
+        position:
+          `var(${achorPositionName}, relative)` as CSSProperties["position"]
+      }}
+    >
+      {show && <MoonDeckLaunchButton {...props} />}
     </div>
   );
 };

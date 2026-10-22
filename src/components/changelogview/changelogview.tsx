@@ -1,9 +1,13 @@
-import { DialogBody, DialogControlsSection, Field } from "@decky/ui";
+import { DialogBody, DialogControlsSection, DialogControlsSectionHeader, Field } from "@decky/ui";
 import { FC } from "react";
 
 export const ChangelogView: FC = () => {
   return (
     <DialogBody>
+      <DialogControlsSection>
+        <DialogControlsSectionHeader>PyroDeck 0.2.0</DialogControlsSectionHeader>
+        <Field description="Separate Stream with Pyrolight library action; explicit multi-host selection; Remote Games browser; native Pyrolight profiles and settings in Quick Access; staged Apply & Reconnect; pinned session controls and conditional remote termination." />
+      </DialogControlsSection>
       <DialogControlsSection>
         <Field
           label="0.1.0"

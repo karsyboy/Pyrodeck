@@ -28,6 +28,7 @@ from lib.utils import wake_on_lan, change_runner_ready_state
 from lib.runnerresult import set_result, get_result
 from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight, pyrolight_host
 from lib import runnercontrol
+from lib.integration import Integration, failure
 
 set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=True)
 
@@ -35,9 +36,54 @@ frontend_logger = get_logger("frontend")
 set_logger_settings(frontend_logger, constants.FRONTEND_LOG_FILE, rotate=True, log_preamble="", verbose=True)
 
 settings_manager = UserSettingsManager(constants.get_config_file_path(), constants.get_moondeck_config_file_path())
+integration = Integration()
 
 
 class Plugin:
+    async def pyrolight_settings(self, request: Optional[dict] = None):
+        try:
+            settings = await settings_manager.read_or_update()
+            async with integration.lock:
+                return await integration.preferences(settings, request)
+        except Exception as error:
+            return failure("settings", str(error))
+
+    async def apply_pyrolight_settings(self, request: dict, reconnect: bool):
+        try:
+            return await integration.apply(await settings_manager.read_or_update(), request, reconnect)
+        except Exception as error:
+            return failure("settings", str(error))
+
+    async def remote_catalog(self, refresh: bool = False):
+        try:
+            return await integration.catalogs(await settings_manager.read_or_update(), refresh)
+        except Exception as error:
+            return failure("catalog", str(error))
+
+    async def session_status(self):
+        return integration.status()
+
+    async def remote_artwork(self, host_id: str, app_id: int):
+        try:
+            return await integration.artwork(await settings_manager.read_or_update(), host_id, app_id)
+        except Exception:
+            return failure("artwork", "Artwork is unavailable")
+
+    async def pyrolight_network_tool(self, host_id: str, action: str):
+        if integration.lock.locked():
+            return failure("busy", "Another settings or session operation is in progress")
+        try:
+            async with integration.lock:
+                return await integration.network_tool(await settings_manager.read_or_update(), host_id, action)
+        except Exception as error:
+            return failure("network", str(error))
+
+    async def reconnect_session(self):
+        if integration.lock.locked():
+            return failure("busy", "Another session operation is in progress")
+        async with integration.lock:
+            return await integration.reconnect()
+
     def __cleanup_states(self):
         set_result(None)
         change_runner_ready_state(False)

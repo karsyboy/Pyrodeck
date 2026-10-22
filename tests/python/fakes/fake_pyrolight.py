@@ -25,6 +25,10 @@ with open(os.path.join(directory, "invocations.jsonl"), "a") as file:
     file.write(json.dumps({"argv": sys.argv[1:], "pid": os.getpid()}) + "\n")
 
 args = sys.argv[1:]
+if args and args[0] == "settings":
+    behavior = config.get("settings", {"exit": 1, "stdout": ""})
+    sys.stdout.write(behavior.get("stdout", ""))
+    sys.exit(behavior.get("exit", 1))
 if "--help" in args:
     print(config.get("help", ""))
     sys.exit(0)
@@ -38,6 +42,8 @@ if action == "list":
     sys.exit(behavior.get("exit", 0))
 
 behavior = config.get(action or "stream", {})
+for event in behavior.get("events", []):
+    print("PYROLIGHT_EVENT " + json.dumps(event), flush=True)
 if config.get("ignore_sigterm"):
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
 else:

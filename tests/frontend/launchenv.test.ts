@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@decky/api", () => ({ call: vi.fn(), toaster: { toast: vi.fn() } }));
 
 const { AppType, EnvVars, getLaunchOptionsString, getLibraryAppData, isAppTypeSupported, isMoonDeckShortcut } = await import("../../src/lib/launchenv");
-const { getEnvKeyValueString } = await import("../../src/lib/envutils");
+const { getEnvKeyValueString, makeEnvKeyValue } = await import("../../src/lib/envutils");
 
 const context = { displayMode: "1280x800", autoResolution: true, currentAudioDevice: null, currentDisplay: "internal", pythonExecPath: "" };
 
@@ -32,6 +32,22 @@ describe("launch options", () => {
     expect(options).toContain("PYRODECK_APP_TYPE=2 PYRODECK_ACTION=quit");
     expect(options).not.toContain(EnvVars.SteamAppId);
     expect(getLaunchOptionsString("", 55, AppType.Utility, context)).toBeNull();
+  });
+});
+
+describe("safe names", () => {
+  it("quotes shell metacharacters even without whitespace", () => {
+    for (const name of ["A;B", "Game$(command)", "Game`command`", "A&B", "A\\B"]) {
+      const encoded = makeEnvKeyValue("NAME", name);
+      expect(encoded.startsWith("NAME='")).toBe(true);
+      expect(getEnvKeyValueString(encoded, "NAME")).toBe(name);
+    }
+  });
+  it("remote browser launches carry only stable identity, never an app name in shell options", () => {
+    const value = getLaunchOptionsString("", 123, AppType.Remote, { ...context, hostId: "host-a", remoteAppId: 45, remoteAppName: "--a;$(bad)" });
+    expect(value).toContain("PYRODECK_REMOTE_APP_ID=45");
+    expect(value).not.toContain("bad");
+    expect(value).not.toContain("PYRODECK_APP_NAME");
   });
 });
 

@@ -52,7 +52,7 @@ export class MoonDeckAppShortcuts {
         const hasCorrectLaunchOptions = !details.strLaunchOptions.includes(EnvVars.AppType) ||
           details.strLaunchOptions.includes(makeEnvKeyValue(EnvVars.AppType, AppType.MoonDeck));
 
-        if (isMoonDeckShortcut(details) && hasCorrectLaunchOptions) {
+        if (isMoonDeckShortcut(details) && hasCorrectLaunchOptions && !details.strLaunchOptions.includes("PYRODECK_LAUNCHER=1")) {
           moonDeckApps.push(details);
         }
       }

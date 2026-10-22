@@ -7,6 +7,7 @@ import { HostInfoView } from "../components/hostinfoview";
 import { HostSelectionView } from "../components/hostselectionview";
 import { MoonDeckAppsView } from "../components/moondeckappsview";
 import { MoonlightSettingsView } from "../components/moonlightsettingsview";
+import { RemoteGames } from "../components/remotegames/remotegames";
 import { RunnerSettingsView } from "../components/runnersettingsview";
 import { SetupGuideView } from "../components/setupguideview";
 import { SidebarNavigation } from "@decky/ui";
@@ -18,6 +19,7 @@ const MoonDeckRouter: FC<object> = () => {
   return (
     <SidebarNavigation
       pages={[
+        { title: "Remote Games", content: <RemoteGames />, route: "/pyrodeck/remote-games", visible: true },
         {
           title: "Setup Guide",
           content: <SetupGuideView />,

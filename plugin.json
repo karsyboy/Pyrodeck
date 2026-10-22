@@ -4,8 +4,13 @@
   "flags": [],
   "api_version": 1,
   "publish": {
-    "tags": ["gamestream", "pyroshine", "pyrolight", "pyrodeck", "streaming"],
-    "description": "PyroDeck streams the Steam games installed on your Pyroshine host to the Steam Deck through Pyrolight, launched from the game's own library page. Based on MoonDeck by FrogTheFrog.",
-    "image": "https://github.com/FrogTheFrog/moondeck/raw/main/.github/assets/quickmenu.png"
+    "tags": [
+      "gamestream",
+      "pyroshine",
+      "pyrolight",
+      "pyrodeck",
+      "streaming"
+    ],
+    "description": "Stream Steam Library and remote host applications with Pyrolight. Manage profiles and streaming settings in Quick Access. Based on MoonDeck by FrogTheFrog."
   }
 }

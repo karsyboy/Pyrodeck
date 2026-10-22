@@ -33,6 +33,7 @@ class RunnerSettings(TypedDict):
     custom_wol_exec_path: Optional[str]
     wol_port: int
     debug_logs: bool
+    remote_app_id: Optional[int]
 
 
 def parse_audio_settings(host_settings: HostSettings, env_settings: EnvSettings) -> Optional[str]:
@@ -120,7 +121,8 @@ async def parse_settings() -> RunnerSettings:
     if user_settings is None:
         raise RunnerError(Result.NoSettings)
 
-    host_id = user_settings["currentHostId"]
+    env_settings = parse_env_settings()
+    host_id = env_settings["host_id"] or user_settings["currentHostId"]
     if host_id is not None and host_id in user_settings["hostSettings"]:
         host_settings = user_settings["hostSettings"][host_id]
 
@@ -141,10 +143,12 @@ async def parse_settings() -> RunnerSettings:
         if env_settings["app_id"] is None:
             raise RunnerError(Result.NoAppId)
         steam_app_id = int(env_settings["app_id"])
-    elif runner_type == RunnerType.GameStreamApp:
-        if env_settings["app_name"] is None:
+    elif runner_type in (RunnerType.GameStreamApp, RunnerType.RemoteApp):
+        if env_settings["app_name"] is None and runner_type == RunnerType.GameStreamApp:
             raise RunnerError(Result.NoAppName)
-        app_name = env_settings["app_name"]
+        app_name = env_settings["app_name"] or "Remote application"
+        if runner_type == RunnerType.RemoteApp and env_settings["remote_app_id"] is None:
+            raise RunnerError(Result.HostAppNotFound)
     else:
         if env_settings["action"] is None:
             raise RunnerError(Result.NoAction)
@@ -175,4 +179,5 @@ async def parse_settings() -> RunnerSettings:
         "custom_wol_exec_path": wol_settings["customWolExecPath"] if wol_settings["useCustomWolExec"] else None,
         "wol_port": wol_settings["port"],
         "debug_logs": user_settings["runnerDebugLogs"],
+        "remote_app_id": env_settings["remote_app_id"],
     })

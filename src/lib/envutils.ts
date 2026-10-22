@@ -5,7 +5,9 @@ export function makeEnvKeyValue(key: string, value: string | number): string {
     value = `${value}`;
   }
 
-  if (/[' ]/.test(value)) {
+  // Steam executes launch options through a shell. Quote every metacharacter,
+  // including names without spaces such as Game$(command) or A;B.
+  if (!/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) {
     value = `'${value.replace(/'/g, "'\\''")}'`;
   }
 

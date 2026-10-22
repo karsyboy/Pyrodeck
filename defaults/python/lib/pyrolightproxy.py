@@ -84,6 +84,7 @@ class Capabilities:
     """What the installed Pyrolight build accepts, from `pyrolight stream --help`."""
     video_codecs: set[str]
     vrr: bool
+    app_id: bool = False
 
 
 DEFAULT_HTTP_PORT = 47989
@@ -189,11 +190,11 @@ def parse_capabilities(help_text: str) -> Capabilities:
     if match:
         codecs = {choice.strip() for choice in match.group(1).split("/") if choice.strip()}
     vrr = re.search(r"(^|\s)--vrr(\s|$)", flattened) is not None
-    return Capabilities(video_codecs=codecs, vrr=vrr)
+    return Capabilities(video_codecs=codecs, vrr=vrr, app_id="--app-id" in flattened)
 
 
 def build_stream_args(host: str, app_name: str, options: Optional[CommandLineOptions],
-                      capabilities: Optional[Capabilities] = None) -> list[str]:
+                      capabilities: Optional[Capabilities] = None, app_id: Optional[int] = None) -> list[str]:
     """Arguments for `pyrolight [options] stream HOST APP`, as an argv list.
 
     Options a probed build does not accept are left out (logged), so an
@@ -202,6 +203,10 @@ def build_stream_args(host: str, app_name: str, options: Optional[CommandLineOpt
     has are emitted; VRR and non-default codecs need a probe.
     """
     args: list[str] = []
+    if app_id is not None:
+        if type(app_id) is not int or app_id <= 0:
+            raise ValueError("Invalid GameStream application ID")
+        args += ["--app-id", str(app_id)]
 
     if options:
         if (audio := options["audio"]) is not None:
@@ -246,7 +251,7 @@ def build_stream_args(host: str, app_name: str, options: Optional[CommandLineOpt
             else:
                 logger.warning(f"This Pyrolight build does not offer the {video_codec} codec; using its default.")
 
-    args += ["stream", host, app_name]
+    args += ["stream", host] if app_id is not None else ["stream", host, app_name]
     return args
 
 
@@ -278,6 +283,7 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
         self.exec_path = exec_path
         self.process: Optional[Process] = None
         self.__reaper: Optional[utils.ProcessReaper] = None
+        self.on_event = None
 
     async def __aenter__(self):
         return self
@@ -317,6 +323,45 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
             logger.error(f"Unexpected pyrolight list output: {err}")
             raise PyrolightListError("failed", "Pyrolight printed an app list PyroDeck cannot read. "
                                      "Update Pyrolight.") from err
+
+    async def settings(self, request: dict | None = None, timeout: float = 15) -> dict:
+        """Use Pyrolight's settings owner; never edit its Qt settings files."""
+        import json
+        args = ["settings"]
+        if request is not None:
+            args += ["--json", json.dumps(request, separators=(",", ":"))]
+        code, stdout, stderr = await self.__run_to_completion(args, timeout)
+        try:
+            result = json.loads(stdout.splitlines()[-1])
+            if not isinstance(result, dict) or result.get("schema") != 1 or not isinstance(result.get("ok"), bool):
+                raise ValueError("Unsupported settings response")
+        except (ValueError, IndexError) as error:
+            raise PyrolightListError("outdated", "Update Pyrolight: its settings API is unavailable.") from error
+        if code != 0 and result["ok"]:
+            raise PyrolightListError("failed", stderr.decode(errors="replace") or "Settings command failed")
+        return result
+
+    async def artwork(self, host: str, app_id: int, timeout: float = 12) -> dict:
+        import json
+        code, stdout, _ = await self.__run_to_completion(["list", "--json", "--artwork-id", str(app_id), host], timeout)
+        if code != 0:
+            raise PyrolightListError("artwork", "Artwork is unavailable")
+        value = json.loads(stdout.splitlines()[-1])
+        if value.get("schema") != 1 or value.get("appId") != app_id:
+            raise ValueError("Invalid artwork response")
+        return value
+
+    async def network_tool(self, host: str, action: str, timeout: float = 120) -> dict:
+        import json
+        if action not in ("check", "calibrate", "fix"):
+            raise ValueError("Unknown network action")
+        code, stdout, _ = await self.__run_to_completion(["list", "--json", "--network-action", action, host], timeout)
+        if code != 0:
+            raise PyrolightListError("network", "Pyrolight network tool failed")
+        value = json.loads(stdout.splitlines()[-1])
+        if value.get("schema") != 1 or value.get("action") != action:
+            raise ValueError("Invalid network tool response")
+        return value
 
     async def probe_capabilities(self, timeout: float = 20) -> Optional[Capabilities]:
         try:
@@ -382,12 +427,22 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
             with open(constants.PYROLIGHT_LOG_FILE, "w", 1) as file:
                 while not stream.at_eof():
                     data = await stream.readline()
+                    if data.startswith(b"PYROLIGHT_EVENT ") and self.on_event is not None:
+                        import json
+                        try:
+                            event = json.loads(data[len(b"PYROLIGHT_EVENT "):])
+                            if event.get("schema") == 1:
+                                self.on_event(event)
+                        except (ValueError, AttributeError):
+                            logger.warning("Invalid Pyrolight lifecycle event")
                     file.write(data.decode(errors="replace"))
             logger.info("Finished saving Pyrolight output.")
 
         process_task = asyncio.create_task(self.process.wait())
         log_task = asyncio.create_task(log_stream(self.process.stdout))
-        await asyncio.wait([process_task, log_task], return_when=asyncio.ALL_COMPLETED)
+        # Cancellation also stops the log reader before a resumed attempt can
+        # reuse its file and lifecycle callback.
+        await asyncio.gather(process_task, log_task)
         return self.process.returncode
 
 

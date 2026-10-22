@@ -8,6 +8,7 @@ import { getLibraryAppData, logger } from "../lib";
 import { MoonDeckLaunchButtonAnchor } from "../components/moondecklaunchbutton";
 import { ReactElement } from "react";
 import { getDefaultContext } from "../contexts";
+import { streamActionIndex } from "../lib/libraryintegration";
 
 function patchLibraryApp(route: string): RoutePatch {
   const { moonDeckAppLauncher, settingsManager } = getDefaultContext();
@@ -65,12 +66,13 @@ function patchLibraryApp(route: string): RoutePatch {
             return ret;
           }
 
-          const hltbIndex = parent.props.children.findIndex((x) => x.props.id === "hltb-for-deck");
-          const appPanelIndex = parent.props.children.findIndex((x) => x.props.overview && x.props.onShowLaunchingDetails);
+          const insertion = streamActionIndex(parent.props.children);
+          if (insertion === null) return ret;
           parent.props.children.splice(
-            hltbIndex < 0 ? (appPanelIndex < 0 ? -1 : appPanelIndex - 1) : hltbIndex,
+            insertion,
             0,
             <MoonDeckLaunchButtonAnchor
+              key="pyrodeck"
               appId={appId}
               appName={appName}
               appType={appType}

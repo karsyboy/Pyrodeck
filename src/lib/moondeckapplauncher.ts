@@ -1,18 +1,18 @@
 import { AppStartResult, AppType, ControllerConfigOption, EnvVars, addShortcut, checkExecPathMatch, getAppDetails, getAudioDevices, getCurrentDisplayModeString, getDisplayIdentifiers, getMoonDeckRunPath, getSystemNetworkStore, isMoonDeckShortcut, launchApp, registerForGameLaunchIntercept, registerForGameLifetime, registerForSuspendNotifications, removeShortcut, setAppHiddenState, setAppLaunchOptions, setAppResolutionOverride, setOverrideResolutionForInternalDisplay, setShortcutName } from "./steamutils";
 import { ControllerConfigValues, Dimension, HostResolution, HostSettings, SettingsManager } from "./settingsmanager";
+import { LaunchContext, UtilityAction, getLaunchOptionsString } from "./launchenv";
 import { Subscription, pairwise } from "rxjs";
-import { UtilityAction, getLaunchOptionsString } from "./launchenv";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { AppSyncState } from "./appsyncstate";
 import { EThirdPartyControllerConfiguration } from "@decky/ui/dist/globals/steam-client/Input";
 import { ExternalAppShortcuts } from "./externalappshortcuts";
 import { MoonDeckAppProxy } from "./moondeckapp";
 import { MoonDeckAppShortcuts } from "./moondeckappshortcuts";
+import { Mutex } from "async-mutex";
 import { call } from "@decky/api";
 import { executeAsync } from "./executeasync";
 import { logger } from "./logger";
 import { makeEnvKeyValue } from "./envutils";
-import { sleep } from "@decky/ui";
 
 async function setRunnerReady(): Promise<void> {
   try {
@@ -80,15 +80,26 @@ export class MoonDeckAppLauncher {
   private subscription: Subscription | null = null;
   // The hidden "PyroDeck" shortcut that runs Pyrolight's pair and quit actions.
   private utilityAppId: number | null = null;
+  private readonly utilityMutex = new Mutex();
   readonly moonDeckApp: MoonDeckAppProxy;
 
   private findUtilityShortcut(allDetails: AppDetails[]): void {
     const marker = makeEnvKeyValue(EnvVars.AppType, AppType.Utility);
-    const found = allDetails.find((details) => isMoonDeckShortcut(details) && details.strLaunchOptions.includes(marker));
+    const remoteMarker = makeEnvKeyValue(EnvVars.AppType, AppType.Remote);
+    const found = allDetails.find((details) => isMoonDeckShortcut(details) && (details.strLaunchOptions.includes(marker) || details.strLaunchOptions.includes(remoteMarker) || details.strLaunchOptions.includes("PYRODECK_LAUNCHER=1")));
     this.utilityAppId = found?.unAppID ?? null;
   }
 
   private async ensureUtilityShortcut(execPath: string): Promise<number | null> {
+    const release = await this.utilityMutex.acquire();
+    try {
+      return await this.prepareUtilityShortcut(execPath);
+    } finally {
+      release();
+    }
+  }
+
+  private async prepareUtilityShortcut(execPath: string): Promise<number | null> {
     if (this.utilityAppId !== null && await getAppDetails(this.utilityAppId) === null) {
       // Removed by the user since; make a new one.
       this.utilityAppId = null;
@@ -100,7 +111,7 @@ export class MoonDeckAppLauncher {
         return null;
       }
       // Mark it before anything else so it is found again after a restart.
-      if (!await setAppLaunchOptions(appId, `${makeEnvKeyValue(EnvVars.AppType, AppType.Utility)} %command%`)) {
+      if (!await setAppLaunchOptions(appId, `${makeEnvKeyValue(EnvVars.AppType, AppType.Utility)} PYRODECK_LAUNCHER=1 %command%`)) {
         await removeShortcut(appId);
         return null;
       }
@@ -113,32 +124,13 @@ export class MoonDeckAppLauncher {
     return this.utilityAppId;
   }
 
-  private async ensureAppDetails(steamAppId: number, execPath: string, appName: string, appType: AppType): Promise<AppDetails | null> {
+  private async ensureAppDetails(steamAppId: number, execPath: string, appType: AppType): Promise<AppDetails | null> {
     let appId: number | null = null;
     let details: AppDetails | null = null;
 
     if (appType === AppType.MoonDeck) {
-      appId = this.moonDeckAppShortcuts.getId(steamAppId);
-      details = appId === null ? null : await getAppDetails(appId);
-
-      // Probably the cache is outdated
-      if (details === null && appId !== null) {
-        await this.moonDeckAppShortcuts.removeShortcut(appId);
-        appId = null;
-      }
-
-      if (appId === null) {
-        appId = await this.moonDeckAppShortcuts.addShortcut(steamAppId, appName, execPath);
-        if (appId === null) {
-          return null;
-        }
-      }
-
-      if (!await setAppHiddenState(appId, true)) {
-        logger.error(`Failed to hide app ${appId}!`);
-        await this.moonDeckAppShortcuts.removeShortcut(appId);
-        return null;
-      }
+      appId = await this.ensureUtilityShortcut(execPath);
+      if (appId === null) return null;
     } else {
       appId = steamAppId;
     }
@@ -285,7 +277,7 @@ export class MoonDeckAppLauncher {
    * Game Mode focus and controller input like a game. "quit" ends the game on
    * the host: only ever started by an explicit user action.
    */
-  async launchUtility(action: UtilityAction): Promise<void> {
+  async launchUtility(action: UtilityAction, hostId?: string, expectedAppId?: number): Promise<void> {
     const execPath = await getMoonDeckRunPath();
     if (execPath === null) {
       logger.toast("Failed to get pyrodeckrun.sh path!", { output: "error" });
@@ -298,24 +290,32 @@ export class MoonDeckAppLauncher {
       return;
     }
 
-    await this.launchApp(appId, action === "pair" ? "PyroDeck - Pair" : "PyroDeck - End host game", AppType.Utility, action);
+    await this.launchApp(appId, action === "pair" ? "PyroDeck - Pair" : "PyroDeck - End host game", AppType.Utility, action, { hostId, remoteAppId: expectedAppId });
+  }
+
+  async launchRemote(hostId: string, remoteAppId: number, remoteAppName: string): Promise<void> {
+    const execPath = await getMoonDeckRunPath();
+    if (!execPath) throw new Error("PyroDeck runner is unavailable");
+    const appId = await this.ensureUtilityShortcut(execPath);
+    if (appId === null) throw new Error("Could not prepare the PyroDeck Steam launcher");
+    await this.launchApp(appId, remoteAppName, AppType.Remote, undefined, { hostId, remoteAppId, remoteAppName });
   }
 
   /** Disconnect a running stream (if any), then end the game on the host. */
-  async endHostGame(): Promise<void> {
+  async endHostGame(hostId?: string, expectedAppId?: number): Promise<void> {
     if (this.moonDeckApp.value !== null || await this.moonDeckApp.isStillRunning()) {
       await this.moonDeckApp.killApp(true);
       await this.moonDeckApp.clearApp();
 
-      // The runner releases its lock as it exits; the quit launch needs it free.
-      for (let attempt = 0; attempt < 20 && await this.moonDeckApp.isStillRunning(); ++attempt) {
-        await sleep(500);
-      }
+      // The backend waits for the owned runner and client to release their
+      // process records; host termination cannot overlap a disconnect.
+      await call("kill_runner");
+      if (await this.moonDeckApp.isStillRunning()) throw new Error("PyroDeck is still disconnecting. Retry End Remote Game.");
     }
-    await this.launchUtility("quit");
+    await this.launchUtility("quit", hostId, expectedAppId);
   }
 
-  async launchApp(appId: number, appName: string, appType: AppType, action?: UtilityAction): Promise<void> {
+  async launchApp(appId: number, appName: string, appType: AppType, action?: UtilityAction, target: Partial<LaunchContext> = {}): Promise<void> {
     if (this.moonDeckAppShortcuts.initializing || this.externalAppShortcuts.initializing) {
       logger.toast("Plugin is still initializing...");
       return;
@@ -330,7 +330,8 @@ export class MoonDeckAppLauncher {
       return;
     }
 
-    const hostSettings = this.settingsManager.hostSettings;
+    const selectedHostId = target.hostId ?? settings.currentHostId;
+    const hostSettings = selectedHostId ? settings.hostSettings[selectedHostId] ?? null : null;
     if (hostSettings === null) {
       logger.toast("Host is not selected!");
       return;
@@ -365,7 +366,7 @@ export class MoonDeckAppLauncher {
         return;
       }
 
-      const details = await this.ensureAppDetails(appId, execPath, appName, appType);
+      const details = await this.ensureAppDetails(appId, execPath, appType);
       if (details === null) {
         logger.toast("Failed to create shortcut (needs restart?)!", { output: "error" });
         return;
@@ -411,7 +412,10 @@ export class MoonDeckAppLauncher {
         currentAudioDevice,
         currentDisplay,
         pythonExecPath: settings.pythonExecPath,
-        action
+        action,
+        ...target,
+        reusableLauncher: appType !== AppType.GameStream,
+        hostId: selectedHostId ?? undefined
       });
       if (launchOptions === null || !await setAppLaunchOptions(details.unAppID, launchOptions)) {
         logger.toast("Failed to update shortcut launch options (needs restart?)!", { output: "error" });

@@ -25,6 +25,7 @@ from ..gamestreaminfo import GameStreamHost, get_server_info
 from ..logger import logger
 from ..pyrolightproxy import HostApp, HostAppList, PyrolightListError, PyrolightProxy, build_stream_args, find_pyrolight, needs_capability_probe, pyrolight_host
 from ..splashscreen.overlay import OverlayStack
+from .. import sessionstate, history
 
 
 # A Pyrolight exit with an error this soon after start is a launch failure.
@@ -86,7 +87,7 @@ class PyroshineRunner:
                 server_info = await get_server_info(address=settings["address"],
                                                     port=settings["host_port"],
                                                     timeout=settings["timeouts"]["servicePing"])
-                online = server_info is not None and server_info["uniqueId"] == settings["host_id"]
+                online = server_info is not None and server_info["uniqueId"].lower() == settings["host_id"].lower()
                 if not await splash.update(online):
                     if not online or server_info is None:
                         raise RunnerError(Result.GameStreamDead)
@@ -120,7 +121,12 @@ class PyroshineRunner:
     @classmethod
     async def resolve_target(cls, proxy: PyrolightProxy, settings: RunnerSettings, server_info: GameStreamHost) -> HostApp:
         app_list = await cls.list_host_apps(proxy, settings)
-        if settings["runner_type"] == RunnerType.SteamApp:
+        if settings.get("remote_app_id") is not None:
+            matches = [app for app in app_list.apps if app.id == settings["remote_app_id"]]
+            if len(matches) != 1:
+                raise RunnerError(Result.HostAppNotFound)
+            app = matches[0]
+        elif settings["runner_type"] == RunnerType.SteamApp:
             assert settings["steam_app_id"] is not None
             app = resolve_steam_app(app_list, settings["steam_app_id"], server_info["appSources"] >= 1)
         else:
@@ -149,6 +155,7 @@ class PyroshineRunner:
 
     @classmethod
     async def run(cls, settings: RunnerSettings, overlay_stack: OverlayStack):
+        generation = settings.get("generation")
         exec_path = find_pyrolight(settings["pyrolight_exec_path"])
         if exec_path is None:
             raise RunnerError(Result.PyrolightIsNotInstalled)
@@ -161,12 +168,66 @@ class PyroshineRunner:
                 action: Optional[UtilityAction] = settings["action"]
                 assert action is not None
                 logger.info(f"Running Pyrolight action: {action.value}")
-                await cls.run_pyrolight(proxy, [action.value, pyrolight_host(settings["address"], settings["host_port"])])
+                args = [action.value, settings["host_id"] if settings.get("remote_app_id") else pyrolight_host(settings["address"], settings["host_port"])]
+                if action == UtilityAction.Quit and settings.get("remote_app_id"):
+                    args += ["--app-id", str(settings["remote_app_id"]), "--integration-events"]
+                    if generation:
+                        sessionstate.update(generation, state="ending", remoteAppId=settings["remote_app_id"])
+                        def quit_event(event):
+                            if event.get("state") in ("ending", "ended", "failed"):
+                                sessionstate.update(generation, state=event["state"], error=event.get("error") or None)
+                        proxy.on_event = quit_event
+                await cls.run_pyrolight(proxy, args)
                 return
 
             app = await cls.resolve_target(proxy, settings, server_info)
+            settings["remote_app_id"] = app.id
+            native_settings = None
+            try:
+                native_settings = await proxy.settings({"schema": 1, "operation": "prepare-launch"})
+                if not native_settings.get("ok"):
+                    raise PyrolightListError("failed", str(native_settings.get("error")))
+            except PyrolightListError as error:
+                if error.reason != "outdated":
+                    raise
+                logger.warning("Legacy Pyrolight: update for authoritative profiles and Quick Access settings")
             capabilities = None
-            if needs_capability_probe(settings["cmd_options"]):
+            if native_settings or needs_capability_probe(settings["cmd_options"]):
                 capabilities = await proxy.probe_capabilities()
-            args = build_stream_args(pyrolight_host(settings["address"], settings["host_port"]), app.name, settings["cmd_options"], capabilities)
+            options = None if native_settings else settings["cmd_options"]
+            target = settings["host_id"] if native_settings else pyrolight_host(settings["address"], settings["host_port"])
+            args = build_stream_args(target, app.name, options, capabilities,
+                                     app_id=app.id if capabilities and capabilities.app_id else None)
+            if native_settings:
+                # The profile owns every stream preference. Only lifecycle safety
+                # is overridden: disconnect never requests host termination.
+                args = ["--no-quit-after", "--integration-events", "--settings-revision", native_settings["revision"], *args]
+            if generation:
+                current = sessionstate.read()
+                attempt = current.get("attempt", 0) + 1
+                sessionstate.update(generation, state="launching", appName=app.name, remoteAppId=app.id,
+                                    attempt=attempt, error=None, quality=None,
+                                    launchPreferences=native_settings,
+                                    effectivePreferences=current.get("effectivePreferences"))
+                def on_event(event):
+                    observed = sessionstate.read()
+                    if observed.get("generation") != generation or observed.get("attempt") != attempt:
+                        return
+                    if event.get("state") == "quality" and event.get("quality") in ("good", "poor"):
+                        sessionstate.update(generation, quality=event["quality"])
+                        return
+                    if event.get("state") not in ("connecting", "launching", "streaming", "disconnected", "failed"):
+                        return
+                    if event["state"] == "disconnected" and sessionstate.read().get("state") == "failed":
+                        return
+                    changes = {"state": event["state"], "error": event.get("error") or None}
+                    if event["state"] == "streaming":
+                        changes["effectivePreferences"] = native_settings
+                        changes["diagnostics"] = event.get("diagnostics")
+                        changes["displayBackend"] = event.get("displayBackend")
+                        history.record(settings["host_id"], app.id)
+                    sessionstate.update(generation, **changes)
+                proxy.on_event = on_event
             await cls.run_pyrolight(proxy, args)
+            if generation and sessionstate.read().get("state") == "failed":
+                raise RunnerError(Result.PyrolightFailed, sessionstate.read().get("error"))

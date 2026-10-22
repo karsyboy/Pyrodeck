@@ -28,6 +28,7 @@ from lib.splashscreen.overlay import OverlayStack
 
 import lib.constants as constants
 import lib.runnerresult as runnerresult
+from lib import sessionstate
 
 
 set_logger_settings(logger, constants.RUNNER_LOG_FILE, rotate=False)
@@ -80,11 +81,13 @@ async def run_with_suspend_resume(settings: RunnerSettings):
                     with contextlib.suppress(asyncio.CancelledError):
                         await runner_task
                     change_runner_suspended_state(True)
+                    sessionstate.update(settings["generation"], state="disconnected")
 
                     resume_requested.clear()
                     await resume_requested.wait()
                     logger.info("PyroDeck runner is being resumed!")
                     change_runner_suspended_state(False)
+                    sessionstate.update(settings["generation"], state="reconnecting")
 
 
 async def main():
@@ -110,20 +113,29 @@ async def main():
 
             logger.info("Parsing runner settings")
             settings = await parse_settings()
+            settings["generation"] = sessionstate.begin(settings)
 
             if settings["debug_logs"]:
                 logger.setLevel(logging.DEBUG)
 
             await run_with_suspend_resume(settings)
+            if sessionstate.read().get("state") not in ("failed", "ended"):
+                sessionstate.update(settings["generation"], state="disconnected")
             runnerresult.set_result(None)
 
     except asyncio.CancelledError as err:
+        current = sessionstate.read()
+        if current.get("generation") == locals().get("settings", {}).get("generation"):
+            sessionstate.update(current["generation"], state="disconnected")
         if isinstance(err.__cause__, runnerresult.RunnerError):
             runnerresult.set_result(err.__cause__)
         else:
             runnerresult.set_result(runnerresult.Result.Terminated)
 
     except runnerresult.RunnerError as err:
+        current = sessionstate.read()
+        if current.get("generation") == locals().get("settings", {}).get("generation"):
+            sessionstate.update(current["generation"], state="failed", error=str(err))
         runnerresult.set_result(err)
 
     except Exception:

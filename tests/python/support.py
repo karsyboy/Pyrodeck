@@ -35,7 +35,7 @@ def isolate_state(test: unittest.TestCase) -> pathlib.Path:
     directory = pathlib.Path(tempfile.mkdtemp(prefix="pyrodeck-test-"))
     test.addCleanup(shutil.rmtree, directory, ignore_errors=True)
     names = ["BACKEND_LOG_FILE", "FRONTEND_LOG_FILE", "RUNNER_LOG_FILE", "PYROLIGHT_LOG_FILE", "RUNNER_RESULT_FILE",
-             "RUNNER_READY_FILE", "RUNNER_SUSPENDED_FILE", "RUNNER_PID_FILE", "RUNNER_CLIENT_FILE"]
+             "RUNNER_READY_FILE", "RUNNER_SUSPENDED_FILE", "RUNNER_PID_FILE", "RUNNER_CLIENT_FILE", "SESSION_STATE_FILE"]
     for name in names:
         path = str(directory / name.lower())
         for module in (constants, utils):

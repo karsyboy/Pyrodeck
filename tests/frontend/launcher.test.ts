@@ -73,7 +73,7 @@ function makeSettings(resumeAfterSuspend = false) {
     runnerTimeouts: { servicePing: 5, wakeOnLan: 60, steamLaunch: 5 }
   };
   return {
-    settings: { value: { gameSession: { autoApplyAppId: false, resumeAfterSuspend, controllerConfig: null }, pythonExecPath: "" } },
+    settings: { value: { currentHostId: "host-a", hostSettings: { "host-a": hostSettings }, gameSession: { autoApplyAppId: false, resumeAfterSuspend, controllerConfig: null }, pythonExecPath: "" } },
     hostSettings
   };
 }
@@ -108,13 +108,13 @@ beforeEach(() => {
 });
 
 describe("library launch", () => {
-  it("launches the hidden shortcut with the selected game's app id through Steam", async () => {
-    const { launcher, moonDeckShortcuts } = makeLauncher();
+  it("launches through the shared Steam launcher with a pinned host and exact Steam app ID", async () => {
+    const { launcher } = makeLauncher();
     await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
 
-    const shortcutId = moonDeckShortcuts.get(892970)!;
+    const shortcutId = steam.launched[0];
     expect(steam.launched).toEqual([shortcutId]);
-    expect(steam.shortcuts.get(shortcutId)!.strLaunchOptions).toBe("PYRODECK_APP_TYPE=0 PYRODECK_STEAM_APP_ID=892970 PYRODECK_AUTO_RES=1280x800 %command%");
+    expect(steam.shortcuts.get(shortcutId)!.strLaunchOptions).toBe("PYRODECK_APP_TYPE=0 PYRODECK_STEAM_APP_ID=892970 PYRODECK_HOST_ID=host-a PYRODECK_AUTO_RES=1280x800 PYRODECK_LAUNCHER=1 %command%");
     expect(calls.map(([name]) => name)).not.toContain("kill_runner");
   });
 
@@ -167,6 +167,7 @@ describe("ending the host game", () => {
     let runnerChecks = 0;
     // The runner is still exiting for a few checks after Steam ended the shortcut.
     backend.is_runner_active = () => ++runnerChecks < 4;
+    backend.kill_runner = () => { runnerChecks = 4; };
 
     await launcher.endHostGame();
     const utility = [...steam.shortcuts.values()].find((shortcut) => shortcut.strLaunchOptions.includes("PYRODECK_ACTION=quit"))!;
@@ -200,12 +201,12 @@ describe("suspend and resume", () => {
   });
 
   it("closes the stream on resume unless resuming is enabled", async () => {
-    const { launcher, moonDeckShortcuts } = makeLauncher(false);
+    const { launcher } = makeLauncher(false);
     backend.suspend_runner = () => true;
     await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
     await steam.onSuspend!();
     await steam.onResume!();
-    expect(steam.terminated).toEqual([moonDeckShortcuts.get(892970)]);
+    expect(steam.terminated).toEqual([steam.launched[0]]);
     expect(calls.map(([name]) => name)).not.toContain("unsuspend_runner");
   });
 });

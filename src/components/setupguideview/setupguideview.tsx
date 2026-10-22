@@ -42,7 +42,7 @@ export const SetupGuideView: FC = () => {
         />
         <Field
           label="Step 5 - Launch a game from its library page"
-          description="Open any Steam game installed on the host and press the PyroDeck button. Closing the stream keeps the game running on the host; End Game on Host in the quick access menu closes it."
+          description="Open any Steam game installed on the host and select Stream with Pyrolight. Quick Access exposes profiles and stream settings. Closing the stream keeps the game running on the host; End Remote Game in Session Controls closes it."
           focusable={true}
         >
           <MoonDeckLaunchButtonShell buttonStyle={settings.buttonStyle} />

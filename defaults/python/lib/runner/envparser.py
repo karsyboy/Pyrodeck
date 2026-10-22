@@ -12,6 +12,7 @@ class RunnerType(Enum):
     GameStreamApp = 1
     # A Pyrolight action that needs a window: pairing or quitting the host app.
     Utility = 2
+    RemoteApp = 3
 
 
 class UtilityAction(Enum):
@@ -32,6 +33,8 @@ class EnvSettings(TypedDict):
     app_name: Optional[str]
     action: Optional[UtilityAction]
     runner_type: Optional[RunnerType]
+    host_id: Optional[str]
+    remote_app_id: Optional[int]
 
 
 # The variables PyroDeck puts in its shortcuts' launch options. They are
@@ -43,6 +46,8 @@ LINKED_DISPLAY = "PYRODECK_LINKED_DISPLAY"
 STEAM_APP_ID = "PYRODECK_STEAM_APP_ID"
 APP_NAME = "PYRODECK_APP_NAME"
 ACTION = "PYRODECK_ACTION"
+HOST_ID = "PYRODECK_HOST_ID"
+REMOTE_APP_ID = "PYRODECK_REMOTE_APP_ID"
 
 
 def get_auto_resolution() -> Optional[AutoResolution]:
@@ -104,5 +109,7 @@ def parse_env_settings() -> EnvSettings:
         "app_id": get_app_id(),
         "app_name": get_app_name(),
         "action": get_action(),
+        "host_id": os.environ.get(HOST_ID) or None,
+        "remote_app_id": int(os.environ[REMOTE_APP_ID]) if os.environ.get(REMOTE_APP_ID, "").isdigit() and int(os.environ[REMOTE_APP_ID]) > 0 else None,
         "runner_type": get_runner_type()
     }

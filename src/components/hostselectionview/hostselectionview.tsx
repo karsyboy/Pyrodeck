@@ -7,6 +7,7 @@ import { HostForgetButton } from "./hostforgetbutton";
 import { HostScanButton } from "./hostscanbutton";
 import { HostSelectionDropdown } from "./hostselectiondropdown";
 import { MoonDeckContext } from "../../contexts";
+import { PyrolightExecutableSelection } from "./pyrolightexecutableselection";
 import { PyrolightSection } from "./pyrolightsection";
 
 export const HostSelectionView: FC = () => {
@@ -26,9 +27,9 @@ export const HostSelectionView: FC = () => {
         <DialogControlsSectionHeader>Pyroshine Host</DialogControlsSectionHeader>
         <ServerStatusField label="Status" status={serverStatus} isRefreshing={serverRefreshStatus} />
         <Field
-          label="Current host"
+          label="Default host"
           childrenContainerWidth="fixed"
-          description="Select the Pyroshine host to stream from."
+          description="The preferred host for library launches. Selecting another host on a game page applies only to that launch."
         >
           <HostSelectionDropdown
             disabled={isScanning}
@@ -72,6 +73,7 @@ export const HostSelectionView: FC = () => {
           />
         </Field>
       </DialogControlsSection>
+      <DialogControlsSection><PyrolightExecutableSelection /></DialogControlsSection>
       {hostSettings &&
         <PyrolightSection
           hostSettings={hostSettings}
