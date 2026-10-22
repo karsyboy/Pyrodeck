@@ -8,7 +8,7 @@ import {
   ToggleField,
   showModal
 } from "@decky/ui";
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useState, useSyncExternalStore } from "react";
 import {
   SettingDescriptor,
   SettingValue,
@@ -17,6 +17,7 @@ import {
 import { ActionButton } from "../shared/actionbutton";
 import { NetworkTools } from "./networktools";
 import { NumericTextInput } from "../shared";
+import { steamIntegrationStatus } from "../../lib/steamintegrationstatus";
 import { usePyrolight } from "../../hooks/usepyrolight";
 
 const labels: Record<string, string> = {
@@ -331,6 +332,7 @@ export const StreamingProfiles: FC = () => {
 
 export const PyrolightSettings: FC<{ category?: string }> = ({ category }) => {
   const { preferences } = usePyrolight();
+  const integration = useSyncExternalStore(steamIntegrationStatus.subscribe, steamIntegrationStatus.getSnapshot);
   useEffect(() => {
     void pyrolightIntegration.refresh();
   }, []);
@@ -385,6 +387,8 @@ export const PyrolightSettings: FC<{ category?: string }> = ({ category }) => {
       {category === "Connection & Diagnostics" && <NetworkTools />}
       {category === "Connection & Diagnostics" && (
         <PanelSection title="Diagnostics">
+          <PanelSectionRow><Field label="Steam Library integration" description={integration.library} /></PanelSectionRow>
+          <PanelSectionRow><Field label="Steam overlay integration" description={integration.overlay} /></PanelSectionRow>
           <PanelSectionRow>
             <Field
               label="PyroWave decoder"

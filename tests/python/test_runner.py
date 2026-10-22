@@ -34,12 +34,13 @@ def options(**overrides) -> CommandLineOptions:
 
 
 def settings(port: int, exec_path: str, *, runner_type=RunnerType.SteamApp, steam_app_id=892970, app_name=None,
-             action=None, cmd_options=None, host_id=HOST_ID, wake_on_lan=0):
+             action=None, cmd_options=None, host_id=HOST_ID, wake_on_lan=0, remote_app_id=None):
     return {
         "runner_type": runner_type,
         "cmd_options": cmd_options or options(),
         "steam_app_id": steam_app_id if runner_type == RunnerType.SteamApp else None,
         "app_name": app_name,
+        "remote_app_id": remote_app_id,
         "action": action,
         "host_id": host_id,
         "hostname": "SuperCube",
@@ -139,6 +140,11 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.pyrolight.streams()[-1][-1], "Portal 2")
         await self.run_runner(steam_app_id=892970)
         self.assertEqual(self.pyrolight.streams()[-1][-1], "Valheim")
+
+    async def test_browser_steam_identity_keeps_selected_remote_target(self):
+        await self.run_runner(steam_app_id=892970, remote_app_id=VALHEIM["id"])
+        self.assertEqual(self.pyrolight.streams()[-1][-1], "Valheim")
+        await self.assert_fails(Result.HostAppNotFound, steam_app_id=892970, remote_app_id=PORTAL["id"])
 
     async def test_titles_never_decide_which_game_streams(self):
         self.pyrolight.set_apps([

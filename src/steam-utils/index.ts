@@ -35,3 +35,4 @@ export * from "./waitForAppOverview";
 export * from "./waitForAppResolutionOverride";
 export * from "./waitForAppStartNotification";
 export * from "./waitForServicesInitialized";
+export * from "./registerForStreamExit";

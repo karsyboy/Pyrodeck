@@ -126,6 +126,8 @@ class PyroshineRunner:
             if len(matches) != 1:
                 raise RunnerError(Result.HostAppNotFound)
             app = matches[0]
+            if settings.get("steam_app_id") is not None and f"steam:{settings['steam_app_id']}" not in app.sources:
+                raise RunnerError(Result.HostAppNotFound, "The selected host app no longer matches this Steam game.")
         elif settings["runner_type"] == RunnerType.SteamApp:
             assert settings["steam_app_id"] is not None
             app = resolve_steam_app(app_list, settings["steam_app_id"], server_info["appSources"] >= 1)

@@ -61,6 +61,11 @@ export function appKind(app: RemoteApp): string {
   const kind = app.sources[0]?.split(":")[0];
   return kind && ["steam", "heroic", "lutris", "desktop"].includes(kind) ? kind : "other";
 }
+/** A single exact Steam identity; ambiguous source claims remain remote apps. */
+export function steamSourceId(app: RemoteApp): number | null {
+  const ids = [...new Set(app.sources.filter((source) => /^steam:[1-9][0-9]*$/.test(source)).map((source) => Number(source.slice(6))))];
+  return ids.length === 1 && Number.isSafeInteger(ids[0]) && ids[0] < 0x80000000 ? ids[0] : null;
+}
 export function steamArtwork(app: RemoteApp): string | undefined {
   const source = app.sources.find((value) => /^steam:[1-9][0-9]*$/.test(value));
   return source ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${source.slice(6)}/library_600x900.jpg` : undefined;

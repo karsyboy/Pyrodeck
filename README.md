@@ -78,13 +78,29 @@ application advertised by a host: Steam, Heroic, Lutris, desktop entries and
 manual applications. Search, filter by source and sort by name or recently
 played on this Deck. Select a card to launch. Adding games as Steam shortcuts
 is optional; the browser uses one shared hidden Steam launcher. **Filter & Sort…**
-opens source and recent-play filters.
+opens source and recent-play filters. The page count and Previous/Next controls
+appear above the cards; search covers every page.
 
 Adding a non-Steam shortcut to the host's Steam Library does **not** by itself
 make it discoverable. Pyroshine's Steam scanner reads installed Steam game
 manifests, not Steam's `shortcuts.vdf`. Non-Steam applications appear when
 advertised through Pyroshine's Heroic, Lutris, desktop-entry scanners or manual
 application configuration.
+
+For a remote game with one exact Steam App ID that is also in your Deck's Steam
+Library, the Gaming Mode running-game menu uses the real game's name, artwork
+and Steam details. Resume returns to the stream; Steam's Exit action disconnects
+it. The helper always keeps the game's readable name. The Library action mounts
+below the native controls and leaves local Play and Install unchanged.
+Games without a matching Steam Library entry keep their remote-app identity.
+
+Steam still owns a hidden helper process. Playtime, achievements and cloud sync
+remain the responsibility of the host game and Steam. The adapter presents
+existing Steam metadata; it does not create local achievement or cloud state.
+
+If the Library action is missing, **Connection & Diagnostics** in streaming
+settings reports whether the Library panel was found and whether that game has
+an eligible host. It also shows which game's Steam details the overlay uses.
 
 ## 6. Profiles and streaming settings
 

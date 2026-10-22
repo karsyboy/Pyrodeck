@@ -21,7 +21,11 @@ const steam = vi.hoisted(() => ({
   intercept: null as null | ((gameId: string, cancel: () => void) => void),
   onSuspend: null as null | (() => Promise<void>),
   onResume: null as null | (() => Promise<void>),
-  terminated: [] as number[]
+  terminated: [] as number[],
+  names: [] as Array<[number, string]>,
+  exitResolver: null as null | ((id: string) => (() => Promise<void>) | null),
+  lifetime: null as null | ((data: { unAppID: number; bRunning: boolean }) => void),
+  overviews: new Map<number, { BIsShortcut(): boolean; display_name?: string; local_per_client_data?: { display_status: number } }>()
 }));
 vi.mock("../../src/lib/steamutils", async () => {
   const env = await vi.importActual<typeof import("../../src/lib/launchenv")>("../../src/lib/launchenv");
@@ -39,6 +43,8 @@ vi.mock("../../src/lib/steamutils", async () => {
       return id;
     }),
     removeShortcut: vi.fn(async (id: number) => steam.shortcuts.delete(id)),
+    getAppStoreEx: () => ({ getAppOverview: (id: number) => steam.overviews.get(id) ?? null }),
+    getGameId: async (id: number) => `gameid-${id}`,
     getAppDetails: vi.fn(async (id: number) => steam.shortcuts.get(id) ?? null),
     setAppLaunchOptions: vi.fn(async (id: number, options: string) => {
       const shortcut = steam.shortcuts.get(id);
@@ -46,7 +52,7 @@ vi.mock("../../src/lib/steamutils", async () => {
       return shortcut !== undefined;
     }),
     setAppHiddenState: vi.fn(async () => true),
-    setShortcutName: vi.fn(async () => true),
+    setShortcutName: vi.fn(async (id: number, name: string) => { steam.names.push([id, name]); return true; }),
     setAppResolutionOverride: vi.fn(async () => true),
     setOverrideResolutionForInternalDisplay: vi.fn(async () => true),
     getAudioDevices: vi.fn(async () => null),
@@ -56,7 +62,8 @@ vi.mock("../../src/lib/steamutils", async () => {
     terminateApp: vi.fn(async (id: number) => { steam.terminated.push(id); return true; }),
     registerForGameLaunchIntercept: vi.fn((callback) => { steam.intercept = callback; return () => {}; }),
     registerForSuspendNotifications: vi.fn((onSuspend, onResume) => { steam.onSuspend = onSuspend; steam.onResume = onResume; return () => {}; }),
-    registerForGameLifetime: vi.fn(() => () => {})
+    registerForStreamExit: (resolver: typeof steam.exitResolver) => { steam.exitResolver = resolver; return () => { steam.exitResolver = null; }; },
+    registerForGameLifetime: vi.fn((callback) => { steam.lifetime = callback; return () => {}; })
   };
 });
 (globalThis as Record<string, unknown>).SteamClient = { Apps: { SetThirdPartyControllerConfiguration: vi.fn() } };
@@ -103,6 +110,9 @@ beforeEach(() => {
   steam.launched.length = 0;
   steam.terminated.length = 0;
   calls.length = 0;
+  steam.names.length = 0;
+  steam.overviews.clear();
+  steam.overviews.set(892970, { BIsShortcut: () => false, display_name: "Valheim" });
   for (const key of Object.keys(backend)) delete backend[key];
   backend.is_runner_active = () => false;
 });
@@ -116,6 +126,50 @@ describe("library launch", () => {
     expect(steam.launched).toEqual([shortcutId]);
     expect(steam.shortcuts.get(shortcutId)!.strLaunchOptions).toBe("PYRODECK_APP_TYPE=0 PYRODECK_STEAM_APP_ID=892970 PYRODECK_HOST_ID=host-a PYRODECK_AUTO_RES=1280x800 PYRODECK_LAUNCHER=1 %command%");
     expect(calls.map(([name]) => name)).not.toContain("kill_runner");
+  });
+
+  it("keeps the exact remote app ID and native Steam identity for browser launches", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.launchRemote("host-a", 42, "Valheim", 892970);
+    const id = steam.launched[0];
+    expect(steam.shortcuts.get(id)!.strLaunchOptions).toContain("PYRODECK_STEAM_APP_ID=892970 PYRODECK_REMOTE_APP_ID=42");
+    expect(launcher.moonDeckApp.value?.steamAppId).toBe(892970);
+    expect(steam.names.at(-1)).toEqual([id, "Valheim"]);
+    expect(steam.names.some(([, name]) => /^\d+$/.test(name))).toBe(false);
+  });
+
+  it("uses remote identity for apps absent from the Steam Library", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.launchRemote("host-a", 42, "A non-Steam game", null);
+    const id = steam.launched[0];
+    expect(steam.shortcuts.get(id)!.strLaunchOptions).toContain("PYRODECK_APP_TYPE=3 PYRODECK_REMOTE_APP_ID=42");
+    expect(launcher.moonDeckApp.value?.moonDeckAppId).toBeNull();
+    expect(steam.names).toEqual([[id, "A non-Steam game"]]);
+  });
+
+  it("does not associate a host Steam ID with another non-Steam shortcut", async () => {
+    steam.overviews.set(892970, { BIsShortcut: () => true });
+    const { launcher } = makeLauncher();
+    await launcher.launchRemote("host-a", 42, "Valheim", 892970);
+    expect(steam.shortcuts.get(steam.launched[0])!.strLaunchOptions).toContain("PYRODECK_APP_TYPE=3");
+  });
+
+  it("restores the helper name before Steam Exit and passes unrelated games through", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    const id = steam.launched[0];
+    expect(steam.exitResolver!("620")).toBeNull();
+    expect(steam.exitResolver!(`gameid-${id}`)).toBeTypeOf("function");
+    const disconnect = steam.exitResolver!("892970");
+    await disconnect!();
+    expect(steam.terminated).toEqual([id]);
+    expect(steam.names.at(-1)).toEqual([id, "Valheim"]);
+    // A late running notification cannot reapply the numeric name during exit.
+    steam.lifetime!({ unAppID: id, bRunning: true });
+    await Promise.resolve();
+    expect(steam.names.at(-1)).toEqual([id, "Valheim"]);
+    launcher.deinit();
+    expect(steam.exitResolver).toBeNull();
   });
 
   it("never starts a second stream while one runs", async () => {
@@ -208,5 +262,44 @@ describe("suspend and resume", () => {
     await steam.onResume!();
     expect(steam.terminated).toEqual([steam.launched[0]]);
     expect(calls.map(([name]) => name)).not.toContain("unsuspend_runner");
+  });
+});
+
+
+describe("running session recovery", () => {
+  function existingShortcut(steamAppId = 892970) {
+    steam.shortcuts.set(5, { unAppID: 5, strShortcutExe: '"/home/deck/homebrew/plugins/PyroDeck/python/pyrodeckrun.sh"', strLaunchOptions: `PYRODECK_APP_TYPE=0 PYRODECK_STEAM_APP_ID=${steamAppId} PYRODECK_LAUNCHER=1 %command%`, strDisplayName: "892970" });
+  }
+  it("repairs the numeric title after a plugin reload using the owned runner identity", async () => {
+    existingShortcut(); backend.session_status = () => ({ runnerActive: true, steamAppId: 892970, appName: null });
+    const { launcher } = makeLauncher();
+    await vi.waitFor(() => expect(steam.names).toContainEqual([5, "Valheim"]));
+    expect(launcher.moonDeckApp.value?.launcherGameId).toBe("gameid-5");
+    expect(steam.launched).toEqual([]);
+    launcher.deinit();
+  });
+  it("does not adopt an unmatched or ended runner", async () => {
+    existingShortcut(620); backend.session_status = () => ({ runnerActive: true, steamAppId: 892970, appName: "Valheim" });
+    const { launcher } = makeLauncher();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(launcher.moonDeckApp.value).toBeNull(); expect(steam.names).toEqual([]);
+    launcher.deinit();
+  });
+  it("does not restore a session after the plugin unloads", async () => {
+    existingShortcut(); let finish!: (value: unknown) => void;
+    backend.session_status = () => new Promise((resolve) => { finish = resolve; });
+    const { launcher } = makeLauncher();
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function")); launcher.deinit();
+    finish({ runnerActive: true, steamAppId: 892970, appName: "Valheim" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(launcher.moonDeckApp.value).toBeNull(); expect(steam.names).toEqual([]);
+  });
+  it("passes local Steam Exit through when the same game is running locally", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    steam.overviews.set(892970, { BIsShortcut: () => false, local_per_client_data: { display_status: 4 } });
+    expect(steam.exitResolver!("892970")).toBeNull();
+    expect(steam.exitResolver!(`gameid-${steam.launched[0]}`)).toBeTypeOf("function");
+    expect(steam.terminated).toEqual([]); launcher.deinit();
   });
 });

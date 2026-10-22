@@ -1,99 +1,69 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Navigation, afterPatch, appDetailsClasses, createReactTreePatcher, findInReactTree } from "@decky/ui";
-import { RoutePatch, routerHook } from "@decky/api";
-import { getLibraryAppData, logger } from "../lib";
+import { FC, useEffect, useState } from "react";
+import {
+  LibraryMount,
+  SteamFiber,
+  observeLibraryMount
+} from "../lib/librarymount";
+import {
+  appDetailsClasses,
+  basicAppDetailsSectionStylerClasses,
+  getReactInstance
+} from "@decky/ui";
 import { MoonDeckLaunchButtonAnchor } from "../components/moondecklaunchbutton";
-import { ReactElement } from "react";
-import { getDefaultContext } from "../contexts";
-import { streamActionIndex } from "../lib/libraryintegration";
+import { createPortal } from "react-dom";
+import { getAppStoreEx } from "../steam-utils/getAppStoreEx";
+import { isAppTypeSupported } from "../lib/launchenv";
+import { logger } from "../lib/logger";
+import { routerHook } from "@decky/api";
+import { steamIntegrationStatus } from "../lib/steamintegrationstatus";
+import { useCurrentSettings } from "../hooks/usecurrentsettings";
 
-function patchLibraryApp(route: string): RoutePatch {
-  const { moonDeckAppLauncher, settingsManager } = getDefaultContext();
-  return routerHook.addPatch(
-    route,
-    (tree: any) => {
-      const routeProps = findInReactTree(tree, (x: any) => x?.renderFunc);
-      if (routeProps) {
-        let appType: number | undefined;
-        let appId: number | undefined;
-        let appName: string | undefined;
-
-        const patchHandler = createReactTreePatcher([
-          (tree: any) => {
-            const children = findInReactTree(tree, (x: any) => x?.props?.children?.props?.overview)?.props?.children;
-            if (typeof children !== "object") {
-              logger.debug(`Failed to patch ${route}, @children!`);
-              return null;
-            }
-
-            // The PyroDeck button streams the entry this page shows, by its Steam app ID.
-            const data = getLibraryAppData(children.props?.overview);
-            if (data === null) {
-              logger.error(`Failed to patch ${route}, @overview!`);
-              return null;
-            }
-
-            ({ appType, appId, appName } = data);
-            return children;
-          }
-        ], (_: Array<Record<string, unknown>>, ret?: ReactElement) => {
-          if (!settingsManager.settings.value?.enableMoondeckShortcuts) {
-            return ret;
-          }
-
-          if (moonDeckAppLauncher.moonDeckApp.value?.moonDeckAppId === appId) {
-            // We are suppressing the navigation to custom shortcut ONLY if this happens after
-            // launch via the moondeck button and we MUST navigate back ONLY once
-            if (moonDeckAppLauncher.moonDeckApp.canRedirect()) {
-              Navigation.NavigateBack();
-            }
-
-            return ret;
-          }
-
-          type ParentElement = ReactElement<{ children: Array<ReactElement<{ id?: string; overview?: unknown; onShowLaunchingDetails?: unknown }>>; className: string }>;
-          const parent = findInReactTree(ret, (x: ParentElement) => Array.isArray(x?.props?.children) && x?.props?.className?.includes(appDetailsClasses.InnerContainer)) as ParentElement;
-          if (typeof parent !== "object") {
-            logger.error(`Failed to patch ${route} - parent element not found!`);
-            return ret;
-          }
-
-          if (typeof appType !== "number" || typeof appId !== "number" || typeof appName !== "string") {
-            logger.error(`Failed to patch ${route} - undefined data!`);
-            return ret;
-          }
-
-          const insertion = streamActionIndex(parent.props.children);
-          if (insertion === null) return ret;
-          parent.props.children.splice(
-            insertion,
-            0,
-            <MoonDeckLaunchButtonAnchor
-              key="pyrodeck"
-              appId={appId}
-              appName={appName}
-              appType={appType}
-            />
-          );
-
-          return ret;
-        });
-
-        afterPatch(routeProps, "renderFunc", patchHandler);
-      }
-
-      return tree;
+const LibraryActionPortal: FC = () => {
+  const settings = useCurrentSettings();
+  const [mount, setMount] = useState<LibraryMount | null>(null);
+  useEffect(() => {
+    if (!settings?.enableMoondeckShortcuts) {
+      steamIntegrationStatus.update({
+        library: settings ?
+          "Library streaming is disabled in Advanced Tools" :
+          "Loading settings"
+      });
+      return;
     }
-  );
-}
+    return observeLibraryMount({
+      document,
+      classes: [
+        appDetailsClasses.AppDetailsOverviewPanel,
+        basicAppDetailsSectionStylerClasses.PlaySection
+      ],
+      fiber: (element) => getReactInstance(element) as SteamFiber | null,
+      lookup: (id) => getAppStoreEx()?.getAppOverview(id),
+      supported: (game) => isAppTypeSupported(game.appType),
+      change: (value) => {
+        setMount(value);
+        steamIntegrationStatus.update({
+          library: value ?
+            `Attached to ${value.game.appName}` :
+            "Waiting for a Library page"
+        });
+        if (value)
+          logger.log(
+            `Library streaming action attached: ${value.game.appName} (${value.game.appId})`
+          );
+      }
+    });
+  }, [settings?.enableMoondeckShortcuts]);
+  return mount ?
+      createPortal(
+        <MoonDeckLaunchButtonAnchor {...mount.game} />,
+        mount.container
+      ) :
+    null;
+};
 
 export function LibraryAppHook(): () => void {
-  const route = "/library/app/:appid";
-  const libraryPatch = patchLibraryApp(route);
+  routerHook.addGlobalComponent("PyroDeckLibraryAction", LibraryActionPortal);
   return () => {
-    routerHook.removePatch(route, libraryPatch);
+    routerHook.removeGlobalComponent("PyroDeckLibraryAction");
   };
 }

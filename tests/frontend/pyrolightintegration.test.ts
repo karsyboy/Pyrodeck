@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const backend = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock("@decky/api", () => backend);
-import { PyrolightIntegration, appKind, eligibleHosts, preferredHost, steamArtwork } from "../../src/lib/pyrolightintegration";
+import { PyrolightIntegration, appKind, eligibleHosts, preferredHost, steamArtwork, steamSourceId } from "../../src/lib/pyrolightintegration";
 
 const prefs = { schema: 1, ok: true, revision: "one", activeProfileId: "default", activeProfileName: "Default", profiles: [{ id: "default", name: "Default" }], values: { fps: 60, enableHdr: false }, registry: [{ key: "fps", type: "integer", category: "Video & Display", scope: "profile", application: "reconnect" }], capabilities: { liveUpdates: false } };
 const app = { id: 42, name: "A game", sources: ["steam:620"], hdr_supported: false };
@@ -81,5 +81,17 @@ describe("settings drafts", () => {
     await store.activate("other");
     await store.profile("delete");
     expect(backend.call).not.toHaveBeenCalled();
+  });
+});
+
+describe("browser Steam source identity", () => {
+  it("accepts one exact Steam source, independent of the game title", () => {
+    expect(steamSourceId({ ...app, name: "Duplicate title", sources: ["steam:892970"] })).toBe(892970);
+    expect(steamSourceId({ ...app, sources: ["steam:620", "steam:620"] })).toBe(620);
+  });
+  it("refuses ambiguous, malformed and non-Steam source claims", () => {
+    for (const sources of [[], ["lutris:valheim"], ["steam:620", "steam:892970"], ["steam:0"], ["steam:2147483648"], ["steam:../../892970"]]) {
+      expect(steamSourceId({ ...app, sources })).toBeNull();
+    }
   });
 });

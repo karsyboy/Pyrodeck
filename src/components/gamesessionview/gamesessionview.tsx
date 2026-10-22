@@ -29,40 +29,47 @@ export const GameSessionView: FC = () => {
             label="Do nothing"
             withOptionalValue={true}
             value={settings.gameSession.controllerConfig}
-            setValue={(value) => settingsManager.update((settings) => { settings.gameSession.controllerConfig = value; })}
+            setValue={(value) =>
+              settingsManager.update((settings) => {
+                settings.gameSession.controllerConfig = value;
+              })}
           />
         </Field>
         <Field
           description={
             <>
-              <div>Choose how to configure Steam Input before the game is launched for the external controllers.</div>
+              <div>
+                Choose how to configure Steam Input before the game is launched
+                for the external controllers.
+              </div>
               <br />
-              <div>Disabling Steam Input is preferable in most cases as Pyrolight can then see the actual controller instead of a generic XBox one that Steam exposes.</div>
+              <div>
+                Disabling Steam Input is preferable in most cases as Pyrolight
+                can then see the actual controller instead of a generic XBox one
+                that Steam exposes.
+              </div>
               <br />
-              <div>This means that the motion data becomes available for PS4/Dualsense controllers and the rumble works better in most cases.</div>
+              <div>
+                This means that the motion data becomes available for
+                PS4/Dualsense controllers and the rumble works better in most
+                cases.
+              </div>
             </>
           }
           focusable={true}
         />
-        <ToggleField
-          label="Automatic title switch to AppId (library games only)"
-          description={
-            <>
-              <div>Switch the game title to AppId after it launches. This will give access to community layouts for the controller and the friends will see what you're playing (you can also switch midgame from right panel and with some finesse export the layouts that way).</div>
-              <br />
-              <div>The game might lose controller focus when opening side panels, which comes back automatically or when you start clicking stuff.</div>
-              <br />
-              <div>While the AppId is set, you can't close the game via left panel's exit button. Use the right panel instead to stop streaming abruptly.</div>
-            </>
-          }
-          value={settings.gameSession.autoApplyAppId}
-          setValue={(value) => settingsManager.update((settings) => { settings.gameSession.autoApplyAppId = value; })}
+        <Field
+          label="Steam game association"
+          description="Matching streams display the Steam game’s name, artwork and details while keeping the streaming helper’s process and window identity. Steam's Exit action disconnects the stream; End Remote Game closes the game on the host."
         />
         <ToggleField
           label="Resume stream after system suspension"
           description="Suspending the Steam Deck disconnects the stream and the game keeps running on the host. With this on, PyroDeck reconnects to it when the Deck wakes up; otherwise the stream stays closed."
           value={settings.gameSession.resumeAfterSuspend}
-          setValue={(value) => settingsManager.update((settings) => { settings.gameSession.resumeAfterSuspend = value; })}
+          setValue={(value) =>
+            settingsManager.update((settings) => {
+              settings.gameSession.resumeAfterSuspend = value;
+            })}
         />
       </DialogControlsSection>
     </DialogBody>

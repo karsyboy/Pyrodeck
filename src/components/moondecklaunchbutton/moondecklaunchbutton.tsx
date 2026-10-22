@@ -2,33 +2,26 @@ import { AppType, UserSettings, isAppTypeSupported, logger } from "../../lib";
 import {
   Button,
   DropdownItem,
+  Field,
   Focusable,
-  appDetailsClasses,
-  appDetailsHeaderClasses,
   basicAppDetailsSectionStylerClasses,
   joinClassNames,
   playSectionClasses
 } from "@decky/ui";
-import {
-  CSSProperties,
-  FC,
-  useContext,
-  useEffect,
-  useRef,
-  useState
-} from "react";
 import {
   Catalog,
   eligibleHosts,
   preferredHost,
   pyrolightIntegration
 } from "../../lib/pyrolightintegration";
-import { OffsetStyle, achorPositionName } from "./offsetstyle";
+import { FC, useContext, useEffect, useState } from "react";
+import { useCurrentSettings, useMoonDeckAppData } from "../../hooks";
 import { ButtonStyle } from "./buttonstyle";
 import { ContainerStyle } from "./containerstyle";
 import { MoonDeckContext } from "../../contexts";
 import { MoonDeckMain } from "../icons";
-import { useCurrentSettings } from "../../hooks";
+import { OffsetStyle } from "./offsetstyle";
+import { steamIntegrationStatus } from "../../lib/steamintegrationstatus";
 
 interface Props {
   appId: number;
@@ -88,9 +81,11 @@ export const MoonDeckLaunchButtonShell: FC<ShellProps> = ({
 const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
   const settings = useCurrentSettings();
+  const activeApp = useMoonDeckAppData();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [hostId, setHostId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!isAppTypeSupported(appType)) return;
     let cancelled = false;
@@ -99,23 +94,46 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
     const refresh = (force = false): void => {
       if (loading) return;
       loading = true;
-      void pyrolightIntegration.catalog(force).then((value) => {
-        if (cancelled) return;
-        const hosts = eligibleHosts(value, appId);
-        setCatalog(value);
-        if (!initialized) {
-          setHostId(preferredHost(hosts, settings?.currentHostId ?? value.defaultHostId));
-          initialized = true;
-        } else {
-          setHostId((current) => hosts.some((host) => host.id === current) ? current : null);
-        }
-      }).catch((error: unknown) => logger.debug(String(error))).finally(() => { loading = false; });
+      void pyrolightIntegration
+        .catalog(force)
+        .then((value) => {
+          if (cancelled) return;
+          const hosts = eligibleHosts(value, appId);
+          setCatalog(value);
+          setError(null);
+          steamIntegrationStatus.update({ library: `${appName}: ${hosts.length ? `${hosts.length} streaming host(s) available` : "no eligible streaming host"}` });
+          logger.debug(`Library game ${appId}: ${hosts.length} eligible streaming host(s)`);
+          if (!initialized) {
+            setHostId(
+              preferredHost(
+                hosts,
+                settings?.currentHostId ?? value.defaultHostId
+              )
+            );
+            initialized = true;
+          } else {
+            setHostId((current) =>
+              hosts.some((host) => host.id === current) ? current : null
+            );
+          }
+        })
+        .catch((problem: unknown) => { if (!cancelled) { setError(String(problem)); steamIntegrationStatus.update({ library: `${appName}: catalog failed` }); } logger.error("Library catalog query failed", problem); })
+        .finally(() => {
+          loading = false;
+        });
     };
     refresh();
-    const timer = setInterval(() => { if (!document.hidden) refresh(true); }, 30000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [appId, appType, settings?.currentHostId]);
-  if (!isAppTypeSupported(appType) || !settings || !catalog) return null;
+    const timer = setInterval(() => {
+      if (!document.hidden) refresh(true);
+    }, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [appId, appName, appType, settings?.currentHostId]);
+  if (!isAppTypeSupported(appType) || !settings) return null;
+  if (error) return <Field label="Pyrolight streaming unavailable" description={error} />;
+  if (!catalog) return <Button disabled>Checking Pyrolight hosts…</Button>;
   const hosts = eligibleHosts(catalog, appId);
   if (!hosts.length) return null;
   return (
@@ -140,17 +158,26 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
         />
       )}
       <Button
-        disabled={busy || !hostId}
+        disabled={busy || !hostId || activeApp !== null}
         onClick={() => {
           if (!hostId || busy) return;
+          const remoteAppId = hosts
+            .find((host) => host.id === hostId)
+            ?.apps.find((app) => app.sources.includes(`steam:${appId}`))?.id;
+          if (!remoteAppId) return;
           setBusy(true);
           void moonDeckAppLauncher
-            .launchApp(appId, appName, AppType.MoonDeck, undefined, { hostId })
+            .launchApp(appId, appName, AppType.MoonDeck, undefined, {
+              hostId,
+              remoteAppId
+            })
             .catch((error: unknown) => logger.critical(error))
             .finally(() => setBusy(false));
         }}
       >
-        Stream with Pyrolight
+        {activeApp?.steamAppId === appId ?
+          "Streaming with Pyrolight" :
+          "Stream with Pyrolight"}
         {hostId ?
           ` · ${hosts.find((host) => host.id === hostId)?.name ?? ""}` :
           ""}
@@ -159,87 +186,9 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
   );
 };
 
-function findTopCapsuleParent(ref: HTMLDivElement | null): Element | null {
-  const children = ref?.parentElement?.children;
-  if (!children) {
-    return null;
-  }
-
-  let headerContainer: Element | undefined;
-  for (const child of children) {
-    if (child.className.includes(appDetailsClasses.Header)) {
-      headerContainer = child;
-      break;
-    }
-  }
-
-  if (!headerContainer) {
-    return null;
-  }
-
-  let topCapsule: Element | null = null;
-  for (const child of headerContainer.children) {
-    if (child.className.includes(appDetailsHeaderClasses.TopCapsule)) {
-      topCapsule = child;
-      break;
-    }
-  }
-
-  return topCapsule;
-}
-
-export const MoonDeckLaunchButtonAnchor: FC<Props> = (props) => {
-  // There will be no mutation when the page is loaded (either from exiting the game
-  // or just newly opening the page), therefore it's visible by default.
-  const [show, setShow] = useState<boolean>(true);
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const topCapsule = findTopCapsuleParent(ref?.current);
-    if (!topCapsule) {
-      logger.error("TopCapsule container not found!");
-      return;
-    }
-
-    const mutationObserver = new MutationObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.type !== "attributes" || entry.attributeName !== "class") {
-          continue;
-        }
-
-        const className = (entry.target as Element).className;
-        const fullscreenMode =
-          className.includes(appDetailsHeaderClasses.FullscreenEnterStart) ||
-          className.includes(appDetailsHeaderClasses.FullscreenEnterActive) ||
-          className.includes(appDetailsHeaderClasses.FullscreenEnterDone) ||
-          className.includes(appDetailsHeaderClasses.FullscreenExitStart) ||
-          className.includes(appDetailsHeaderClasses.FullscreenExitActive);
-        const fullscreenAborted = className.includes(
-          appDetailsHeaderClasses.FullscreenExitDone
-        );
-
-        setShow(!fullscreenMode || fullscreenAborted);
-      }
-    });
-    mutationObserver.observe(topCapsule, {
-      attributes: true,
-      attributeFilter: ["class"]
-    });
-    return () => {
-      mutationObserver.disconnect();
-    };
-  }, []);
-
-  return (
-    <div
-      id="pyrodeck"
-      ref={ref}
-      style={{
-        position:
-          `var(${achorPositionName}, relative)` as CSSProperties["position"]
-      }}
-    >
-      {show && <MoonDeckLaunchButton {...props} />}
-    </div>
-  );
-};
+/** A normal flow section; Steam owns its own launch/fullscreen transitions. */
+export const MoonDeckLaunchButtonAnchor: FC<Props> = (props) => (
+  <div id="pyrodeck">
+    <MoonDeckLaunchButton {...props} />
+  </div>
+);

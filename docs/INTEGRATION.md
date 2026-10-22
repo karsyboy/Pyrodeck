@@ -154,3 +154,45 @@ and checking the executable path. No unauthenticated catalog fallback is used.
 Pyroshine's Steam scanner reads installed app manifests. Host Steam non-Steam
 shortcuts are not scanned; other advertised launcher, desktop and manual entries
 remain visible in Remote Games.
+
+## Steam game context while streaming
+
+The Library action is a globally mounted React portal, placed in an owned DOM
+sibling after the visible AppDetailsOverviewPanel (PlaySection is a fallback).
+It reads the mounted panel's current React fiber, including the alternate tree,
+so it follows reused panels and no longer depends on route renderFunc or
+renderChildrenFunc shapes. A batched observer handles navigation, text updates
+and visibility changes. Unload removes the observer and owned container.
+Steam's native action nodes and their callbacks are never replaced.
+
+Browser launches with one exact Steam source use the matching local Library
+entry when one exists; other apps retain remote identity. The original Steam
+App ID and selected GameStream application ID travel together. The backend
+checks that the advertised app still claims that Steam source before launch.
+Reconnect retains both IDs and the selected host.
+
+The helper always has a readable game name. Numeric-title association is no
+longer used. The running-game adapter projects the matched Steam metadata when
+Steam reads the owned helper through its overview or details lookup. It warms
+the native details registration and releases it on disconnect. The projection
+uses the native app ID, title, artwork and app type, with the helper's game ID,
+running state and compositor override. The raw app map and process IDs stay
+unchanged. Native-game lookups remain the original objects, preserving local
+Play/Install and native launch configuration.
+
+Resume and window operations receiving the presentation ID are directed to the
+helper. Exit disconnects only the owned stream; unrelated games pass through.
+If the same native game is actually launching, running or terminating locally,
+presentation and execution aliases are disabled so local play stays independent.
+The adapters unregister on plugin unload and recover an owned active stream
+after reload only when backend and shortcut Steam identities match. Recovery
+cannot outlive plugin unload or override a new launch.
+
+Connection & Diagnostics reports Library mounting/catalog eligibility and the
+active Steam overlay metadata. Runtime attachment failures are logged.
+
+These integrations display Steam metadata; they do not synthesize local
+playtime, achievements, cloud sync or host Steam rich presence. Automated tests
+exercise React DOM mounting and the Decky patcher, but real Gaming Mode overlay,
+controller navigation and Gamescope focus still require device acceptance on
+the installed Steam client version.

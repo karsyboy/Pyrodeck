@@ -66,6 +66,10 @@ export function getLaunchOptionsString(currentValue: string, appId: number, appT
       return null;
     }
     launchOptions.push(makeEnvKeyValue(EnvVars.SteamAppId, appId));
+    if (context.remoteAppId !== undefined) {
+      if (!Number.isInteger(context.remoteAppId) || context.remoteAppId <= 0) return null;
+      launchOptions.push(makeEnvKeyValue(EnvVars.RemoteAppId, context.remoteAppId));
+    }
   } else if (appType === AppType.GameStream) {
     const appNameFromOptions = getEnvKeyValueString(currentValue, EnvVars.AppName);
     if (appNameFromOptions === null) {

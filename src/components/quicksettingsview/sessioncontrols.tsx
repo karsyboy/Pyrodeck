@@ -80,7 +80,7 @@ export const SessionControls: FC = () => {
                   session.appName ?? "Remote game",
                   AppType.MoonDeck,
                   undefined,
-                  { hostId: session.hostId }
+                  { hostId: session.hostId, remoteAppId: session.remoteAppId }
                 );
               } else if (session.hostId && session.remoteAppId) {
                 await moonDeckAppLauncher.launchRemote(

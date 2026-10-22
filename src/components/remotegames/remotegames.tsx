@@ -3,7 +3,8 @@ import {
   RemoteApp,
   appKind,
   pyrolightIntegration,
-  steamArtwork
+  steamArtwork,
+  steamSourceId
 } from "../../lib/pyrolightintegration";
 import {
   DropdownItem,
@@ -220,6 +221,28 @@ export const RemoteGames: FC = () => {
           />
         </PanelSectionRow>
       )}
+      {apps.length > 8 && (
+        <PanelSectionRow>
+          <Field
+            label={`Page ${page + 1} of ${Math.ceil(apps.length / 8)} · ${apps.length} games`}
+            description="Search finds games across every page."
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <ActionButton
+              disabled={page === 0}
+              onClick={() => setPage(page - 1)}
+            >
+              Previous
+            </ActionButton>
+            <ActionButton
+              disabled={(page + 1) * 8 >= apps.length}
+              onClick={() => setPage(page + 1)}
+            >
+              Next
+            </ActionButton>
+          </div>
+        </PanelSectionRow>
+      )}
       {apps.slice(page * 8, (page + 1) * 8).map((app) => (
         <PanelSectionRow key={`${hostId}:${app.id}`}>
           <div
@@ -238,7 +261,7 @@ export const RemoteGames: FC = () => {
                 setBusy(true);
                 setError(null);
                 void moonDeckAppLauncher
-                  .launchRemote(hostId, app.id, app.name)
+                  .launchRemote(hostId, app.id, app.name, steamSourceId(app))
                   .catch((problem: unknown) => setError(String(problem)))
                   .finally(() => setBusy(false));
               }}
@@ -255,20 +278,6 @@ export const RemoteGames: FC = () => {
           </div>
         </PanelSectionRow>
       ))}
-      {page > 0 && (
-        <PanelSectionRow>
-          <ActionButton onClick={() => setPage(page - 1)}>
-            Previous Games
-          </ActionButton>
-        </PanelSectionRow>
-      )}
-      {(page + 1) * 8 < apps.length && (
-        <PanelSectionRow>
-          <ActionButton onClick={() => setPage(page + 1)}>
-            More Games
-          </ActionButton>
-        </PanelSectionRow>
-      )}
       {host?.status === "paired" && apps.length === 0 && (
         <PanelSectionRow>
           <Field

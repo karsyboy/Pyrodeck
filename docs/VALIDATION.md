@@ -9,7 +9,7 @@ filters/recent sorting, Quick Access categories, native profiles and persistent
 in-memory drafts, explicit Apply & Reconnect, and pinned session controls.
 Obsolete duplicated streaming settings views and the launch confirmation path
 were removed. Host configuration migration and optional legacy shortcut cleanup
-remain supported. The plugin version is 0.2.1.
+remain supported. The plugin version is 0.2.3.
 
 Pyrolight adds schema-1 settings/profile transactions, a generated 46-property
 registry, same-user GUI IPC with locked headless fallback, cross-process stale
@@ -54,14 +54,39 @@ real Deck UI positioning, focus and contrast still need device acceptance.
 Host Steam non-Steam shortcuts are not scanned from `shortcuts.vdf`. Apps must be
 advertised through a supported Pyroshine scanner or manual configuration.
 
+## Library action and running-game context follow-up
+
+The local host catalog reported Valheim as offered, and searching confirmed it
+in Remote Games. Page counts and navigation now appear above browser cards.
+The previous route render callback adapter has been replaced by a global React
+portal that reads the visible native panel's owning fiber. Real React DOM tests
+cover insertion, preserved native Play callbacks, alternate fibers on a reused
+panel, page removal, duplicate prevention and unload cleanup.
+
+Matched stream helpers retain readable titles. Steam overview/details reads use
+the game's native metadata while process, game ID and Gamescope window ownership
+stay with the helper. Narrow Resume/window/Exit adapters address the helper;
+the same game running locally disables aliases. Native game records, Play/Install
+handlers and launch configuration remain untouched. Reload recovery repairs old
+numeric titles only for a verified owned active session, and aborts on unload.
+Non-Steam apps retain remote identity.
+
+Validation: 51 frontend tests across six files, 65 backend tests, ESLint,
+TypeScript and a packaged Rollup/Decky build. Tests use the real Decky patcher,
+frozen overview records and real React DOM fibers. They cover metadata mapping,
+helper execution IDs, unrelated games, concurrent local play, registration and
+patch cleanup, transactional rollback, numeric-title repair, reload ownership
+and unload races. These are automated integration checks, not device validation
+of Steam's menus, controller focus or Gamescope composition.
+
 ## Executed validation
 
 | Check | Result |
 | --- | --- |
 | PyroDeck ESLint | Pass |
 | PyroDeck TypeScript | Pass |
-| Frontend Vitest | 29 passed across 4 files |
-| Backend Python unittest | 64 passed, including loopback fake-host/process tests |
+| Frontend Vitest | 51 passed across 6 files |
+| Backend Python unittest | 65 passed, including loopback fake-host/process tests |
 | Frontend Rollup bundle | Pass |
 | Decky Docker packaging | Pass; local `out/Pyrodeck.zip` |
 | Pyrolight Qt preference/profile/registry tests | 13 passed |

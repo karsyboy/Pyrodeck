@@ -1,5 +1,6 @@
 import { AppType, setShortcutName, terminateApp } from "./steamutils";
 import { BehaviorSubject } from "rxjs";
+import { Mutex } from "async-mutex";
 import { ReadonlySubject } from "./readonlysubject";
 import { call } from "@decky/api";
 import { isEqual } from "lodash";
@@ -66,21 +67,35 @@ export interface MoonDeckAppData {
   name: string;
   appType: AppType;
   redirected: boolean;
+  launcherGameId: string | null;
   sessionOptions: SessionOptions;
 }
 
 export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
+  private readonly nameMutex = new Mutex();
+  private generation = 0;
+  closing = false;
   constructor() {
     super(new BehaviorSubject<MoonDeckAppData | null>(null));
   }
 
-  setApp(steamAppId: number, moonDeckAppId: number, name: string, appType: AppType, sessionOptions: SessionOptions): void {
+  setApp(
+    steamAppId: number,
+    moonDeckAppId: number,
+    name: string,
+    appType: AppType,
+    sessionOptions: SessionOptions,
+    launcherGameId: string | null = null
+  ): void {
+    this.generation++;
+    this.closing = false;
     this.subject.next({
       steamAppId,
       moonDeckAppId: appType === AppType.MoonDeck ? moonDeckAppId : null,
       name,
       appType,
       redirected: false,
+      launcherGameId,
       sessionOptions
     });
   }
@@ -94,45 +109,43 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
   }
 
   async applySessionOptions(): Promise<void> {
+    if (this.closing) return;
     const options = this.subject.value?.sessionOptions ?? null;
     if (options === null) {
       return;
     }
 
-    if (!await this.changeName(options.nameSetToAppId)) {
+    if (!(await this.changeName(options.nameSetToAppId))) {
       logger.toast("Failed to change shortcut name!", { output: "warn" });
     }
   }
 
-  async changeName(changeToAppId: boolean): Promise<boolean> {
-    if (this.subject.value === null) {
-      return false;
-    }
-
-    // Name changing is only supported for MoonDeck app types
-    if (this.subject.value.moonDeckAppId === null) {
-      return true;
-    }
-
-    let result = true;
-    if (changeToAppId) {
-      result = await setShortcutName(this.subject.value.moonDeckAppId, `${this.subject.value.steamAppId}`);
-    } else {
-      result = await setShortcutName(this.subject.value.moonDeckAppId, this.subject.value.name);
-    }
-
-    if (this.subject.value === null) {
-      return false;
-    }
-
-    if (result) {
-      const newValue = { ...this.subject.value, sessionOptions: { ...this.subject.value.sessionOptions, nameSetToAppId: changeToAppId } };
-      if (!isEqual(this.subject.value, newValue)) {
-        this.subject.next(newValue);
+  async changeName(_changeToAppId: boolean): Promise<boolean> {
+    const generation = this.generation;
+    return await this.nameMutex.runExclusive(async () => {
+      const current = this.subject.value;
+      if (
+        !current || generation !== this.generation
+      )
+        return false;
+      if (current.moonDeckAppId === null) return true;
+      const result = await setShortcutName(
+        current.moonDeckAppId,
+        current.name
+      );
+      if (generation !== this.generation || !this.subject.value) return false;
+      if (result) {
+        const newValue = {
+          ...this.subject.value,
+          sessionOptions: {
+            ...this.subject.value.sessionOptions,
+            nameSetToAppId: false
+          }
+        };
+        if (!isEqual(this.subject.value, newValue)) this.subject.next(newValue);
       }
-    }
-
-    return result;
+      return result;
+    });
   }
 
   canRedirect(): boolean {
@@ -149,8 +162,12 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
       return;
     }
 
+    const generation = this.generation;
     await this.changeName(false);
-    this.subject.next(null);
+    if (generation === this.generation) {
+      this.generation++;
+      this.subject.next(null);
+    }
   }
 
   async killApp(forceCleanup = false): Promise<void> {
@@ -161,11 +178,13 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
       return;
     }
 
+    if (this.closing) return;
+    this.closing = true;
     const nameSetToAppId = this.subject.value.sessionOptions.nameSetToAppId;
     const appId = getAppId(this.subject.value);
     // Necessary, otherwise the termination fails
     await this.changeName(false);
-    if (!await terminateApp(appId, 5000)) {
+    if (!(await terminateApp(appId, 5000))) {
       logger.warn("Failed to terminate, trying to kill!");
       await killRunner();
     }
@@ -177,7 +196,13 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
 
     // Reset the original value
     if (nameSetToAppId) {
-      const newValue = { ...this.subject.value, sessionOptions: { ...this.subject.value.sessionOptions, nameSetToAppId } };
+      const newValue = {
+        ...this.subject.value,
+        sessionOptions: {
+          ...this.subject.value.sessionOptions,
+          nameSetToAppId
+        }
+      };
       if (!isEqual(this.subject.value, newValue)) {
         this.subject.next(newValue);
       }
@@ -189,7 +214,7 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
       return;
     }
 
-    if (!await suspendRunner()) {
+    if (!(await suspendRunner())) {
       await this.killApp();
       await this.clearApp();
     }
@@ -200,7 +225,7 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
       return;
     }
 
-    if (!await unsuspendRunner()) {
+    if (!(await unsuspendRunner())) {
       await this.killApp();
       await this.clearApp();
     }
