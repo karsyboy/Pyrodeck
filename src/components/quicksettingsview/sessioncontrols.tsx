@@ -1,12 +1,7 @@
 import { AppType, logger } from "../../lib";
-import {
-  ButtonItem,
-  Field,
-  PanelSection,
-  PanelSectionRow,
-  showModal
-} from "@decky/ui";
-import { FC, useContext, useState } from "react";
+import { FC, useContext, useEffect, useState } from "react";
+import { Field, PanelSection, PanelSectionRow, showModal } from "@decky/ui";
+import { ActionButton } from "../shared/actionbutton";
 import { EndHostGameModal } from "../shared";
 import { MoonDeckContext } from "../../contexts";
 import { pyrolightIntegration } from "../../lib/pyrolightintegration";
@@ -17,6 +12,13 @@ export const SessionControls: FC = () => {
   const state = usePyrolight();
   const [working, setWorking] = useState(false);
   const session = state.session;
+  useEffect(() => {
+    void pyrolightIntegration.refreshSession();
+    const timer = setInterval(() => {
+      void pyrolightIntegration.refreshSession();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
   const disabled = working || state.busy;
   const run = (action: () => Promise<void>): void => {
     setWorking(true);
@@ -31,10 +33,14 @@ export const SessionControls: FC = () => {
   };
   if (session.state === "none")
     return (
-      <Field
-        label="No PyroDeck session"
-        description="Choose Stream with Pyrolight in your library or open Remote Games."
-      />
+      <PanelSection title="Session">
+        <PanelSectionRow>
+          <Field
+            label="No active session"
+            description="Choose Stream with Pyrolight in your library or open Remote Games."
+          />
+        </PanelSectionRow>
+      </PanelSection>
     );
   return (
     <PanelSection title="Session Controls">
@@ -45,7 +51,10 @@ export const SessionControls: FC = () => {
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem
+        <Field description="Disconnect keeps the host game open. End Remote Game closes it." />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ActionButton
           disabled={
             disabled ||
             !["connecting", "launching", "streaming", "reconnecting"].includes(
@@ -56,10 +65,10 @@ export const SessionControls: FC = () => {
             run(() => moonDeckAppLauncher.moonDeckApp.killApp(true))}
         >
           Disconnect
-        </ButtonItem>
+        </ActionButton>
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem
+        <ActionButton
           disabled={disabled || session.state === "ended"}
           onClick={() =>
             run(async () => {
@@ -83,10 +92,10 @@ export const SessionControls: FC = () => {
             })}
         >
           Reconnect
-        </ButtonItem>
+        </ActionButton>
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem
+        <ActionButton
           disabled={
             disabled ||
             !session.hostId ||
@@ -107,7 +116,7 @@ export const SessionControls: FC = () => {
             )}
         >
           End Remote Game
-        </ButtonItem>
+        </ActionButton>
       </PanelSectionRow>
     </PanelSection>
   );

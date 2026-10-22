@@ -90,6 +90,12 @@ class AppListTest(unittest.TestCase):
         data.update(overrides)
         return json.dumps(data)
 
+    def test_graphics_startup_crash_is_a_client_error_not_an_empty_or_offline_host(self):
+        error = classify_list_failure('Qt Fatal: no Qt platform plugin could be initialized. Available platform plugins are: wayland, xcb.')
+        self.assertEqual(error.reason, "client_error")
+        self.assertIn("updated Pyrolight AppImage", str(error))
+        self.assertIn("headless catalog", str(error))
+
     def test_parses_apps_and_launcher_identities(self):
         app_list = parse_app_list(("Establishing connection to PC...\n" + self.document() + "\n").encode())
         self.assertEqual((app_list.host_name, app_list.host_uuid), ("SuperCube", "B1B2"))

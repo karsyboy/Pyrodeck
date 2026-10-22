@@ -264,6 +264,10 @@ def needs_capability_probe(options: Optional[CommandLineOptions]) -> bool:
 def classify_list_failure(stderr: str) -> PyrolightListError:
     text = stderr.strip()
     lowered = text.lower()
+    if "no qt platform plugin could be initialized" in lowered or "could not find the qt platform plugin" in lowered:
+        return PyrolightListError("client_error", "Pyrolight crashed while initializing a display. "
+                                  "Install the updated Pyrolight AppImage with headless catalog support, "
+                                  "then check its path in Hosts & Pairing and refresh games.")
     if "has not been paired" in lowered:
         return PyrolightListError("not_paired", text)
     if "failed to connect" in lowered:

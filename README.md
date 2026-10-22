@@ -15,24 +15,24 @@ program on the host: no MoonDeck Buddy, no special host app.
   installed there. Older Pyroshine versions and other GameStream hosts cannot
   tell PyroDeck which Steam game is which.
 - A Steam Deck (SteamOS 3.7 or newer) with [Decky Loader](https://decky.xyz/).
-- A matching Pyrolight build with the schema-1 `settings` API, stable application IDs and integration events. Use the builds containing this integration in all three repositories.
+- A matching Pyrolight build with the schema-1 `settings` API, stable application IDs, integration events and headless catalog commands. Use the builds containing this integration in all three repositories.
 
 ## 1. Install Pyrolight on the Steam Deck
 
 1. Switch to Desktop Mode.
-2. Download the `pyrolight-*-linux-x86_64.AppImage` from the
+2. Download the `Pyrolight-*-x86_64.AppImage` from the
    [Pyrolight releases](https://github.com/karsyboy/pyrolight/releases) into
    `~/Applications` (create the folder if needed).
 3. Make it executable: right-click it, **Properties → Permissions → Is
    executable**, or run:
 
    ```sh
-   chmod +x ~/Applications/pyrolight-*-linux-x86_64.AppImage
+   chmod +x ~/Applications/Pyrolight-*-x86_64.AppImage
    ```
 
 PyroDeck finds `pyrolight` on `PATH`, or the newest Pyrolight AppImage in
 `~/Applications`, `~/AppImages`, `~/Downloads` or your home folder. To use
-another file, set it under **Host Selection → Use a specific Pyrolight executable**.
+another file, set it under **Hosts & Pairing → Use a specific Pyrolight executable**.
 
 ## 2. Install PyroDeck
 
@@ -46,17 +46,17 @@ PyroDeck copies the hosts and stream preferences of an installed MoonDeck
 ## 3. Select the host
 
 Open PyroDeck from the quick access menu, press the settings icon and go to
-**Host Selection**:
+**Hosts & Pairing**:
 
 - **Scan local network** finds Pyroshine hosts that announce themselves (mDNS).
 - **Add host manually** adds a host by IP address or name when scanning cannot
   find it (VPN, other subnet, firewall).
 
-Select the default host. Pair each additional host separately. **Host Info** shows whether it reports Steam app IDs.
+Select the default host. Pair each additional host separately. **Host Details** shows whether it reports Steam app IDs.
 
 ## 4. Pair
 
-On **Host Selection**, under **Pyrolight**:
+On **Hosts & Pairing**, under **Pyrolight**:
 
 1. Press **Pair**. Pyrolight opens and shows a four-digit PIN.
 2. On the host, approve the request with that PIN in Pyroshine's web
@@ -77,18 +77,25 @@ Open **Remote Games** in Quick Access or the settings page to browse every
 application advertised by a host: Steam, Heroic, Lutris, desktop entries and
 manual applications. Search, filter by source and sort by name or recently
 played on this Deck. Select a card to launch. Adding games as Steam shortcuts
-is optional; the browser uses one shared hidden Steam launcher.
+is optional; the browser uses one shared hidden Steam launcher. **Filter & Sort…**
+opens source and recent-play filters.
+
+Adding a non-Steam shortcut to the host's Steam Library does **not** by itself
+make it discoverable. Pyroshine's Steam scanner reads installed Steam game
+manifests, not Steam's `shortcuts.vdf`. Non-Steam applications appear when
+advertised through Pyroshine's Heroic, Lutris, desktop-entry scanners or manual
+application configuration.
 
 ## 6. Profiles and streaming settings
 
 Quick Access shows the active Pyrolight profile and stream state. Open
-**Streaming Profiles** to select, create, duplicate, rename or delete a profile,
-or restore its defaults. One manually selected profile governs subsequent
+**Profiles** to select, create, duplicate, rename or delete a profile,
+or restore its defaults under **Manage Profiles…**. One manually selected profile governs subsequent
 launches. Pyrolight’s standalone GUI uses the same profiles. Docking never
 selects another profile automatically.
 
-Video & Display, Audio, Controller & Input, VRR Advanced, Advanced Streaming,
-and Connection & Diagnostics expose Pyrolight’s settings. Edits remain a draft
+Video & Display, Audio, Controller & Input, VRR Tuning, Advanced,
+and Connection expose Pyrolight’s settings. Edits remain a draft
 when Quick Access closes. While streaming, select **Apply & Reconnect** to save
 and reconnect explicitly; no setting edit reconnects automatically. Without a
 running client, **Save for Next Session** saves without launching anything.
@@ -112,14 +119,19 @@ disconnected client; a recommended bitrate is only staged when you choose it.
 
 PyroDeck never suspends, restarts or shuts down the host.
 
+The full settings sidebar uses the same categories as Quick Access. Launcher
+options and legacy shortcut maintenance are under **Advanced Tools**; they are
+not needed for normal library or Remote Games launches.
+
 ## Troubleshooting
 
 | Message | What to do |
 | --- | --- |
-| Pyrolight was not found | Install the AppImage as in step 1, or set its path in **Pyrolight Settings**. |
+| Pyrolight was not found | Install the AppImage as in step 1, or set its path in **Hosts & Pairing**. |
 | This Pyrolight is too old for PyroDeck | Update Pyrolight. |
+| Pyrolight crashed while initializing a display / missing `eglfs` plugin | Install a Pyrolight build with headless catalog support. In **Hosts & Pairing**, select the updated executable if using a custom path, then refresh Remote Games. Updating only the plugin cannot fix an older client. |
 | Pyrolight is not paired with this host | Pair as in step 4. |
-| The host is not responding / Pyrolight cannot reach the host | Check that the host is on and Pyroshine is running; check the address in **Host Info**. Set the host's MAC address for Wake-on-LAN. |
+| The host is not responding / Pyrolight cannot reach the host | Check that the host is on and Pyroshine is running; check the address in **Host Details**. Set the host's MAC address for Wake-on-LAN. |
 | This host does not report Steam app IDs | Update Pyroshine on the host. |
 | This game is not available on the host | Install the game on the host, or unhide it in Pyroshine's **Library** page. |
 | Steam is already running on the host | Quit Steam on the host's desktop and launch again; see Pyroshine's [TIPS](https://github.com/karsyboy/pyroshine/blob/main/docs/TIPS.md#close-a-desktop-steam-before-streaming-steam). |

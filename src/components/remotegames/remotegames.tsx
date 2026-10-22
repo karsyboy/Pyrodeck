@@ -1,6 +1,19 @@
-import { ButtonItem, DropdownItem, Field, Focusable, PanelSection, PanelSectionRow, TextField } from "@decky/ui";
-import { Catalog, RemoteApp, appKind, pyrolightIntegration, steamArtwork } from "../../lib/pyrolightintegration";
+import {
+  Catalog,
+  RemoteApp,
+  appKind,
+  pyrolightIntegration,
+  steamArtwork
+} from "../../lib/pyrolightintegration";
+import {
+  DropdownItem,
+  Field,
+  PanelSection,
+  PanelSectionRow,
+  TextField
+} from "@decky/ui";
 import { FC, useContext, useEffect, useState } from "react";
+import { ActionButton } from "../shared/actionbutton";
 import { MoonDeckContext } from "../../contexts";
 import { call } from "@decky/api";
 
@@ -28,7 +41,13 @@ const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
           src={image}
           alt=""
           loading="lazy"
-          style={{ width: 84, height: 112, objectFit: "cover", borderRadius: 4 }}
+          style={{
+            width: 54,
+            height: 72,
+            objectFit: "cover",
+            borderRadius: 4,
+            flexShrink: 0
+          }}
           onError={() => setImage(undefined)}
         />
       ) :
@@ -36,8 +55,9 @@ const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
         <div
           aria-hidden="true"
           style={{
-            width: 84,
-            height: 112,
+            width: 54,
+            height: 72,
+            flexShrink: 0,
             borderRadius: 4,
             background: "linear-gradient(140deg, #33465b, #162333)",
             display: "grid",
@@ -58,6 +78,7 @@ export const RemoteGames: FC = () => {
   const [kind, setKind] = useState("all");
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState("name");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = async (refresh = false): Promise<void> => {
@@ -66,6 +87,7 @@ export const RemoteGames: FC = () => {
     try {
       const result = await pyrolightIntegration.catalog(refresh);
       setCatalog(result);
+      setPage(0);
       setHostId((current) =>
         result.hosts.some((host) => host.id === current) ?
           current :
@@ -100,6 +122,7 @@ export const RemoteGames: FC = () => {
     <PanelSection title="Remote Games" spinner={busy}>
       <PanelSectionRow>
         <DropdownItem
+          layout="below"
           label="Host"
           disabled={busy}
           selectedOption={hostId}
@@ -107,7 +130,7 @@ export const RemoteGames: FC = () => {
             { data: "", label: "Choose a host" },
             ...(catalog?.hosts ?? []).map((entry) => ({
               data: entry.id,
-              label: `${entry.name} · ${entry.status}`
+              label: `${entry.name} · ${{ paired: "Ready", not_paired: "Pairing required", unreachable: "Offline", client_error: "Update Pyrolight", outdated: "Update Pyrolight", wrong_host: "Host identity changed" }[entry.status] ?? "Unavailable"}`
             }))
           ]}
           onChange={(choice) => setHostId(choice.data as string)}
@@ -115,49 +138,65 @@ export const RemoteGames: FC = () => {
       </PanelSectionRow>
       <PanelSectionRow>
         <TextField
-          label="Search applications"
+          label="Search games"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <DropdownItem
-          label="Application type"
-          selectedOption={kind}
-          rgOptions={[
-            "all",
-            "steam",
-            "heroic",
-            "lutris",
-            "desktop",
-            "other"
-          ].map((value) => ({
-            data: value,
-            label: value === "all" ? "All applications" : value
-          }))}
-          onChange={(choice) => setKind(choice.data as string)}
-        />
+        <ActionButton onClick={() => setFiltersOpen(!filtersOpen)}>
+          {filtersOpen ? "Hide Filters" : "Filter & Sort…"}
+        </ActionButton>
       </PanelSectionRow>
+      {filtersOpen && (
+        <>
+          <PanelSectionRow>
+            <DropdownItem
+              layout="below"
+              label="Application type"
+              selectedOption={kind}
+              rgOptions={[
+                "all",
+                "steam",
+                "heroic",
+                "lutris",
+                "desktop",
+                "other"
+              ].map((value) => ({
+                data: value,
+                label:
+                  value === "all" ?
+                    "All applications" :
+                    value === "steam" ?
+                      "Steam" :
+                      value.charAt(0).toUpperCase() + value.slice(1)
+              }))}
+              onChange={(choice) => setKind(choice.data as string)}
+            />
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <DropdownItem
+              layout="below"
+              label="Sort"
+              selectedOption={sort}
+              rgOptions={[
+                { data: "name", label: "Name" },
+                { data: "recent", label: "Recently played on this Deck" }
+              ]}
+              onChange={(choice) => setSort(choice.data as string)}
+            />
+          </PanelSectionRow>
+        </>
+      )}
       <PanelSectionRow>
-        <DropdownItem
-          label="Sort"
-          selectedOption={sort}
-          rgOptions={[
-            { data: "name", label: "Name" },
-            { data: "recent", label: "Recently played on this Deck" }
-          ]}
-          onChange={(choice) => setSort(choice.data as string)}
-        />
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem
+        <ActionButton
           disabled={busy}
           onClick={() => {
             void load(true);
           }}
         >
           Refresh Hosts & Games
-        </ButtonItem>
+        </ActionButton>
       </PanelSectionRow>
       {error && (
         <PanelSectionRow>
@@ -167,19 +206,23 @@ export const RemoteGames: FC = () => {
       {host && (
         <PanelSectionRow>
           <Field
-            label={`${apps.length} applications · ${host.name}`}
+            label={
+              host.status === "paired" ?
+                `${apps.length} applications · ${host.name}` :
+                "Unable to read host applications"
+            }
             description={
               host.status === "paired" ?
                 "Available through Pyrolight. Launching uses the active Pyrolight profile." :
                   (host.error ??
-                    `Host is ${host.status}. Check pairing in Host Selection.`)
+                    `Host is ${host.status}. Check Hosts & Pairing in plugin settings.`)
             }
           />
         </PanelSectionRow>
       )}
       {apps.slice(page * 8, (page + 1) * 8).map((app) => (
         <PanelSectionRow key={`${hostId}:${app.id}`}>
-          <Focusable
+          <div
             style={{
               display: "flex",
               gap: 12,
@@ -188,10 +231,9 @@ export const RemoteGames: FC = () => {
             }}
           >
             <Artwork hostId={hostId} app={app} />
-            <ButtonItem
-              layout="below"
+            <ActionButton
+              style={{ flex: 1, textAlign: "left", padding: "10px 12px" }}
               disabled={busy || host?.status !== "paired"}
-              description={`${appKind(app)} · Available`}
               onClick={() => {
                 setBusy(true);
                 setError(null);
@@ -201,21 +243,30 @@ export const RemoteGames: FC = () => {
                   .finally(() => setBusy(false));
               }}
             >
-              {app.name}
-            </ButtonItem>
-          </Focusable>
+              <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                {app.name}
+              </div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                {appKind(app)}
+                {" "}
+                · Stream game
+              </div>
+            </ActionButton>
+          </div>
         </PanelSectionRow>
       ))}
       {page > 0 && (
         <PanelSectionRow>
-          <ButtonItem onClick={() => setPage(page - 1)}>
+          <ActionButton onClick={() => setPage(page - 1)}>
             Previous Games
-          </ButtonItem>
+          </ActionButton>
         </PanelSectionRow>
       )}
       {(page + 1) * 8 < apps.length && (
         <PanelSectionRow>
-          <ButtonItem onClick={() => setPage(page + 1)}>More Games</ButtonItem>
+          <ActionButton onClick={() => setPage(page + 1)}>
+            More Games
+          </ActionButton>
         </PanelSectionRow>
       )}
       {host?.status === "paired" && apps.length === 0 && (

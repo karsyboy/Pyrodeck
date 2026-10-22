@@ -1,5 +1,5 @@
-import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { FC, useEffect, useState } from "react";
+import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import {
   PyrolightSettings,
   SettingsFeedback
@@ -10,24 +10,15 @@ import {
   useHostInfo,
   useServerStatus
 } from "../../hooks";
+import { ActionButton } from "../shared/actionbutton";
 import { HostStatusPanel } from "./hoststatuspanel";
 import { RemoteGames } from "../remotegames/remotegames";
 import { SessionControls } from "./sessioncontrols";
 import { pyrolightIntegration } from "../../lib/pyrolightintegration";
+import { settingsCategories } from "../pyrolightsettings/categories";
 import { usePyrolight } from "../../hooks/usepyrolight";
 import { useQuickAccessVisible } from "@decky/api";
 
-const pages = [
-  "Streaming Profiles",
-  "Video & Display",
-  "Audio",
-  "Controller & Input",
-  "Advanced Streaming",
-  "VRR Advanced",
-  "Connection & Diagnostics",
-  "Session Controls",
-  "Remote Games"
-];
 export const QuickSettingsView: FC = () => {
   const visible = useQuickAccessVisible();
   const [page, setPage] = useState<string | null>(null);
@@ -44,16 +35,17 @@ export const QuickSettingsView: FC = () => {
     }, 2000);
     return () => clearInterval(timer);
   }, [visible]);
-  const prefs = state.session.effectivePreferences ?? state.preferences;
   if (page)
     return (
       <>
         <PanelSection>
           <PanelSectionRow>
-            <ButtonItem onClick={() => setPage(null)}>‹ PyroDeck</ButtonItem>
+            <ActionButton onClick={() => setPage(null)}>
+              ‹ Back to PyroDeck
+            </ActionButton>
           </PanelSectionRow>
         </PanelSection>
-        {page === "Session Controls" ?
+        {page === "Session" ?
             (
               <>
                 <SettingsFeedback />
@@ -69,6 +61,7 @@ export const QuickSettingsView: FC = () => {
               )}
       </>
     );
+  const prefs = state.session.effectivePreferences ?? state.preferences;
   return (
     <>
       <HostStatusPanel
@@ -78,34 +71,56 @@ export const QuickSettingsView: FC = () => {
         serverRefreshStatus={serverRefreshStatus}
         hostInfo={hostInfo}
       />
-      <PanelSection title="Streaming">
+      <PanelSection title="Play">
+        <PanelSectionRow>
+          <ActionButton onClick={() => setPage("Remote Games")}>
+            Browse Remote Games
+          </ActionButton>
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ActionButton onClick={() => setPage("Session")}>
+            Session Controls
+          </ActionButton>
+        </PanelSectionRow>
         <PanelSectionRow>
           <Field
-            label={
-              state.session.hostName ??
-              currentHostSettings?.hostName ??
-              "Select a host"
+            label={state.session.appName ?? "Ready to stream"}
+            description={
+              state.session.appName ?
+                `${state.session.hostName ?? "Host"} · ${state.session.state}${state.session.quality ? ` · Connection ${state.session.quality}` : ""}` :
+                "Launch from your Steam Library or browse remote games."
             }
-            description={`${state.session.appName ?? "No active game"} · ${state.session.state}${state.session.quality ? ` · Connection: ${state.session.quality}` : ""}`}
           />
         </PanelSectionRow>
+      </PanelSection>
+      <SettingsFeedback />
+      <PanelSection title="Streaming Settings">
         <PanelSectionRow>
           <Field
             label={`Profile: ${state.preferences?.activeProfileName ?? "Loading…"}`}
             description={
               prefs ?
-                `${prefs.values.width} × ${prefs.values.height} · ${prefs.values.fps} FPS · ${prefs.values.bitrateKbps} Kbps requested${state.session.effectivePreferences ? ` · Stream profile: ${state.session.effectivePreferences.activeProfileName}` : ""}` :
-                "Install a current Pyrolight build to read streaming preferences."
+                `${prefs.values.width} × ${prefs.values.height} · ${prefs.values.fps} FPS · ${Number(prefs.values.bitrateKbps) / 1000} Mbps${state.session.effectivePreferences ? ` · Playing with ${prefs.activeProfileName}` : ""}` :
+                "Open settings to check the Pyrolight executable."
             }
           />
         </PanelSectionRow>
-        {state.session.diagnostics && <PanelSectionRow><Field label={`Codec: ${state.session.diagnostics.codec}`} description={`${state.session.diagnostics.width} × ${state.session.diagnostics.height} · ${state.session.diagnostics.negotiatedFps} FPS negotiated · ${state.session.diagnostics.bitrateKbps} Kbps · ${state.session.displayBackend ?? state.session.diagnostics.displayDriver}`} /></PanelSectionRow>}
-      </PanelSection>
-      <SettingsFeedback />
-      <PanelSection title="Quick Access">
-        {pages.map((name) => (
-          <PanelSectionRow key={name}>
-            <ButtonItem onClick={() => setPage(name)}>{name}</ButtonItem>
+        {settingsCategories.map(({ category, title }) => (
+          <PanelSectionRow key={category}>
+            <ActionButton onClick={() => setPage(category)}>
+              <span
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 8,
+                  textAlign: "left"
+                }}
+              >
+                <span>{title}</span>
+                <span aria-hidden="true">›</span>
+              </span>
+            </ActionButton>
           </PanelSectionRow>
         ))}
       </PanelSection>

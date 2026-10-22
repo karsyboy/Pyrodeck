@@ -1,5 +1,6 @@
-import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { FC, useState } from "react";
+import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { ActionButton } from "../shared/actionbutton";
 import { call } from "@decky/api";
 import { pyrolightIntegration } from "../../lib/pyrolightintegration";
 import { useCurrentSettings } from "../../hooks";
@@ -49,24 +50,24 @@ export const NetworkTools: FC = () => {
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem
+        <ActionButton
           disabled={busy || !settings?.currentHostId}
           onClick={() => {
             void run("check");
           }}
         >
           Check Receive Buffers
-        </ButtonItem>
+        </ActionButton>
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem
+        <ActionButton
           disabled={busy || !settings?.currentHostId}
           onClick={() => {
             void run("calibrate");
           }}
         >
           Calibrate Network Bandwidth
-        </ButtonItem>
+        </ActionButton>
       </PanelSectionRow>
       {result && (
         <PanelSectionRow>
@@ -89,27 +90,27 @@ export const NetworkTools: FC = () => {
             <Field label="Manual command" description={result.manualCommand} />
           </PanelSectionRow>
           <PanelSectionRow>
-            <ButtonItem
+            <ActionButton
               disabled={busy || !result.canApply}
               onClick={() => {
                 void run("fix");
               }}
             >
               Fix Receive Buffers…
-            </ButtonItem>
+            </ActionButton>
           </PanelSectionRow>
         </>
       )}
       {result?.ceilingKbps && (
         <PanelSectionRow>
-          <ButtonItem
+          <ActionButton
             onClick={() => {
               pyrolightIntegration.stage("autoAdjustBitrate", false);
               pyrolightIntegration.stage("bitrateKbps", result.ceilingKbps!);
             }}
           >
             Stage Recommended Bitrate
-          </ButtonItem>
+          </ActionButton>
         </PanelSectionRow>
       )}
       {error && (

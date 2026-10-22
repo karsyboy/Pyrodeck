@@ -9,7 +9,7 @@ filters/recent sorting, Quick Access categories, native profiles and persistent
 in-memory drafts, explicit Apply & Reconnect, and pinned session controls.
 Obsolete duplicated streaming settings views and the launch confirmation path
 were removed. Host configuration migration and optional legacy shortcut cleanup
-remain supported. The plugin version is 0.2.0.
+remain supported. The plugin version is 0.2.1.
 
 Pyrolight adds schema-1 settings/profile transactions, a generated 46-property
 registry, same-user GUI IPC with locked headless fallback, cross-process stale
@@ -29,6 +29,31 @@ The architecture, interfaces, complete settings parity matrix, library adapter,
 host policy, browser, transaction/failure semantics and device matrix are in
 [INTEGRATION.md](INTEGRATION.md). User instructions are in [README](../README.md).
 
+## App discovery and menu follow-up
+
+The reported missing apps were caused by Pyrolight initializing Qt graphics
+before executing `list`. Decky's service has no display variables; the AppImage
+attempted EGLFS, which it does not ship, and aborted before querying applications.
+List, artwork, network tools and help/capability queries now execute without Qt
+platform or SDL video initialization. Pairing and pinned HTTPS remain enforced.
+The plugin distinguishes this client startup failure from an empty catalog.
+
+Quick Access and streaming settings use full-width native Steam buttons and
+shared focused categories. Profile management and game filters expand on demand;
+legacy tools are grouped separately. Settings descriptions explain disabled
+controls and pending edits without repeating reconnect text on every row.
+
+The standard client and the PyroWave AppImage both pass three real CLI regression
+tests against temporary HTTP/HTTPS fixtures with intentionally invalid Qt/SDL
+video drivers: catalog source IDs, artwork, network checks, unpaired refusal,
+help and malformed help-like arguments. The headless suite is included in client
+build CI. The final plugin passes lint, type checking, 29 frontend tests and 64
+backend tests. The existing 16 client tests pass. Both install packages were built;
+real Deck UI positioning, focus and contrast still need device acceptance.
+
+Host Steam non-Steam shortcuts are not scanned from `shortcuts.vdf`. Apps must be
+advertised through a supported Pyroshine scanner or manual configuration.
+
 ## Executed validation
 
 | Check | Result |
@@ -36,7 +61,7 @@ host policy, browser, transaction/failure semantics and device matrix are in
 | PyroDeck ESLint | Pass |
 | PyroDeck TypeScript | Pass |
 | Frontend Vitest | 29 passed across 4 files |
-| Backend Python unittest | 63 passed, including loopback fake-host/process tests |
+| Backend Python unittest | 64 passed, including loopback fake-host/process tests |
 | Frontend Rollup bundle | Pass |
 | Decky Docker packaging | Pass; local `out/Pyrodeck.zip` |
 | Pyrolight Qt preference/profile/registry tests | 13 passed |

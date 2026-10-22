@@ -88,7 +88,7 @@ insertion. Its regression test retains the original Play/Install objects and
 handlers. Actual Steam UI changes still require device acceptance.
 
 Only paired hosts advertising exactly one match for `steam:APPID` are eligible.
-The host selected in **Host Selection** is the persistent default. An eligible
+The host selected in **Hosts & Pairing** is the persistent default. An eligible
 default is selected for one-action launching. If it is absent, even a single
 alternative requires explicit selection. Choosing an alternative on a game
 page or in Remote Games does not change the default. Each launch pins its host
@@ -136,3 +136,21 @@ handheld/docked displays; HDR, 4:4:4, VRR; H.264/HEVC/AV1/PyroWave; surround
 speakers; and real-host reconnects. Existing Pyrolight Gamescope ownership
 logic is preserved, not replaced by globally disabling controllers. Builds
 and fake-host tests do not establish these hardware behaviors.
+
+## Menu layout and headless catalogs
+
+Quick Access uses full-width native Steam dialog buttons with native focus
+styling. Profiles, video, audio, input, connection, advanced settings and VRR
+tuning share categories with the full settings sidebar. Profile editing and
+remote-game filters expand only when requested. Legacy shortcut and launcher
+tools live under Advanced Tools.
+
+Catalog commands must work from Decky's background service without a graphical
+session. Pyrolight uses QCoreApplication for list/artwork/network commands and
+help/capability queries. A Qt platform initialization failure is a client error,
+not an offline host or an empty catalog; the UI points to updating the AppImage
+and checking the executable path. No unauthenticated catalog fallback is used.
+
+Pyroshine's Steam scanner reads installed app manifests. Host Steam non-Steam
+shortcuts are not scanned; other advertised launcher, desktop and manual entries
+remain visible in Remote Games.

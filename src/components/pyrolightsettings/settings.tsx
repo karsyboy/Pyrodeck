@@ -1,6 +1,20 @@
-import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSection, PanelSectionRow, TextField, ToggleField, showModal } from "@decky/ui";
+import {
+  ConfirmModal,
+  DropdownItem,
+  Field,
+  PanelSection,
+  PanelSectionRow,
+  TextField,
+  ToggleField,
+  showModal
+} from "@decky/ui";
 import { FC, useEffect, useState } from "react";
-import { SettingDescriptor, SettingValue, pyrolightIntegration } from "../../lib/pyrolightintegration";
+import {
+  SettingDescriptor,
+  SettingValue,
+  pyrolightIntegration
+} from "../../lib/pyrolightintegration";
+import { ActionButton } from "../shared/actionbutton";
 import { NetworkTools } from "./networktools";
 import { NumericTextInput } from "../shared";
 import { usePyrolight } from "../../hooks/usepyrolight";
@@ -82,43 +96,51 @@ function choiceLabel(value: string): string {
 export const SettingsFeedback: FC = () => {
   const state = usePyrolight();
   const count = Object.keys(state.pending).length;
-  const active = state.session.runnerActive ?? ["streaming", "connecting", "launching", "reconnecting"].includes(state.session.state);
+  const active =
+    state.session.runnerActive ??
+    ["streaming", "connecting", "launching", "reconnecting"].includes(
+      state.session.state
+    );
   return (
     <>
-      {state.error && (
-        <PanelSectionRow>
-          <Field label="Action required" description={state.error} />
-        </PanelSectionRow>
-      )}
-      {state.message && (
-        <PanelSectionRow>
-          <Field description={state.message} />
-        </PanelSectionRow>
+      {(state.error || state.message) && (
+        <PanelSection title={state.error ? "Action required" : "Settings"}>
+          {state.error && (
+            <PanelSectionRow>
+              <Field label={state.error} />
+            </PanelSectionRow>
+          )}
+          {state.message && (
+            <PanelSectionRow>
+              <Field description={state.message} />
+            </PanelSectionRow>
+          )}
+        </PanelSection>
       )}
       {count > 0 && (
         <PanelSection title={`${count} pending setting${count > 1 ? "s" : ""}`}>
           <PanelSectionRow>
-            <Field description="Your draft is kept when Quick Access closes. The running stream keeps its current settings until you explicitly reconnect." />
+            <Field description="Draft saved in this menu. Apply when you are ready to reconnect; the host game stays open." />
           </PanelSectionRow>
           <PanelSectionRow>
-            <ButtonItem
+            <ActionButton
               disabled={state.busy}
               onClick={() => {
                 void pyrolightIntegration.apply(active);
               }}
             >
               {active ? "Apply & Reconnect" : "Save for Next Session"}
-            </ButtonItem>
+            </ActionButton>
           </PanelSectionRow>
           <PanelSectionRow>
-            <ButtonItem
+            <ActionButton
               disabled={state.busy}
               onClick={() => {
                 void pyrolightIntegration.discard();
               }}
             >
-              Discard Draft & Refresh
-            </ButtonItem>
+              Discard Changes
+            </ActionButton>
           </PanelSectionRow>
         </PanelSection>
       )}
@@ -142,7 +164,31 @@ const SettingControl: FC<{ descriptor: SettingDescriptor }> = ({
     descriptor.key
   );
   const label = `${labels[descriptor.key] ?? descriptor.key}${pending ? " • pending" : ""}`;
-  const description = `${descriptor.scope === "global" ? "All profiles" : "Active profile"} · Reconnect required${pending ? ` · Saved: ${String(state.preferences.values[descriptor.key])}` : ""}${descriptor.key === "quitAppAfter" ? ". PyroDeck always preserves host games on disconnect." : ""}`;
+  const help: Record<string, string> = {
+    bitrateKbps: "1000 Kbps = 1 Mbps. Turn off Automatic bitrate to edit.",
+    autoAdjustBitrate:
+      "Let Pyrolight choose bitrate for this resolution and frame rate.",
+    enableVrr:
+      "Requires V-Sync and a compatible display. Advanced timing is in VRR Tuning.",
+    enableYUV444: "Sharper text; requires host and decoder support.",
+    quitAppAfter:
+      "Applies to standalone Pyrolight. PyroDeck keeps host games open on disconnect.",
+    packetSize:
+      "0 uses the transport default. Change only for network troubleshooting."
+  };
+  const reason =
+    descriptor.requires && !values[descriptor.requires] ?
+      `Enable ${labels[descriptor.requires] ?? descriptor.requires} first.` :
+      descriptor.disabledWhen && values[descriptor.disabledWhen] ?
+        `Turn off ${labels[descriptor.disabledWhen] ?? descriptor.disabledWhen} to edit.` :
+        "";
+  const description = [
+    reason || help[descriptor.key],
+    descriptor.scope === "global" ? "Shared by all profiles." : "",
+    pending ? `Saved: ${String(state.preferences.values[descriptor.key])}` : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
   const setValue = (newValue: SettingValue): void =>
     pyrolightIntegration.stage(descriptor.key, newValue);
   return (
@@ -160,6 +206,7 @@ const SettingControl: FC<{ descriptor: SettingDescriptor }> = ({
         descriptor.choices ?
             (
               <DropdownItem
+                layout="below"
                 label={label}
                 description={description}
                 disabled={disabled}
@@ -191,6 +238,7 @@ const SettingControl: FC<{ descriptor: SettingDescriptor }> = ({
 export const StreamingProfiles: FC = () => {
   const state = usePyrolight();
   const [name, setName] = useState("");
+  const [managing, setManaging] = useState(false);
   const prefs = state.preferences;
   if (!prefs) return null;
   const disabled = state.busy || Object.keys(state.pending).length > 0;
@@ -198,8 +246,9 @@ export const StreamingProfiles: FC = () => {
     <PanelSection title="Streaming Profiles">
       <PanelSectionRow>
         <DropdownItem
-          label="Active Pyrolight profile"
-          description="One manually selected profile. Running streams retain their launch settings."
+          label="Active profile"
+          layout="below"
+          description="Used for your next launch. A running stream keeps its current profile."
           disabled={disabled}
           rgOptions={prefs.profiles.map((profile) => ({
             data: profile.id,
@@ -212,60 +261,70 @@ export const StreamingProfiles: FC = () => {
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <TextField
-          label="Profile name"
-          disabled={disabled}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
+        <ActionButton onClick={() => setManaging(!managing)}>
+          {managing ? "Close Profile Tools" : "Manage Profiles…"}
+        </ActionButton>
       </PanelSectionRow>
-      {["create", "duplicate", "rename"].map((operation) => (
-        <PanelSectionRow key={operation}>
-          <ButtonItem
-            disabled={
-              disabled ||
-              !name.trim() ||
-              (operation === "rename" && prefs.activeProfileId === "default")
-            }
-            onClick={() => {
-              void pyrolightIntegration.profile(operation, name);
-            }}
-          >
-            {operation === "create" ?
-              "Create Profile" :
-              operation === "duplicate" ?
-                "Duplicate Active Profile" :
-                "Rename Active Profile"}
-          </ButtonItem>
-        </PanelSectionRow>
-      ))}
-      <PanelSectionRow>
-        <ButtonItem
-          disabled={disabled || prefs.activeProfileId === "default"}
-          onClick={() =>
-            showModal(
-              <ConfirmModal
-                strTitle="Delete streaming profile?"
-                strDescription={`Delete ${prefs.activeProfileName}? Pyrolight will select Default.`}
-                onOK={() => {
-                  void pyrolightIntegration.profile("delete");
+      {managing && (
+        <>
+          <PanelSectionRow>
+            <TextField
+              label="New profile name"
+              disabled={disabled}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </PanelSectionRow>
+          {["create", "duplicate", "rename"].map((operation) => (
+            <PanelSectionRow key={operation}>
+              <ActionButton
+                disabled={
+                  disabled ||
+                  !name.trim() ||
+                  (operation === "rename" &&
+                    prefs.activeProfileId === "default")
+                }
+                onClick={() => {
+                  void pyrolightIntegration.profile(operation, name);
                 }}
-              />
-            )}
-        >
-          Delete Active Profile
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem
-          disabled={disabled}
-          onClick={() => {
-            void pyrolightIntegration.profile("restore");
-          }}
-        >
-          Restore Profile Defaults
-        </ButtonItem>
-      </PanelSectionRow>
+              >
+                {operation === "create" ?
+                  "Create Profile" :
+                  operation === "duplicate" ?
+                    "Duplicate Active Profile" :
+                    "Rename Active Profile"}
+              </ActionButton>
+            </PanelSectionRow>
+          ))}
+          <PanelSectionRow>
+            <ActionButton
+              disabled={disabled || prefs.activeProfileId === "default"}
+              onClick={() =>
+                showModal(
+                  <ConfirmModal
+                    strTitle="Delete streaming profile?"
+                    strDescription={`Delete ${prefs.activeProfileName}? Pyrolight will select Default.`}
+                    onOK={() => {
+                      void pyrolightIntegration.profile("delete");
+                    }}
+                  />
+                )}
+            >
+              Delete Active Profile
+            </ActionButton>
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ActionButton
+              disabled={disabled}
+              onClick={() => {
+                void pyrolightIntegration.profile("restore");
+              }}
+            >
+              Restore Profile Defaults
+            </ActionButton>
+          </PanelSectionRow>
+        </>
+      )}
     </PanelSection>
   );
 };
@@ -278,18 +337,26 @@ export const PyrolightSettings: FC<{ category?: string }> = ({ category }) => {
   if (!preferences)
     return (
       <>
-        <Field
-          label="Pyrolight settings"
-          description="Reading the Pyrolight settings owner…"
-        />
+        <PanelSection title="Pyrolight Settings">
+          <PanelSectionRow>
+            <Field
+              label="Settings unavailable"
+              description="Check the Pyrolight executable in Hosts & Pairing, then retry."
+            />
+          </PanelSectionRow>
+        </PanelSection>
         <SettingsFeedback />
-        <ButtonItem
-          onClick={() => {
-            void pyrolightIntegration.refresh();
-          }}
-        >
-          Retry
-        </ButtonItem>
+        <PanelSection>
+          <PanelSectionRow>
+            <ActionButton
+              onClick={() => {
+                void pyrolightIntegration.refresh();
+              }}
+            >
+              Retry
+            </ActionButton>
+          </PanelSectionRow>
+        </PanelSection>
       </>
     );
   const categories = [
@@ -305,6 +372,9 @@ export const PyrolightSettings: FC<{ category?: string }> = ({ category }) => {
         .filter((value) => !category || value === category)
         .map((value) => (
           <PanelSection title={value} key={value}>
+            <PanelSectionRow>
+              <Field description="Changes stay in your draft until you save or apply them." />
+            </PanelSectionRow>
             {preferences.registry
               .filter((descriptor) => descriptor.category === value)
               .map((descriptor) => (
