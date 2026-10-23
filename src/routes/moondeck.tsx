@@ -1,6 +1,6 @@
 import { DialogBody, DropdownItem, SidebarNavigation } from "@decky/ui";
 import { FC, useState } from "react";
-import { ButtonStyleView } from "../components/buttonstyleview";
+import { Diagnostics } from "../components/diagnostics/diagnostics";
 import { GameSessionView } from "../components/gamesessionview";
 import { GameStreamAppsView } from "../components/gamestreamappsview";
 import { HostInfoView } from "../components/hostinfoview";
@@ -27,7 +27,6 @@ const AdvancedTools: FC = () => {
           rgOptions={[
             { data: "runner", label: "Launcher options" },
             { data: "session", label: "Session behavior" },
-            { data: "style", label: "Library button appearance" },
             { data: "cleanup", label: "Legacy shortcut cleanup" },
             { data: "shortcuts", label: "Optional host shortcut sync" }
           ]}
@@ -42,17 +41,13 @@ const AdvancedTools: FC = () => {
             (
               <GameSessionView />
             ) :
-          tool === "style" ?
+          tool === "cleanup" ?
               (
-                <ButtonStyleView />
+                <MoonDeckAppsView />
               ) :
-            tool === "cleanup" ?
-                (
-                  <MoonDeckAppsView />
-                ) :
-                (
-                  <GameStreamAppsView />
-                )}
+              (
+                <GameStreamAppsView />
+              )}
     </>
   );
 };
@@ -102,6 +97,7 @@ const MoonDeckRouter: FC<object> = () => (
         visible: true
       })),
       "separator",
+      { title: "Troubleshooting & Diagnostics", content: <DialogBody><Diagnostics /></DialogBody>, route: "/pyrodeck/diagnostics", visible: true },
       {
         title: "Setup & Help",
         content: <SetupGuideView />,

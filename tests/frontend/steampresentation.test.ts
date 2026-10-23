@@ -37,7 +37,7 @@ function fixture() {
     BIsShortcut: () => true,
     GetGameID: () => "12884901888000000000",
   };
-  const other = { ...native, appid: 620, display_name: "Portal 2" };
+  const other = { ...native, appid: 620, display_name: "Portal 2", local_per_client_data: { display_status: 11 } };
   const map = new Map([
     [native.appid, native],
     [helper.appid, helper],
@@ -70,10 +70,10 @@ function fixture() {
     RegisterForAppData: vi.fn(() => ({ unregister: unRegister })),
   };
   const windows = {
-    GetAppWindowIDs: vi.fn((id: number) => [id, 7]),
+    GetAppWindowIDs: vi.fn((id: number) => id === helper.appid ? [7] : []),
     GetAppFocusedWindowID: vi.fn((id: number) => id),
     SetFocusedAppWindowID: vi.fn(),
-    BHasAppWindow: vi.fn(() => true),
+    BHasAppWindow(id: number): boolean { return this.GetAppWindowIDs(id).length > 0; },
     GetOverlayInstances: vi.fn(() => []),
   };
   const router = { WindowStore: windows, SetRunningApp: vi.fn() };
@@ -124,8 +124,9 @@ describe("running Steam game presentation", () => {
     const f = fixture();
     const view = f.store.GetAppOverviewByAppID(f.helper.appid)!;
     expect(view.display_name).toBe("Valheim");
-    expect(view.appid).toBe(892970);
-    expect(view.BIsShortcut()).toBe(false);
+    expect(view.appid).toBe(f.helper.appid);
+    expect(view.BIsShortcut()).toBe(true);
+    expect(view.app_type).toBe(f.helper.app_type);
     expect(view.gameid).toBe(f.helper.gameid);
     expect(view.GetGameID()).toBe(f.helper.gameid);
     expect(view.local_per_client_data).toBe(f.helper.local_per_client_data);
@@ -140,18 +141,18 @@ describe("running Steam game presentation", () => {
     expect(f.store.GetAppOverviewByAppID(892970)).toBe(f.native);
     expect(f.native.local_per_client_data.display_status).toBe(11);
     expect(f.store.GetAppOverviewByAppID(620)).toBe(f.other);
-    expect(f.details.GetAppDetails(f.helper.appid)).toBe(f.nativeDetails);
+    expect(f.details.GetAppDetails(f.helper.appid)).toBe(f.helperDetails);
     expect(f.store.GetIconURLForApp(f.helper)).toBe("steam-art/892970");
     f.bridge.stop();
   });
-  it("routes Resume and window controls to the helper, while other games pass through", () => {
+  it("routes explicit Resume/focus commands while preserving window discovery", () => {
     const f = fixture();
     f.router.SetRunningApp(892970);
     f.windows.SetFocusedAppWindowID(892970, 7);
     f.systemUI.GetGameWindowsInfo(892970, [7]);
     expect(f.executionCalls.resume).toHaveBeenCalledWith(f.helper.appid);
     expect(f.executionCalls.focus).toHaveBeenCalledWith(f.helper.appid, 7);
-    expect(f.executionCalls.info).toHaveBeenCalledWith(f.helper.appid, [7]);
+    expect(f.executionCalls.info).toHaveBeenCalledWith(892970, [7]);
     f.router.SetRunningApp(620);
     expect(f.executionCalls.resume).toHaveBeenLastCalledWith(620);
     f.bridge.stop();
@@ -180,8 +181,8 @@ describe("running Steam game presentation", () => {
     Object.freeze(f.native);
     Object.freeze(f.helper);
     const view = f.store.GetAppOverviewByAppID(f.helper.appid)!;
-    expect({ ...view }.appid).toBe(892970);
-    expect(view.BIsShortcut()).toBe(false);
+    expect({ ...view }.appid).toBe(f.helper.appid);
+    expect(view.BIsShortcut()).toBe(true);
     expect(f.store.GetAppOverviewByGameID(f.helper.gameid)).toBe(view);
     expect(f.store.GetAppOverviewByGameID("892970")).toBe(f.native);
     f.bridge.stop();
@@ -189,7 +190,7 @@ describe("running Steam game presentation", () => {
   it("rolls back earlier patches if a Steam method cannot be patched", () => {
     const lookup = vi.fn();
     const store = { GetAppOverviewByAppID: lookup };
-    const details = Object.freeze({ GetAppDetails: () => null });
+    const details = Object.freeze({ GetHeroImages: () => null });
     expect(() =>
       installSteamPresentation({
         appStore: store,
@@ -200,5 +201,29 @@ describe("running Steam game presentation", () => {
       }),
     ).toThrow();
     expect(store.GetAppOverviewByAppID).toBe(lookup);
+  });
+});
+
+
+describe("Steam running-game enumeration", () => {
+  it("does not synthesize a second running Valheim from the helper's window", () => {
+    const f = fixture();
+    // Steam ScopeRunningApps enumerates raw app overviews, then checks the
+    // WindowStore even for installed/non-running apps. Calling the actual
+    // BHasAppWindow -> GetAppWindowIDs chain catches nested read aliases too.
+    const running = [...f.map.values()].filter((app) =>
+      app.local_per_client_data.display_status === 4 || f.windows.BHasAppWindow(app.appid));
+    expect(running.map((app) => app.appid)).toEqual([f.helper.appid]);
+    expect(f.store.GetAppOverviewByAppID(running[0].appid)?.display_name).toBe("Valheim");
+    expect(f.windows.GetAppWindowIDs(f.native.appid)).toEqual([]);
+    expect(f.windows.GetAppFocusedWindowID(f.native.appid)).toBe(f.native.appid);
+    f.bridge.stop();
+  });
+  it("keeps a genuinely running local copy separate from the stream", () => {
+    const f = fixture(); f.native.local_per_client_data.display_status = 4;
+    const running = [...f.map.values()].filter((app) =>
+      app.local_per_client_data.display_status === 4 || f.windows.BHasAppWindow(app.appid));
+    expect(running.map((app) => app.appid)).toEqual([f.native.appid, f.helper.appid]);
+    f.bridge.stop();
   });
 });

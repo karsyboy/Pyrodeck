@@ -1,107 +1,47 @@
 import { logger } from "../lib/logger";
 
-export enum AppStartResult {
-  TimeoutOrError,
-  Started,
-  Cancelled
-}
+export enum AppStartResult { TimeoutOrError, Started, Cancelled }
 
-function waitForLifetimeNotification(appId: number, lifetimeCallback: (running: boolean) => void): () => void {
-  try {
-    const unregisterable = SteamClient.GameSessions.RegisterForAppLifetimeNotifications((data) => {
-      if (data.unAppID !== appId) {
-        return;
-      }
-
-      lifetimeCallback(data.bRunning);
-    });
-
-    let unregistered = false;
-    return () => {
-      if (!unregistered) {
-        unregistered = true;
-        unregisterable.unregister();
-      }
-    };
-  } catch (error) {
-    logger.critical(error);
-    return () => { };
-  }
-}
-
-// For handling the case where the user cancels the app launch.
-function waitForProcessLaunchAction(gameId: string, processLaunched: (launched: boolean) => void): () => void {
-  try {
+/** Steam lifetime is process readiness only; Pyrolight reports window readiness. */
+export async function waitForAppStartNotification(appId: number, gameId: string, timeout: number, signal?: AbortSignal): Promise<AppStartResult> {
+  return await new Promise<AppStartResult>((resolve) => {
+    let finished = false;
     let actionId: number | null = null;
-    let callbackInvoked = false;
-    const unregisterStart = SteamClient.Apps.RegisterForGameActionStart((gameActionId, gameIdFromAction, action, _1) => {
-      if (action === "LaunchApp" && gameIdFromAction === gameId && actionId === null) {
-        actionId = gameActionId;
-      }
-    });
-    const unregisterTaskChange = SteamClient.Apps.RegisterForGameActionTaskChange((gameActionId, _1, _2, task, _3) => {
-      if (gameActionId === actionId && task === "CreatingProcess" && !callbackInvoked) {
-        callbackInvoked = true;
-        processLaunched(true);
-      }
-    });
-    const unregisterEnd = SteamClient.Apps.RegisterForGameActionEnd((gameActionId) => {
-      if (gameActionId === actionId && !callbackInvoked) {
-        callbackInvoked = true;
-        processLaunched(false);
-      }
-    });
-
-    let unregistered = false;
-    return () => {
-      if (!unregistered) {
-        unregistered = true;
-        unregisterStart.unregister();
-        unregisterTaskChange.unregister();
-        unregisterEnd.unregister();
-      }
+    let creatingProcess = false;
+    const cleanup: Array<() => void> = [];
+    const complete = (result: AppStartResult): void => {
+      if (finished) return;
+      finished = true;
+      cleanup.splice(0).reverse().forEach((remove) => { try { remove(); } catch (error) { logger.critical(error); } });
+      resolve(result);
     };
-  } catch (error) {
-    logger.critical(error);
-    return () => { };
-  }
-}
-
-/**
- * Convenience function for waiting until app starts.
- */
-export async function waitForAppStartNotification(appId: number, gameId: string, timeout: number): Promise<AppStartResult> {
-  // MUST leave this function async/await (for usage purposes)!
-  return await new Promise<AppStartResult>((_resolve) => {
-    let alreadyResolved = false;
-    let timeoutId: NodeJS.Timeout | undefined;
-    let unregisterAction: (() => void) | undefined;
-    let unregisterNotification: (() => void) | undefined;
-    const resolve = (value: AppStartResult): void => {
-      if (!alreadyResolved) {
-        alreadyResolved = true;
-        clearTimeout(timeoutId);
-        unregisterAction?.();
-        unregisterNotification?.();
-        _resolve(value);
-      }
+    const register = (subscription: { unregister(): void }): void => {
+      if (typeof subscription?.unregister !== "function") throw new Error("Steam notification subscription changed");
+      if (finished) subscription.unregister();
+      else cleanup.push(() => subscription.unregister());
     };
-
+    const abort = (): void => complete(AppStartResult.Cancelled);
+    if (signal?.aborted) { abort(); return; }
+    signal?.addEventListener("abort", abort, { once: true });
+    cleanup.push(() => signal?.removeEventListener("abort", abort));
+    const timer = setTimeout(() => complete(AppStartResult.TimeoutOrError), timeout);
+    cleanup.push(() => clearTimeout(timer));
     try {
-      unregisterAction = waitForProcessLaunchAction(gameId, (launched) => {
-        if (launched) {
-          unregisterAction?.();
-        } else {
-          resolve(AppStartResult.Cancelled);
-        }
-      });
-      unregisterNotification = waitForLifetimeNotification(appId, (running) => {
-        resolve(running ? AppStartResult.Started : AppStartResult.TimeoutOrError);
-      });
-      timeoutId = setTimeout(() => { resolve(AppStartResult.TimeoutOrError); }, timeout);
+      register(SteamClient.Apps.RegisterForGameActionStart((id, target, action) => {
+        if (action === "LaunchApp" && target === gameId && actionId === null) { actionId = id; logger.log(`Steam helper ${appId}: launch action ${id}`); }
+      }));
+      register(SteamClient.Apps.RegisterForGameActionTaskChange((id, _1, _2, task) => {
+        if (id === actionId) { logger.debug(`Steam helper ${appId}: ${task}`); if (task === "CreatingProcess") creatingProcess = true; }
+      }));
+      register(SteamClient.Apps.RegisterForGameActionEnd((id) => {
+        if (id === actionId && !creatingProcess) complete(AppStartResult.Cancelled);
+      }));
+      register(SteamClient.GameSessions.RegisterForAppLifetimeNotifications((data) => {
+        if (data.unAppID === appId) { logger.log(`Steam helper ${appId}: running=${data.bRunning}`); complete(data.bRunning ? AppStartResult.Started : AppStartResult.TimeoutOrError); }
+      }));
     } catch (error) {
       logger.critical(error);
-      resolve(AppStartResult.TimeoutOrError);
+      complete(AppStartResult.TimeoutOrError);
     }
   });
 }

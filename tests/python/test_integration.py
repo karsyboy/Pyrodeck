@@ -9,6 +9,7 @@ class IntegrationTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = isolate_state(self)
         self.service = Integration()
+        self.service.known_catalog_path = self.directory / "known-catalogs.json"
         self.settings = {"hostSettings": {HOST_ID: {"hostName": "Deck Host", "address": "127.0.0.1", "hostInfoPort": 47989}}, "currentHostId": HOST_ID}
         self.request = {"schema": 1, "operation": "patch", "revision": "old", "values": {"fps": 90}}
         self.saved = {"schema": 1, "ok": True, "revision": "new", "values": {"fps": 90}}
@@ -122,3 +123,61 @@ class IntegrationTest(unittest.IsolatedAsyncioTestCase):
             result = await self.service.catalogs(self.settings)
         self.assertEqual(len(result["hosts"][0]["apps"]), 5)
         self.assertEqual(result["defaultHostId"], HOST_ID)
+
+    async def test_offline_catalog_survives_reload_but_not_unpairing_or_changed_endpoint(self):
+        from lib.pyrolightproxy import HostAppList, HostApp, PyrolightListError
+        proxy = AsyncMock()
+        proxy.__aenter__.return_value = proxy
+        proxy.list_apps.return_value = HostAppList("Host", HOST_ID, [HostApp("Valheim", 42, sources=["steam:892970"])])
+        self.settings["hostSettings"][HOST_ID]["mac"] = "01:02:03:04:05:06"
+        with patch.object(self.service, "executable", return_value="pyrolight"), patch("lib.integration.PyrolightProxy", return_value=proxy):
+            first = await self.service.catalogs(self.settings, True)
+            reloaded = Integration()
+            reloaded.known_catalog_path = self.service.known_catalog_path
+            proxy.list_apps.side_effect = PyrolightListError("unreachable", "offline")
+            with patch.object(reloaded, "executable", return_value="pyrolight"):
+                offline = (await reloaded.catalogs(self.settings, True))["hosts"][0]
+                self.assertEqual(offline["apps"], first["hosts"][0]["apps"])
+                self.assertTrue(offline["cached"])
+                self.assertTrue(offline["validated"])
+                self.settings["hostSettings"][HOST_ID]["address"] = "192.0.2.20"
+                self.assertEqual((await reloaded.catalogs(self.settings, True))["hosts"][0]["apps"], [])
+                self.settings["hostSettings"][HOST_ID]["address"] = "127.0.0.1"
+                proxy.list_apps.side_effect = PyrolightListError("not_paired", "unpaired")
+                self.assertEqual((await reloaded.catalogs(self.settings, True))["hosts"][0]["apps"], [])
+                proxy.list_apps.side_effect = PyrolightListError("unreachable", "offline")
+                self.assertEqual((await reloaded.catalogs(self.settings, True))["hosts"][0]["apps"], [])
+
+    async def test_successful_empty_catalog_invalidates_previous_availability(self):
+        from lib.pyrolightproxy import HostAppList, HostApp, PyrolightListError
+        proxy = AsyncMock()
+        proxy.__aenter__.return_value = proxy
+        proxy.list_apps.return_value = HostAppList("Host", HOST_ID, [HostApp("Game", 42, sources=["steam:892970"])])
+        with patch.object(self.service, "executable", return_value="pyrolight"), patch("lib.integration.PyrolightProxy", return_value=proxy):
+            await self.service.catalogs(self.settings, True)
+            proxy.list_apps.return_value = HostAppList("Host", HOST_ID, [])
+            await self.service.catalogs(self.settings, True)
+            proxy.list_apps.side_effect = PyrolightListError("unreachable", "offline")
+            self.assertEqual((await self.service.catalogs(self.settings, True))["hosts"][0]["apps"], [])
+
+    async def test_expired_catalog_does_not_create_offline_matches(self):
+        import json
+        from lib.pyrolightproxy import HostAppList, HostApp, PyrolightListError
+        proxy = AsyncMock(); proxy.__aenter__.return_value = proxy
+        proxy.list_apps.return_value = HostAppList("Host", HOST_ID, [HostApp("Game", 42, sources=["steam:892970"])])
+        with patch.object(self.service, "executable", return_value="pyrolight"), patch("lib.integration.PyrolightProxy", return_value=proxy):
+            await self.service.catalogs(self.settings, True)
+            known = json.loads(self.service.known_catalog_path.read_text())
+            known[HOST_ID]["result"]["validatedAt"] = 1
+            self.service.known_catalog_path.write_text(json.dumps(known))
+            proxy.list_apps.side_effect = PyrolightListError("unreachable", "offline")
+            self.assertEqual((await self.service.catalogs(self.settings, True))["hosts"][0]["apps"], [])
+
+    async def test_malformed_offline_cache_cannot_supply_a_match(self):
+        import json
+        from lib.pyrolightproxy import PyrolightListError
+        self.service.known_catalog_path.write_text(json.dumps({HOST_ID: "broken", "other": {"result": {"apps": []}}}))
+        proxy = AsyncMock(); proxy.__aenter__.return_value = proxy
+        proxy.list_apps.side_effect = PyrolightListError("unreachable", "offline")
+        with patch.object(self.service, "executable", return_value="pyrolight"), patch("lib.integration.PyrolightProxy", return_value=proxy):
+            self.assertEqual((await self.service.catalogs(self.settings, True))["hosts"][0]["apps"], [])

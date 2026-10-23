@@ -39,7 +39,7 @@ methods, and Default remains protected. Restoring defaults stages the active pro
 **Save for Next Session** persists preferences without reconnecting.
 **Apply & Reconnect** validates, persists and explicitly suspends/resumes the
 owned runner. It preserves the host and application ID. Success requires a new
-`Session::connectionStarted` event with the expected preference revision.
+`Session::streamingWindowReady` event with the expected preference revision.
 A failed reconnect retains the draft and reports that preferences were saved
 but the stream did not confirm them. It never issues `quit` or `/cancel`.
 Retry, discard the draft, or launch the same game again. Discarding a draft
@@ -87,12 +87,18 @@ Steam-tree adapter fails closed on unknown panel shapes and prevents duplicate
 insertion. Its regression test retains the original Play/Install objects and
 handlers. Actual Steam UI changes still require device acceptance.
 
-Only paired hosts advertising exactly one match for `steam:APPID` are eligible.
+Only validated catalogs advertising exactly one unambiguous match for
+`steam:APPID` are eligible. Successful catalogs are retained for seven days,
+bound to the configured executable, host UUID, address and port. Only an
+unreachable host with Wake-on-LAN configured can use cached eligibility;
+unpairing, identity changes, invalid responses and successful empty catalogs
+invalidate old claims. Every launch rechecks the authenticated catalog.
 The host selected in **Hosts & Pairing** is the persistent default. An eligible
 default is selected for one-action launching. If it is absent, even a single
 alternative requires explicit selection. Choosing an alternative on a game
 page or in Remote Games does not change the default. Each launch pins its host
-UUID; an existing session never switches hosts.
+UUID. Changing an active session requires explicit switch confirmation;
+resume defaults to the original host rather than a newly configured default.
 
 One reusable hidden PyroDeck launcher gives Steam ownership of the client
 process, input and overlay. Games already in the library need no individual
@@ -111,7 +117,7 @@ bounded to 64 cached entries for an hour and at most two requests in flight.
 
 ## Session ownership and recovery
 
-States distinguish none, connecting, launching, streaming, disconnected,
+States distinguish none, waking, connecting, launching, streaming, disconnected,
 reconnecting, ending, ended and failed. A private atomic observation file
 carries runner generation and attempt; stale events cannot change a replacement
 attempt. A dead owned runner is reported as failed rather than streaming.
@@ -157,12 +163,49 @@ remain visible in Remote Games.
 
 ## Steam game context while streaming
 
-The Library action is a globally mounted React portal, placed in an owned DOM
-sibling after the visible AppDetailsOverviewPanel (PlaySection is a fallback).
+The Library action uses Decky's supported `/library/app/:appid` route patch.
+It preserves the original route children and adds a portal owner whose hidden
+probe supplies the actual route's `ownerDocument`. Steam may render that route
+in a different BrowserWindow from the plugin's global document; observing the
+global document can leave the hook waiting for a panel that is in another window.
+The portal uses an owned flex slot inside the native AppButtons group,
+immediately before Steam Input. The adapter locates ControllerConfigButton
+and inserts before its direct wrapper in that group, preserving tooltip
+wrappers, native buttons and callbacks. It restores the slot if Steam replaces
+or reorders the controls. There is no fixed positioning or corner overlay.
+Button colors, hover, contrast and focus decoration come from Steam's
+MenuButton class. A missing insertion target reports `steam_input_unavailable`.
+
+A DOM portal retains the contexts of its React owner, not its DOM destination.
+The route owner is outside the Library's nested focus providers, which made the
+old action mouse-only despite using Focusable. `librarycontext.ts` collects
+the committed native controls' nearest React providers (React 18 and 19), then
+wraps the portal content with those values. Native Focusable/Button now
+register under the same navigation parent as the controller/gear buttons,
+with a row flow for Stream and its host chooser. The inline slot already has
+the native DOM ancestry, so it bypasses the external-portal event bridge:
+Steam's root maps raw input and direction/cancel events bubble normally. This
+avoids duplicate activation while retaining the context bridge needed for
+native focus registration.
+No second navigation tree, global controller handler or automatic focus
+stealing is installed. Context
+changes observed during page updates rebind the action in place. A missing
+navigation contract reports `focus_context_unavailable` and hides the action.
+
+Steam's Play dropdown selects Steam streaming clients using
+`SetStreamingClientForApp`; it has no arbitrary-action extension contract.
+PyroDeck therefore keeps a separate Stream action beside Steam Input, rather
+than representing a Pyrolight host as a Steam streaming client. The arrow on
+Stream opens a native Menu/MenuItem context menu, anchored to that button and
+preferring upward placement. Native menu selection/cancel restores focus; page
+teardown also hides an outstanding menu. Default-host and resume rules remain
+the same.
+
 It reads the mounted panel's current React fiber, including the alternate tree,
 so it follows reused panels and no longer depends on route renderFunc or
 renderChildrenFunc shapes. A batched observer handles navigation, text updates
-and visibility changes. Unload removes the observer and owned container.
+and visibility changes. Leaving the route removes the observer and owned
+container; plugin unload also removes the exact registered route patch.
 Steam's native action nodes and their callbacks are never replaced.
 
 Browser launches with one exact Steam source use the matching local Library
@@ -173,26 +216,79 @@ Reconnect retains both IDs and the selected host.
 
 The helper always has a readable game name. Numeric-title association is no
 longer used. The running-game adapter projects the matched Steam metadata when
-Steam reads the owned helper through its overview or details lookup. It warms
+Steam reads the owned helper through its overview lookup. It warms
 the native details registration and releases it on disconnect. The projection
-uses the native app ID, title, artwork and app type, with the helper's game ID,
-running state and compositor override. The raw app map and process IDs stay
+uses only the native descriptive title/sort metadata and artwork requests.
+The helper retains its App ID, app type, shortcut classification, details, game
+ID, running state and compositor override. Returning a native App ID or details
+object for a helper lookup confuses launch/window ownership and is forbidden. The raw app map and process IDs stay
 unchanged. Native-game lookups remain the original objects, preserving local
 Play/Install and native launch configuration.
 
-Resume and window operations receiving the presentation ID are directed to the
-helper. Exit disconnects only the owned stream; unrelated games pass through.
+Explicit Resume, focus and close commands receiving the presentation ID are
+directed to the helper. Window discovery queries keep their original IDs:
+Steam's `ScopeRunningApps()` checks `BHasAppWindow()` for each raw app overview,
+so aliasing the native game's window queries to the helper creates two running
+entries for a single stream. No running-app list filtering is needed.
+Exit disconnects only the owned stream; unrelated games pass through.
 If the same native game is actually launching, running or terminating locally,
 presentation and execution aliases are disabled so local play stays independent.
 The adapters unregister on plugin unload and recover an owned active stream
 after reload only when backend and shortcut Steam identities match. Recovery
 cannot outlive plugin unload or override a new launch.
 
-Connection & Diagnostics reports Library mounting/catalog eligibility and the
-active Steam overlay metadata. Runtime attachment failures are logged.
+**Troubleshooting & Diagnostics** is directly accessible in Quick Access and
+the settings sidebar, independent of preference loading. It reports Library
+registration, selector/identity states, observed/visible panel and fiber counts,
+provider count and native navigation availability,
+the route document's visibility, current App ID, eligibility, client and
+runner observations, errors/stages and bounded redacted logs. Host software
+version is marked unavailable because the catalog does not advertise it.
+Attachment observations are logged when they change. Missing panels no longer
+retain the stale settings-loading message.
 
 These integrations display Steam metadata; they do not synthesize local
 playtime, achievements, cloud sync or host Steam rich presence. Automated tests
 exercise React DOM mounting and the Decky patcher, but real Gaming Mode overlay,
 controller navigation and Gamescope focus still require device acceptance on
 the installed Steam client version.
+
+
+## Launch progress and window observations
+
+Native settings, Library registration and diagnostic routes start before the
+optional non-Steam discovery retry loop. A login generation prevents late
+initialization after unload. A synchronous launch guard protects independent
+Library/browser presses even before a runner PID exists. Only the owned helper’s
+lifetime notifications can clear its active launch.
+
+The Python runner has no display dependency or fullscreen splash. The old
+Pyglet canvas provided progress labels only, stayed alive for the full stream,
+and never hid/closed when Pyrolight took over. Steam provides launch progress;
+Quick Access and the Library show session progress. The shell exec and Python
+parent retain ownership of Pyrolight. Display/Steam environment variables are
+inherited unchanged; no forced X11 backend or detached client is introduced.
+
+`connectionStarted` confirms transport, before SDL window creation. It emits
+`transport_ready`, while `window` events report actual SDL ID, shown/focus state,
+renderer availability, SteamGameId and the native X11 ID when available.
+`streaming` now comes from `streamingWindowReady` after a shown window has a
+renderer. The `windowReadiness` capability opts the runner into a bounded
+60-second initialization watchdog; explicit client switch confirmation pauses
+that budget. Failure stops only the owned client. Older clients remain usable
+but their transport event records `window_unverified`, never confirmed streaming.
+
+Shown-window/renderer observations do not prove compositor visibility, a first
+video frame, audio output or controller focus. Those require Game Mode testing.
+No spinner suppression or synthetic Steam success event is used.
+
+Wake attempts run only inside the launch runner, not catalog/UI refreshes.
+Existing send-once or bounded ten-second retry preferences are honored; the
+configured wake timeout also bounds a custom wake command. UUID availability
+checks precede Pyrolight’s paired, pinned-host catalog verification.
+
+Confirmed switches pass `--terminate-app-id ID` once. The client compares the
+current host app to that authorization and uses conditional server cancellation.
+Changed apps and server refusal fail safely. Explicit Pyrolight switch dialogs
+also pin the application seen at confirmation. Same-app reconnect uses the
+existing resume path and never carries an old termination authorization.

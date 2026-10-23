@@ -35,6 +35,7 @@ class EnvSettings(TypedDict):
     runner_type: Optional[RunnerType]
     host_id: Optional[str]
     remote_app_id: Optional[int]
+    terminate_app_id: Optional[int]
 
 
 # The variables PyroDeck puts in its shortcuts' launch options. They are
@@ -110,6 +111,7 @@ def parse_env_settings() -> EnvSettings:
         "app_name": get_app_name(),
         "action": get_action(),
         "host_id": os.environ.get(HOST_ID) or None,
+        "terminate_app_id": int(os.environ["PYRODECK_TERMINATE_APP_ID"]) if os.environ.get("PYRODECK_TERMINATE_APP_ID", "").isdigit() and 0 < int(os.environ["PYRODECK_TERMINATE_APP_ID"]) < 0x80000000 else None,
         "remote_app_id": int(os.environ[REMOTE_APP_ID]) if os.environ.get(REMOTE_APP_ID, "").isdigit() and int(os.environ[REMOTE_APP_ID]) > 0 else None,
         "runner_type": get_runner_type()
     }

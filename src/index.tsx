@@ -6,49 +6,41 @@ import { TitleView } from "./components/titleview";
 import { definePlugin } from "@decky/api";
 import { getDefaultContext } from "./contexts";
 import { sleep } from "@decky/ui";
+import { startPlugin } from "./lib/pluginstartup";
 
 export default definePlugin(() => {
   const { moonDeckAppShortcuts, externalAppShortcuts, settingsManager, connectivityManager, moonDeckAppLauncher } = getDefaultContext(true);
   const routeManager = new RouteManager();
 
-  let initializing = false;
+  let generation = 0;
   const initCallback = async (username: string): Promise<void> => {
-    if (await waitForServicesInitialized()) {
-      logger.log(`Initializing plugin for ${username}`);
-      initializing = true;
-      do {
-        const allAppDetails = await getAllNonSteamAppDetails();
-        if (!initializing) {
-          return;
-        }
-
-        if (allAppDetails === null) {
-          logger.error(`Delaying initialization by 5 seconds.`);
-          await sleep(5000);
-          continue;
-        }
-
-        externalAppShortcuts.init(allAppDetails);
-        moonDeckAppShortcuts.init(allAppDetails);
+    const current = ++generation;
+    logger.log(`Initializing plugin for ${username}`);
+    await startPlugin({
+      ready: waitForServicesInitialized,
+      cancelled: () => current !== generation,
+      startNative: () => {
         settingsManager.init();
         connectivityManager.init();
-        moonDeckAppLauncher.init(allAppDetails);
-
-        // Always the last
+        moonDeckAppLauncher.init([]);
         routeManager.init();
-        initializing = false;
-      } while (initializing);
-    } else {
-      logger.toast(`Failed to initialize Steam lib for ${username}!`, { output: "error" });
-    }
+      },
+      discover: getAllNonSteamAppDetails,
+      startShortcuts: (details) => {
+        externalAppShortcuts.init(details);
+        moonDeckAppShortcuts.init(details);
+        moonDeckAppLauncher.discoverShortcuts(details);
+      },
+      retry: async () => {
+        logger.warn("Shortcut discovery unavailable; Library streaming remains enabled. Retrying in 5 seconds.");
+        await sleep(5000);
+      }
+    });
   };
   const deinitCallback = (): void => {
     logger.log("Deinitializing plugin");
-    initializing = false;
-
-    // Always the first
+    generation++;
     routeManager.deinit();
-
     moonDeckAppLauncher.deinit();
     connectivityManager.deinit();
     settingsManager.deinit();

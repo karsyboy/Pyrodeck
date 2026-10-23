@@ -34,6 +34,7 @@ def begin(settings: dict) -> str:
         _write({"schema": 1, "generation": generation, "attempt": 0, "state": "connecting",
                 "hostId": settings["host_id"], "hostName": settings["hostname"],
                 "appName": settings.get("app_name"), "steamAppId": settings.get("steam_app_id"),
+                "remoteAppId": settings.get("remote_app_id"), "stage": "connecting",
                 "updatedAt": time.time()})
     return generation
 

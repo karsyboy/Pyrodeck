@@ -45,7 +45,7 @@ export const SetupGuideView: FC = () => {
           description="Open any Steam game installed on the host and select Stream with Pyrolight. Quick Access exposes profiles and stream settings. Closing the stream keeps the game running on the host; End Remote Game in Session Controls closes it."
           focusable={true}
         >
-          <MoonDeckLaunchButtonShell buttonStyle={settings.buttonStyle} />
+          <MoonDeckLaunchButtonShell />
         </Field>
       </DialogControlsSection>
       <DialogControlsSection>

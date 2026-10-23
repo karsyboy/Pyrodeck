@@ -1,6 +1,12 @@
 export interface SteamIntegrationStatus {
   library: string;
   overlay: string;
+  libraryPhase?: string;
+  libraryDetails?: string;
+  currentAppId?: number | null;
+  eligibleHostIds?: string[];
+  launchStage?: string;
+  launchFailure?: string | null;
 }
 let state: SteamIntegrationStatus = {
   library: "Waiting for a Library page",

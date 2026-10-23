@@ -8,9 +8,10 @@ export class RouteManager {
   private presentationUnhook: (() => void) | null = null;
 
   init(): void {
+    this.deinit();
     this.moonDeckRouteUnhook = MoonDeckRouterHook();
-    this.presentationUnhook = SteamPresentationHook();
     this.libraryAppUnhook = LibraryAppHook();
+    this.presentationUnhook = SteamPresentationHook();
   }
 
   deinit(): void {

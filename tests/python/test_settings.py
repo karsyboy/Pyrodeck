@@ -64,7 +64,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_fresh_install_without_moondeck_gets_buddy_free_defaults(self):
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
-        self.assertEqual(settings["version"], 44)
+        self.assertEqual(settings["version"], 45)
         self.assertNotIn("clientId", settings)
         self.assertEqual(settings["hostSettings"], {})
         self.assertTrue(self.pyrodeck.exists())
@@ -89,7 +89,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(settings["moonlightExecPath"], "")
 
         written = json.loads(self.pyrodeck.read_text())
-        self.assertEqual(written["version"], 44)
+        self.assertEqual(written["version"], 45)
 
     async def test_existing_pyrodeck_settings_win_over_moondeck(self):
         await UserSettingsManager(self.pyrodeck, None).read_or_update()
@@ -100,9 +100,24 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
     async def test_an_unreadable_moondeck_file_falls_back_to_defaults(self):
         self.write_moondeck({"version": 999, "garbage": True})
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
-        self.assertEqual(settings["version"], 44)
+        self.assertEqual(settings["version"], 45)
         self.assertEqual(settings["hostSettings"], {})
 
 
 if __name__ == "__main__":
     unittest.main()
+
+class NativeButtonMigrationTest(unittest.IsolatedAsyncioTestCase):
+    async def test_v44_offsets_are_removed_and_explicit_disable_is_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "settings.json"
+            manager = UserSettingsManager(path)
+            old = manager._default_settings()
+            old.update(version=44, enableMoondeckShortcuts=False,
+                       buttonPosition={"offsetX": "999px"}, buttonStyle={"theme": "Clean"})
+            path.write_text(json.dumps(old))
+            migrated = await manager.read_or_update()
+            self.assertEqual(migrated["version"], 45)
+            self.assertFalse(migrated["enableMoondeckShortcuts"])
+            self.assertNotIn("buttonPosition", migrated)
+            self.assertNotIn("buttonStyle", migrated)

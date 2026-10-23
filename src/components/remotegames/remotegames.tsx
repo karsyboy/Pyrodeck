@@ -17,6 +17,7 @@ import { FC, useContext, useEffect, useState } from "react";
 import { ActionButton } from "../shared/actionbutton";
 import { MoonDeckContext } from "../../contexts";
 import { call } from "@decky/api";
+import { usePyrolight } from "../../hooks/usepyrolight";
 
 const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
   const [image, setImage] = useState<string | undefined>(steamArtwork(app));
@@ -73,6 +74,7 @@ const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
 
 export const RemoteGames: FC = () => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
+  const { session } = usePyrolight();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [hostId, setHostId] = useState<string>("");
   const [query, setQuery] = useState("");
@@ -102,6 +104,9 @@ export const RemoteGames: FC = () => {
   };
   useEffect(() => {
     void load();
+    void pyrolightIntegration.refreshSession();
+    const timer = setInterval(() => { if (!document.hidden) void pyrolightIntegration.refreshSession(); }, 2000);
+    return () => clearInterval(timer);
   }, []);
   const host = catalog?.hosts.find((entry) => entry.id === hostId);
   const apps = (host?.apps ?? [])
@@ -256,14 +261,14 @@ export const RemoteGames: FC = () => {
             <Artwork hostId={hostId} app={app} />
             <ActionButton
               style={{ flex: 1, textAlign: "left", padding: "10px 12px" }}
-              disabled={busy || host?.status !== "paired"}
+              disabled={busy || !(host?.status === "paired" || (host?.status === "unreachable" && host.validated && host.cached && host.canWake)) || (session.runnerActive && session.hostId === hostId && session.remoteAppId === app.id)}
               onClick={() => {
                 setBusy(true);
                 setError(null);
                 void moonDeckAppLauncher
                   .launchRemote(hostId, app.id, app.name, steamSourceId(app))
                   .catch((problem: unknown) => setError(String(problem)))
-                  .finally(() => setBusy(false));
+                  .finally(() => { setBusy(false); void pyrolightIntegration.refreshSession(); });
               }}
             >
               <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
@@ -272,7 +277,11 @@ export const RemoteGames: FC = () => {
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 {appKind(app)}
                 {" "}
-                · Stream game
+                ·
+                {" "}
+                {session.hostId === hostId && session.remoteAppId === app.id && session.state !== "ended" ?
+                    (session.runnerActive ? (session.state === "streaming" ? "Streaming" : session.state === "waking" ? "Waking host…" : "Connecting…") : "Resume Stream") :
+                  "Stream game"}
               </div>
             </ActionButton>
           </div>

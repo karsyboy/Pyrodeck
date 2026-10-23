@@ -16,6 +16,8 @@ pnpm run build:plugin
 ```
 
 Frontend tests cover launch identities, the isolated Steam-tree adapter,
+Library route ownership and focus-context registration across separate
+documents, native button/menu wiring, raw running-app window scans,
 native Play/Install preservation, host policy, settings drafts, failed
 reconnects, process ownership and suspend orchestration. Python tests use
 `tests/python/fakes/fake_pyrolight.py` and loopback GameStream servers. They
@@ -33,7 +35,9 @@ at `python/` beside `main.py`. Deploying over SSH is optional and requires the
 project’s `.env` configuration. No deployment or upstream push is part of
 local validation.
 
-PyroDeck’s existing schema 44 and MoonDeck import remain readable. Compatibility
+Schema 45 migrates schema 44 and MoonDeck imports, removing obsolete floating
+button styles/offsets while preserving the explicit Library enable/disable
+choice, hosts and launch preferences. Compatibility
 keys with Moonlight names identify the Pyrolight executable or retain old
 per-host launch hints. Current native launches ignore legacy stream overrides;
 Pyrolight’s active profile owns them. Old Pyrolight installations can still use

@@ -156,7 +156,7 @@ async def wake_on_lan(hostname: str, address: str, mac: str, port: int = 9, cust
 
             process_task = asyncio.create_task(wol_proc.wait())
             log_task = asyncio.create_task(handle_stream(wol_proc.stdout))
-            await asyncio.wait([process_task, log_task], return_when=asyncio.ALL_COMPLETED)
+            await asyncio.gather(process_task, log_task)
 
             logger.info(f"WOL exec ({custom_exec}) output:{newline}{buffer.getvalue().strip(newline)}")
             if wol_proc.returncode:

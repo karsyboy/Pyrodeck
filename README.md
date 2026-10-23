@@ -3,7 +3,7 @@
 A [Decky Loader](https://decky.xyz/) plugin that streams the Steam games installed
 on your [Pyroshine](https://github.com/karsyboy/pyroshine) host to the Steam Deck
 through [Pyrolight](https://github.com/karsyboy/pyrolight): open a game's page in
-your Steam library, select **Stream with Pyrolight** and play. Steam’s local Play and Install buttons stay unchanged.
+your Steam library, select **Stream** and play. Steam’s local Play and Install buttons stay unchanged.
 
 PyroDeck is a fork of [MoonDeck](https://github.com/FrogTheFrog/moondeck) by
 FrogTheFrog. It keeps MoonDeck's Steam Deck integration and needs no extra
@@ -67,11 +67,16 @@ Pairing is Pyrolight's own. PyroDeck never reads or copies its credentials.
 
 ## 5. Stream games
 
-Open a game’s Steam Library page and choose **Stream with Pyrolight**. The
-separate action appears when a paired, reachable host advertises that Steam
-App ID. Steam’s Play and Install buttons keep their local behavior. The
-eligible default host is selected; choose an alternative explicitly when the
-default is unavailable. That selection applies to this launch only.
+Open a game’s Steam Library page and choose **Stream**, immediately to the
+left of the Steam Input button. On a controller, navigate through the native
+action row to Stream, then press **A**. The
+separate action appears when a configured, paired host advertises that Steam
+App ID. Previously validated games remain available for Wake-on-LAN for up to
+seven days while that host is offline and has a MAC address configured. The
+runner checks the host identity, pairing and current catalog again before launch. Steam’s Play and Install buttons keep their local behavior. The
+eligible default host is selected; use **▾** to open Steam's host-selection menu
+(**A** selects, **B** cancels). If the
+default does not offer the game, choose an eligible host explicitly. That selection applies to this launch only.
 
 Open **Remote Games** in Quick Access or the settings page to browse every
 application advertised by a host: Steam, Heroic, Lutris, desktop entries and
@@ -89,18 +94,20 @@ application configuration.
 
 For a remote game with one exact Steam App ID that is also in your Deck's Steam
 Library, the Gaming Mode running-game menu uses the real game's name, artwork
-and Steam details. Resume returns to the stream; Steam's Exit action disconnects
-it. The helper always keeps the game's readable name. The Library action mounts
-below the native controls and leaves local Play and Install unchanged.
+and descriptive Steam metadata. Resume returns to the stream; Steam's Exit action disconnects
+it. The helper always keeps the game's readable name. The Library action uses
+Steam's native button styling and the Library's controller focus tree.
 Games without a matching Steam Library entry keep their remote-app identity.
 
 Steam still owns a hidden helper process. Playtime, achievements and cloud sync
 remain the responsibility of the host game and Steam. The adapter presents
 existing Steam metadata; it does not create local achievement or cloud state.
 
-If the Library action is missing, **Connection & Diagnostics** in streaming
-settings reports whether the Library panel was found and whether that game has
-an eligible host. It also shows which game's Steam details the overlay uses.
+Open **Troubleshooting & Diagnostics** directly from PyroDeck in Quick Access
+or its settings sidebar. It reports Library attachment and the current App ID,
+host matches, runner/client state, window observations, launch errors and logs.
+Library diagnostics also show panel/fiber observations when attachment fails.
+It remains available when Pyrolight settings cannot load.
 
 ## 6. Profiles and streaming settings
 
@@ -127,11 +134,18 @@ disconnected client; a recommended bitrate is only staged when you choose it.
 
 - **Disconnect**, Steam’s **Exit Game**, and suspend close the client and
   preserve the remote game under Pyroshine’s retention policy.
+- **Resume Stream** on the Library page reconnects to the original host and game.
 - **Reconnect** in Session Controls resumes the pinned host/application using
   the active profile. Launching the same library game again also resumes it.
 - **End Remote Game** asks for confirmation, then explicitly closes that game
   on its original host. Update Pyroshine for conditional cancellation, which
   refuses to terminate a different application that replaced it.
+
+Switching an active stream asks for confirmation. On the same host, switching
+games can end the previous game and lose unsaved progress; a matching Pyroshine
+build checks the expected application ID before termination. Switching hosts
+disconnects the original client and keeps its game under that host’s retention
+policy. Cancellation keeps the current stream.
 
 PyroDeck never suspends, restarts or shuts down the host.
 
@@ -153,7 +167,9 @@ not needed for normal library or Remote Games launches.
 | Steam is already running on the host | Quit Steam on the host's desktop and launch again; see Pyroshine's [TIPS](https://github.com/karsyboy/pyroshine/blob/main/docs/TIPS.md#close-a-desktop-steam-before-streaming-steam). |
 | Pyrolight asks to quit another app | A different game is running on the host. Confirm to end it, or cancel and keep it. |
 
-Logs:
+**Troubleshooting & Diagnostics → View Log** displays the last 32 KiB of a
+selected log with sensitive credential lines redacted. The files are also
+available in Desktop Mode:
 
 | Log | File |
 | --- | --- |
@@ -162,7 +178,12 @@ Logs:
 | Pyrolight output (each launch) | `/tmp/pyrodeck-runner-pyrolight.log` |
 | Frontend | `/tmp/pyrodeck-frontend.log` |
 
-Host/UI settings are stored in `~/.config/pyrodeck/settings.json`; confirmed play history is `recent-games.json` beside it. Streaming preferences and profiles remain in Pyrolight.
+Host/UI settings are stored in `~/.config/pyrodeck/settings.json`; confirmed play history is `recent-games.json` beside it. `known-catalogs.json`
+stores bounded, UUID-validated availability for offline waking. Streaming preferences and profiles remain in Pyrolight.
+
+Game Mode acceptance for these changes is **not verified**. See the
+[current validation report](docs/VALIDATION.md) for automated results and the
+remaining Valheim, controller, overlay and docked-display checks.
 
 ## Development
 

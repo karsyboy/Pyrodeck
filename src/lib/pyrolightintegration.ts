@@ -27,7 +27,7 @@ export interface Preferences {
   capabilities: { pyrowave: boolean; liveUpdates: boolean; displayProbe: string };
 }
 export interface ApiError { schema: number; ok: false; error: { code: string; message: string } }
-export type SessionPhase = "none" | "connecting" | "launching" | "streaming" | "disconnected" | "reconnecting" | "ending" | "ended" | "failed";
+export type SessionPhase = "none" | "waking" | "connecting" | "launching" | "streaming" | "disconnected" | "reconnecting" | "ending" | "ended" | "failed";
 export interface SessionStatus {
   schema: number;
   state: SessionPhase;
@@ -43,15 +43,18 @@ export interface SessionStatus {
   effectivePreferences?: Preferences;
   diagnostics?: { codec: string; width: number; height: number; negotiatedFps: number; bitrateKbps: number; yuv444: boolean; displayDriver: string };
   displayBackend?: string;
+  stage?: string;
+  lastLifecycle?: string;
+  window?: { id: number; shown: boolean; focused: boolean; rendererReady?: boolean; nativeId?: string; steamGameId?: string };
   quality?: "good" | "poor";
 }
 export interface RemoteApp { id: number; name: string; hdr_supported: boolean; lastPlayed?: number; sources: string[] }
-export interface RemoteHost { id: string; name: string; status: string; error?: string; apps: RemoteApp[] }
+export interface RemoteHost { id: string; name: string; status: string; error?: string; validated?: boolean; cached?: boolean; canWake?: boolean; validatedAt?: number; apps: RemoteApp[] }
 export interface Catalog { schema: number; ok: true; defaultHostId: string | null; hosts: RemoteHost[] }
 
 export function eligibleHosts(catalog: Catalog, steamAppId: number): RemoteHost[] {
   const source = `steam:${steamAppId}`;
-  return catalog.hosts.filter((host) => host.status === "paired" && host.apps.filter((app) => app.sources.includes(source)).length === 1);
+  return catalog.hosts.filter((host) => (host.status === "paired" || (host.status === "unreachable" && host.validated && host.cached && host.canWake)) && host.apps.filter((app) => steamSourceId(app) === steamAppId && app.sources.includes(source)).length === 1);
 }
 export function preferredHost(hosts: RemoteHost[], defaultId: string | null): string | null {
   // Even one alternative requires an explicit selection when the default is absent.
@@ -96,6 +99,7 @@ export class PyrolightIntegration {
   async refresh(): Promise<void> {
     if (this.state.busy) return;
     const epoch = this.settingsEpoch;
+    void this.refreshSession();
     try {
       const result = await call<[null], Preferences | ApiError>("pyrolight_settings", null);
       if (epoch !== this.settingsEpoch) return;

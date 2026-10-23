@@ -2,6 +2,11 @@
 
 import asyncio
 import time
+import json
+import os
+import tempfile
+from pathlib import Path
+from . import constants
 from dataclasses import asdict
 from . import runnercontrol, sessionstate, utils, history
 from .pyrolightproxy import PyrolightProxy, PyrolightListError, find_pyrolight, pyrolight_host
@@ -18,6 +23,7 @@ class Integration:
         self.catalog_lock = asyncio.Lock()
         self.artwork_cache = {}
         self.artwork_slots = asyncio.Semaphore(2)
+        self.known_catalog_path = constants.get_config_file_path().with_name("known-catalogs.json")
 
     async def artwork(self, settings: dict, host_id: str, app_id: int) -> dict:
         if host_id not in settings["hostSettings"] or type(app_id) is not int or app_id <= 0:
@@ -64,21 +70,55 @@ class Integration:
         value = sessionstate.read()
         active = runnercontrol.is_runner_active()
         value = {**value, "runnerActive": active}
-        if value.get("state") in ("connecting", "launching", "streaming", "reconnecting", "ending") and not active:
+        if value.get("state") in ("waking", "connecting", "launching", "streaming", "reconnecting", "ending") and not active:
             return {**value, "state": "failed", "error": "The PyroDeck runner exited. Launch again to resume the host game."}
         return value
+
+    def _known_catalogs(self):
+        from .pyrolightproxy import parse_app_list
+        try:
+            value = json.loads(self.known_catalog_path.read_text())
+            if not isinstance(value, dict):
+                return {}
+            verified = {}
+            for host_id, entry in value.items():
+                try:
+                    result = entry["result"]
+                    stamp = result["validatedAt"]
+                    if result.get("status") != "paired" or type(stamp) not in (int, float) or not result.get("validated"):
+                        continue
+                    catalog = parse_app_list(json.dumps({"schema": 1, "host": {"name": result["name"], "uuid": host_id}, "apps": [{**app, "hdrSupported": app.get("hdr_supported", False)} for app in result["apps"]]}))
+                    verified[host_id] = {**entry, "result": {**result, "apps": [asdict(app) for app in catalog.apps]}}
+                except (ValueError, KeyError, TypeError, AttributeError):
+                    continue
+            return verified
+        except (OSError, ValueError):
+            return {}
+
+    def _save_catalogs(self, known):
+        self.known_catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(dir=self.known_catalog_path.parent, prefix="known-catalogs.")
+        try:
+            with os.fdopen(fd, "w") as output:
+                json.dump(known, output)
+            os.replace(temporary, self.known_catalog_path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
     async def catalogs(self, settings: dict, refresh: bool = False) -> dict:
         executable = self.executable(settings)
         async with self.catalog_lock:
             semaphore = asyncio.Semaphore(3)
+            known = self._known_catalogs()
             async def fetch(host_id, host):
                 key = (executable, host_id, host["address"], host["hostInfoPort"])
                 cached = self.catalog_cache.get(key)
                 if not refresh and cached and time.monotonic() - cached[0] < 30:
                     return cached[1]
                 async with semaphore:
-                    result = {"id": host_id, "name": host["hostName"], "apps": [], "status": "unreachable"}
+                    identity = [executable, host["address"], host["hostInfoPort"]]
+                    result = {"id": host_id, "name": host["hostName"], "apps": [], "status": "unreachable",
+                              "canWake": bool(host.get("mac")), "validated": False}
                     try:
                         async with PyrolightProxy(executable) as proxy:
                             catalog = await proxy.list_apps(pyrolight_host(host["address"], host["hostInfoPort"]), timeout=8)
@@ -86,14 +126,32 @@ class Integration:
                             result["status"] = "wrong_host"
                         else:
                             result.update(status="paired", name=catalog.host_name,
-                                          apps=[asdict(app) for app in catalog.apps])
+                                          apps=[asdict(app) for app in catalog.apps], validated=True, cached=False,
+                                          validatedAt=time.time())
+                            known[host_id] = {"identity": identity, "result": result}
                     except PyrolightListError as error:
                         result.update(status=error.reason, error=str(error))
                     except TimeoutError:
                         result["error"] = "Host did not respond"
+                    previous = known.get(host_id, {})
+                    if result["status"] == "unreachable" and previous.get("identity") == identity:
+                        validated = previous.get("result", {})
+                        if validated.get("validated") and 0 <= time.time() - validated.get("validatedAt", 0) < 7 * 86400:
+                            result.update(apps=validated.get("apps", []), validated=True, cached=True,
+                                          validatedAt=validated["validatedAt"])
+                    elif result["status"] != "paired":
+                        # Unpairing, a replacement host, malformed or unsupported
+                        # responses invalidate previous claims; only outages retain them.
+                        known.pop(host_id, None)
                     self.catalog_cache[key] = (time.monotonic(), result)
                     return result
             hosts = await asyncio.gather(*(fetch(id, host) for id, host in settings["hostSettings"].items()))
+            known = {key: value for key, value in known.items() if key in settings["hostSettings"]}
+            try:
+                self._save_catalogs(known)
+            except OSError:
+                from .logger import logger
+                logger.exception("Could not save validated host catalogs")
             played = history.read()
             hosts = [{**host, "apps": [{**app, "lastPlayed": played.get(f"{host['id']}:{app['id']}")} for app in host["apps"]]} for host in hosts]
             # A removed host or executable change must not retain unbounded cache entries.

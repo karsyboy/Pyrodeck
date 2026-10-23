@@ -68,6 +68,8 @@ vi.mock("../../src/lib/steamutils", async () => {
 });
 (globalThis as Record<string, unknown>).SteamClient = { Apps: { SetThirdPartyControllerConfiguration: vi.fn() } };
 
+const switchConfirm = vi.hoisted(() => vi.fn(async () => true));
+vi.mock("../../src/lib/confirmswitch", () => ({ confirmStreamSwitch: switchConfirm }));
 const { MoonDeckAppLauncher } = await import("../../src/lib/moondeckapplauncher");
 const { AppSyncState } = await import("../../src/lib/appsyncstate");
 const { AppType } = await import("../../src/lib/launchenv");
@@ -175,7 +177,7 @@ describe("library launch", () => {
   it("never starts a second stream while one runs", async () => {
     const { launcher } = makeLauncher();
     backend.is_runner_active = () => true;
-    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    await expect(launcher.launchApp(892970, "Valheim", AppType.MoonDeck)).rejects.toThrow("already running");
     expect(steam.launched).toEqual([]);
   });
 
@@ -301,5 +303,61 @@ describe("running session recovery", () => {
     expect(steam.exitResolver!("892970")).toBeNull();
     expect(steam.exitResolver!(`gameid-${steam.launched[0]}`)).toBeTypeOf("function");
     expect(steam.terminated).toEqual([]); launcher.deinit();
+  });
+});
+
+describe("launch recovery and races", () => {
+  it("rejects concurrent Library presses before any runner PID exists", async () => {
+    const { launcher } = makeLauncher();
+    let release!: () => void;
+    backend.is_runner_active = () => new Promise((resolve) => { release = () => resolve(false); });
+    const first = launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    await expect(launcher.launchApp(620, "Portal", AppType.MoonDeck)).rejects.toThrow("in progress");
+    release(); await first; expect(steam.launched).toHaveLength(1); launcher.deinit();
+  });
+  it("surfaces helper creation failure and permits retry", async () => {
+    const utils = await import("../../src/lib/steamutils");
+    vi.mocked(utils.addShortcut).mockResolvedValueOnce(null);
+    const { launcher } = makeLauncher();
+    await expect(launcher.launchApp(892970, "Valheim", AppType.MoonDeck)).rejects.toThrow("Steam could not create");
+    expect(steam.launched).toEqual([]);
+    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck); expect(steam.launched).toHaveLength(1); launcher.deinit();
+  });
+  it("cleans a failed Steam launch and can retry", async () => {
+    const utils = await import("../../src/lib/steamutils");
+    vi.mocked(utils.launchApp).mockResolvedValueOnce(0);
+    const { launcher } = makeLauncher();
+    await expect(launcher.launchApp(892970, "Valheim", AppType.MoonDeck)).rejects.toThrow("timed out");
+    expect(launcher.moonDeckApp.value).toBeNull();
+    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck); expect(steam.launched).toHaveLength(1); launcher.deinit();
+  });
+  it("asks before switching and carries conditional termination only for the same host", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    let running = true;
+    backend.is_runner_active = () => running;
+    backend.session_status = () => ({ hostId: "host-a", remoteAppId: 42, appName: "Valheim", runnerActive: true });
+    backend.kill_runner = () => { running = false; };
+    await launcher.launchApp(620, "Portal", AppType.MoonDeck, undefined, { hostId: "host-a", remoteAppId: 43 });
+    expect(switchConfirm).toHaveBeenCalledWith("Valheim", "Host", true);
+    expect(steam.shortcuts.get(steam.launched.at(-1)!)!.strLaunchOptions).toContain("PYRODECK_TERMINATE_APP_ID=42");
+    launcher.deinit();
+  });
+  it("keeps the existing session when switch confirmation is declined", async () => {
+    const { launcher } = makeLauncher();
+    backend.is_runner_active = () => true;
+    backend.session_status = () => ({ hostId: "host-a", remoteAppId: 42, appName: "Valheim", runnerActive: true });
+    switchConfirm.mockResolvedValueOnce(false);
+    await launcher.launchApp(620, "Portal", AppType.MoonDeck, undefined, { hostId: "host-a", remoteAppId: 43 });
+    expect(steam.launched).toEqual([]); expect(calls.map(([name]) => name)).not.toContain("kill_runner"); launcher.deinit();
+  });
+  it("aborts a pending launch after plugin unload", async () => {
+    const { launcher } = makeLauncher();
+    let finish!: () => void;
+    backend.is_runner_active = () => new Promise((resolve) => { finish = () => resolve(false); });
+    const launch = launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function")); launcher.deinit(); finish();
+    await expect(launch).rejects.toThrow("unloaded"); expect(steam.launched).toEqual([]);
   });
 });

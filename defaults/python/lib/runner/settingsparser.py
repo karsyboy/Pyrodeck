@@ -34,6 +34,7 @@ class RunnerSettings(TypedDict):
     wol_port: int
     debug_logs: bool
     remote_app_id: Optional[int]
+    terminate_app_id: Optional[int]
 
 
 def parse_audio_settings(host_settings: HostSettings, env_settings: EnvSettings) -> Optional[str]:
@@ -180,4 +181,5 @@ async def parse_settings() -> RunnerSettings:
         "wol_port": wol_settings["port"],
         "debug_logs": user_settings["runnerDebugLogs"],
         "remote_app_id": env_settings["remote_app_id"],
+        "terminate_app_id": env_settings["terminate_app_id"],
     })

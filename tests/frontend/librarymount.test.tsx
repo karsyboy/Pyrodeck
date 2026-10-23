@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@decky/api", () => ({ call: vi.fn(), toaster: { toast: vi.fn() } }));
-import { LibraryMount, observeLibraryMount } from "../../src/lib/librarymount";
+import { LibraryMount, gameFromFiber, observeLibraryMount } from "../../src/lib/librarymount";
 
 const valheim = { appid: 892970, display_name: "Valheim", app_type: 1 };
 const portal = { appid: 620, display_name: "Portal 2", app_type: 1 };
@@ -91,10 +91,11 @@ describe("Library action in a real React DOM tree", () => {
     );
     await frame();
     const panel = document.querySelector(".steam-overview")!;
-    const button = panel.querySelector("button")!;
+    const button = panel.querySelector("button:not([data-stream-game])")!;
     const nativeHTML = panel.innerHTML;
     const mount = document.querySelector("[data-pyrodeck-library-action]")!;
-    expect(mount.previousElementSibling).toBe(panel);
+    expect(mount.parentElement).toBe(panel);
+    expect(mount.className).toContain("BasicUI");
     expect(mount.textContent).toBe("Stream Valheim");
     await act(async () => {
       button.click();
@@ -103,7 +104,7 @@ describe("Library action in a real React DOM tree", () => {
     expect(localPlay).toHaveBeenCalledOnce();
     expect(stream).toHaveBeenCalledOnce();
     expect(panel.innerHTML).toBe(nativeHTML);
-    expect(panel.querySelector("button")).toBe(button);
+    expect(panel.querySelector("button:not([data-stream-game])")).toBe(button);
     document.body.append(document.createElement("aside"));
     await frame();
     expect(
@@ -178,5 +179,31 @@ describe("Library action in a real React DOM tree", () => {
     expect(document.querySelector(".steam-overview button")?.textContent).toBe(
       "Play locally",
     );
+  });
+});
+
+
+describe("compatibility adapter", () => {
+  it("uses compound selectors, reports changed Steam structures, and cleans reloads", async () => {
+    const node = document.createElement("section"); node.className = "native play"; document.body.append(node);
+    const change = vi.fn(); const status = vi.fn();
+    const options = { document, classes: ["native play"], fiber: () => ({ memoizedProps: { overview: valheim } }), lookup,
+      supported: () => true, change, status };
+    const stop = observeLibraryMount(options); await frame();
+    expect(document.querySelectorAll("[data-pyrodeck-library-action]")).toHaveLength(1);
+    expect(status).toHaveBeenLastCalledWith("attached", 892970);
+    stop(); const reload = observeLibraryMount(options); await frame();
+    expect(document.querySelectorAll("[data-pyrodeck-library-action]")).toHaveLength(1);
+    node.className = "changed"; await frame();
+    expect(status).toHaveBeenLastCalledWith("waiting_for_page", null);
+    expect(document.querySelectorAll("[data-pyrodeck-library-action]")).toHaveLength(0);
+    reload(); node.remove();
+  });
+  it("refuses stale detached fibers and accepts current appId properties", () => {
+    const current: any = { child: { memoizedProps: { appId: 620 } } };
+    const old: any = { stateNode: { current } };
+    const detached: any = { return: old, memoizedProps: { overview: valheim } };
+    expect(gameFromFiber(detached, lookup)).toBeNull();
+    expect(gameFromFiber(current.child, lookup)?.appId).toBe(620);
   });
 });

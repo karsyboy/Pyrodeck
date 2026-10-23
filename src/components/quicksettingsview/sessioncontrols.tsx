@@ -57,12 +57,12 @@ export const SessionControls: FC = () => {
         <ActionButton
           disabled={
             disabled ||
-            !["connecting", "launching", "streaming", "reconnecting"].includes(
+            !["waking", "connecting", "launching", "streaming", "reconnecting"].includes(
               session.state
             )
           }
           onClick={() =>
-            run(() => moonDeckAppLauncher.moonDeckApp.killApp(true))}
+            run(async () => { await moonDeckAppLauncher.moonDeckApp.killApp(true); await moonDeckAppLauncher.moonDeckApp.clearApp(); })}
         >
           Disconnect
         </ActionButton>

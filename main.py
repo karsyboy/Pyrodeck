@@ -27,7 +27,7 @@ from lib.logger import logger, set_logger_settings, get_logger
 from lib.utils import wake_on_lan, change_runner_ready_state
 from lib.runnerresult import set_result, get_result
 from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight, pyrolight_host
-from lib import runnercontrol
+from lib import runnercontrol, diagnostics
 from lib.integration import Integration, failure
 
 set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=True)
@@ -40,6 +40,25 @@ integration = Integration()
 
 
 class Plugin:
+    async def troubleshooting(self):
+        result = {"schema": 1, "session": integration.status(), "processes": diagnostics.processes()}
+        import json
+        try:
+            result["pyrodeckVersion"] = json.loads(pathlib.Path(__file__).with_name("package.json").read_text()).get("version", "unknown")
+        except (OSError, ValueError):
+            result["pyrodeckVersion"] = "unknown"
+        try:
+            settings = await settings_manager.read_or_update()
+            result["catalog"] = await integration.catalogs(settings)
+            async with PyrolightProxy(integration.executable(settings)) as proxy:
+                result["pyrolightVersion"] = await proxy.version()
+        except Exception as error:
+            result["error"] = str(error)
+        return result
+
+    async def diagnostic_log(self, name: str):
+        return diagnostics.log_tail(name)
+
     async def pyrolight_settings(self, request: Optional[dict] = None):
         try:
             settings = await settings_manager.read_or_update()

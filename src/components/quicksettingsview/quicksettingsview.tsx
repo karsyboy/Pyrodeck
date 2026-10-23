@@ -11,6 +11,7 @@ import {
   useServerStatus
 } from "../../hooks";
 import { ActionButton } from "../shared/actionbutton";
+import { Diagnostics } from "../diagnostics/diagnostics";
 import { HostStatusPanel } from "./hoststatuspanel";
 import { RemoteGames } from "../remotegames/remotegames";
 import { SessionControls } from "./sessioncontrols";
@@ -45,20 +46,22 @@ export const QuickSettingsView: FC = () => {
             </ActionButton>
           </PanelSectionRow>
         </PanelSection>
-        {page === "Session" ?
-            (
-              <>
-                <SettingsFeedback />
-                <SessionControls />
-              </>
-            ) :
-          page === "Remote Games" ?
+        {page === "Troubleshooting & Diagnostics" ?
+            <Diagnostics /> :
+          page === "Session" ?
               (
-                <RemoteGames />
+                <>
+                  <SettingsFeedback />
+                  <SessionControls />
+                </>
               ) :
-              (
-                <PyrolightSettings category={page} />
-              )}
+            page === "Remote Games" ?
+                (
+                  <RemoteGames />
+                ) :
+                (
+                  <PyrolightSettings category={page} />
+                )}
       </>
     );
   const prefs = state.session.effectivePreferences ?? state.preferences;
@@ -93,6 +96,7 @@ export const QuickSettingsView: FC = () => {
           />
         </PanelSectionRow>
       </PanelSection>
+      <PanelSection><PanelSectionRow><ActionButton onClick={() => setPage("Troubleshooting & Diagnostics")}>Troubleshooting & Diagnostics</ActionButton></PanelSectionRow></PanelSection>
       <SettingsFeedback />
       <PanelSection title="Streaming Settings">
         <PanelSectionRow>

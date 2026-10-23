@@ -115,7 +115,7 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.pyrolight.invocations(), [])
 
     async def test_another_host_at_the_address_is_rejected(self):
-        await self.assert_fails(Result.GameStreamDead, host_id="00000000-0000-0000-0000-000000000000")
+        await self.assert_fails(Result.WrongHost, host_id="00000000-0000-0000-0000-000000000000")
 
         self.pyrolight.set_apps([VALHEIM], host_uuid="AAAAAAAA-0000-4000-8000-000000000002")
         await self.assert_fails(Result.WrongHost)
@@ -316,14 +316,15 @@ class RunnerCancellationTest(unittest.IsolatedAsyncioTestCase):
 
 
 class BuddyIndependenceTest(unittest.TestCase):
-    def test_the_runner_never_imports_buddy(self):
+    def test_the_runner_never_imports_buddy_or_a_display_toolkit(self):
         code = ("import sys; sys.path[:0] = [sys.argv[1], sys.argv[1] + '/externals'];"
                 "import pyrodeckrun, lib.runner.pyroshinerunner, lib.runnercontrol;"
-                "print([name for name in sys.modules if 'buddy' in name])")
+                "print([name for name in sys.modules if 'buddy' in name or 'pyglet' in name])")
         with tempfile.TemporaryDirectory() as home:
             output = subprocess.run([sys.executable, "-c", code, str(support.PYTHON_ROOT)], check=True,
                                     capture_output=True, text=True, cwd=support.PYTHON_ROOT,
-                                    env={**os.environ, "HOME": home, "XDG_CACHE_HOME": home}).stdout
+                                    env={**os.environ, "HOME": home, "XDG_CACHE_HOME": home,
+                                         "DISPLAY": ":pyrodeck-missing", "WAYLAND_DISPLAY": "pyrodeck-missing"}).stdout
         self.assertEqual(output.strip().splitlines()[-1], "[]")
 
 

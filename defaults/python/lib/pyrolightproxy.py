@@ -85,6 +85,7 @@ class Capabilities:
     video_codecs: set[str]
     vrr: bool
     app_id: bool = False
+    conditional_switch: bool = False
 
 
 DEFAULT_HTTP_PORT = 47989
@@ -161,12 +162,16 @@ def parse_app_list(output: bytes | str) -> HostAppList:
         raise ValueError("app list without host or apps")
 
     parsed: list[HostApp] = []
+    seen_ids = set()
     for app in apps:
-        if not isinstance(app, dict) or not isinstance(app.get("name"), str) or not isinstance(app.get("id"), int):
+        if not isinstance(app, dict) or not isinstance(app.get("name"), str) or (type(app.get("id")) is not int or not 0 < app["id"] < 0x80000000):
             raise ValueError(f"invalid app entry: {app!r}")
         sources = app.get("sources", [])
         if not isinstance(sources, list) or not all(isinstance(source, str) for source in sources):
             raise ValueError(f"invalid sources for {app['name']!r}")
+        if app["id"] in seen_ids:
+            raise ValueError("Duplicate application ID")
+        seen_ids.add(app["id"])
         parsed.append(HostApp(name=app["name"],
                               id=app["id"],
                               hdr_supported=bool(app.get("hdrSupported", False)),
@@ -190,7 +195,7 @@ def parse_capabilities(help_text: str) -> Capabilities:
     if match:
         codecs = {choice.strip() for choice in match.group(1).split("/") if choice.strip()}
     vrr = re.search(r"(^|\s)--vrr(\s|$)", flattened) is not None
-    return Capabilities(video_codecs=codecs, vrr=vrr, app_id="--app-id" in flattened)
+    return Capabilities(video_codecs=codecs, vrr=vrr, app_id="--app-id" in flattened, conditional_switch="--terminate-app-id" in flattened)
 
 
 def build_stream_args(host: str, app_name: str, options: Optional[CommandLineOptions],
@@ -313,6 +318,10 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
             raise
         assert process.returncode is not None
         return process.returncode, stdout, stderr
+
+    async def version(self):
+        code, stdout, stderr = await self.__run_to_completion(["--version"], 8)
+        return (stdout + stderr).decode(errors="replace").strip()[:200] if code == 0 else "Unavailable"
 
     async def list_apps(self, host: str, timeout: float = 45) -> HostAppList:
         """The host's apps as Pyrolight sees them, with Pyroshine's launcher identities."""

@@ -79,27 +79,11 @@ class GameSessionSettings(TypedDict):
     controllerConfig: Optional[ControllerConfigOption]
 
 
-class ButtonPositionSettings(TypedDict):
-    horizontalAlignment: Literal["top", "bottom"]
-    verticalAlignment: Literal["left", "right"]
-    offsetX: str
-    offsetY: str
-    offsetForHltb: bool
-    zIndex: str
-
-
-class ButtonStyleSettings(TypedDict):
-    showFocusRing: bool
-    theme: Literal["HighContrast", "Clean"]
-
-
 class UserSettings(TypedDict):
     # Continues MoonDeck's numbering: 44 is the first PyroDeck schema.
-    version: Literal[44]
+    version: Literal[45]
     currentHostId: Optional[str]
     gameSession: GameSessionSettings
-    buttonPosition: ButtonPositionSettings
-    buttonStyle: ButtonStyleSettings
     enableMoondeckShortcuts: bool
     enableMoondeckButtonPrompt: bool
     hostSettings: Dict[str, HostSettings]
@@ -124,18 +108,6 @@ class UserSettingsManager(SettingsManager[UserSettings]):
                 "autoApplyAppId": False,
                 "resumeAfterSuspend": False,
                 "controllerConfig": None
-            },
-            "buttonPosition": {
-                "horizontalAlignment": "bottom",
-                "verticalAlignment": "right",
-                "offsetX": "",
-                "offsetY": "",
-                "offsetForHltb": False,
-                "zIndex": ""
-            },
-            "buttonStyle": {
-                "showFocusRing": True,
-                "theme": "Clean"
             },
             "enableMoondeckShortcuts": True,
             "enableMoondeckButtonPrompt": False,
@@ -416,3 +388,8 @@ class UserSettingsManager(SettingsManager[UserSettings]):
                     "steamLaunch": timeouts["steamLaunch"],
                 }
                 host_settings["enableVrr"] = None
+
+        if data["version"] == 44:
+            data["version"] = 45
+            data.pop("buttonPosition", None)
+            data.pop("buttonStyle", None)

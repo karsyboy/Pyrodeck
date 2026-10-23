@@ -34,21 +34,9 @@ interface Mapping {
   native: SteamObject;
   view: SteamObject;
 }
-const runtimeFields = new Set([
-  "local_per_client_data",
-  "selected_per_client_data",
-  "most_available_per_client_data",
-  "per_client_data",
-  "selected_clientid",
-  "display_status",
-  "status_per_client",
-  "status_percentage",
-  "installed",
-  "active_beta",
-  "is_available_on_current_platform",
-  "is_invalid_os_type",
-  "most_available_clientid"
-]);
+// Only descriptive metadata is projected. Steam uses appid, app_type,
+// BIsShortcut and details to complete launches and locate Gamescope surfaces.
+const metadataFields = new Set(["display_name", "sort_as"]);
 const object = (value: unknown): SteamObject | null =>
   value && typeof value === "object" ? (value as SteamObject) : null;
 
@@ -118,16 +106,16 @@ export function installSteamPresentation(options: Options): {
     const bound = new Map<PropertyKey, unknown>();
     const view: SteamObject = new Proxy(
       Object.create(
-        Object.getPrototypeOf(native) as object | null
+        Object.getPrototypeOf(helper) as object | null
       ) as SteamObject,
       {
         get(_target, key) {
-          if (key === "appid") return session.steamAppId;
+          if (key === "appid") return session.helperAppId;
           // Composition must continue to focus the real helper's Gamescope window.
           if (key === "shortcut_override_appid") return session.helperAppId;
           if (key === "gameid") return session.gameId ?? helper.gameid;
           if (key === "GetGameID") return () => session.gameId ?? helper.gameid;
-          const source = runtimeFields.has(String(key)) ? helper : native;
+          const source = metadataFields.has(String(key)) ? native : helper;
           const value = Reflect.get(source, key, source) as unknown;
           if (typeof value !== "function") return value;
           if (!bound.has(key)) bound.set(key, (value as Method).bind(source));
@@ -191,16 +179,6 @@ export function installSteamPresentation(options: Options): {
         active.view :
         result;
     });
-    for (const key of ["GetAppDetails", "GetAppData"]) {
-      const original = details?.[key] as Method | undefined;
-      if (typeof original === "function")
-        after(details, key, ([id], result) => {
-          const active = mapping();
-          return active && id === active.session.helperAppId ?
-              (original.call(details, active.session.steamAppId) ?? result) :
-            result;
-        });
-    }
     // Images requested with an old/raw helper overview also use the real game.
     for (const [target, keys] of [
       [
@@ -231,16 +209,11 @@ export function installSteamPresentation(options: Options): {
     // These are window/process operations, never launch or install operations.
     execution(router, "SetRunningApp");
     const windows = object(router?.WindowStore);
-    for (const key of [
-      "GetAppWindowIDs",
-      "GetAppFocusedWindowID",
-      "SetFocusedAppWindowID",
-      "BHasAppWindow",
-      "GetOverlayInstances"
-    ])
-      execution(windows ?? undefined, key);
-    for (const key of ["GetGameWindowsInfo", "CloseGameWindow"])
-      execution(systemUI, key);
+    // Window discovery feeds Steam's ScopeRunningApps scan. Aliasing a native
+    // game's BHasAppWindow/GetAppWindowIDs to the helper makes Steam enumerate
+    // both IDs as running. Only explicit focus/close commands may redirect.
+    execution(windows ?? undefined, "SetFocusedAppWindowID");
+    execution(systemUI, "CloseGameWindow");
   } catch (error) {
     cleanup.reverse().forEach((remove) => remove());
     releaseData();

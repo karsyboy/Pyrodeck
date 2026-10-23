@@ -17,12 +17,15 @@ export async function launchApp(appId: number, timeout: number): Promise<AppStar
     return AppStartResult.TimeoutOrError;
   }
 
+  const controller = new AbortController();
   try {
-    const startNotification = waitForAppStartNotification(appId, gameId, timeout);
+    const startNotification = waitForAppStartNotification(appId, gameId, timeout, controller.signal);
     SteamClient.Apps.RunGame(gameId, "", -1, 100);
     return await startNotification;
   } catch (error) {
     logger.critical(error);
     return AppStartResult.TimeoutOrError;
+  } finally {
+    controller.abort();
   }
 }

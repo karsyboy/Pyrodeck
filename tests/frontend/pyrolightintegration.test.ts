@@ -95,3 +95,22 @@ describe("browser Steam source identity", () => {
     }
   });
 });
+
+describe("validated offline identities", () => {
+  it("retains only a validated offline host with Wake-on-LAN and an unambiguous identity", () => {
+    const offline = { ...host, status: "unreachable", validated: true, cached: true, canWake: true };
+    const catalog = { schema: 1, ok: true as const, defaultHostId: "default", hosts: [offline] };
+    expect(eligibleHosts(catalog, 620)).toEqual([offline]);
+    for (const change of [{ validated: false }, { canWake: false }, { status: "not_paired" }, { apps: [{ ...app, sources: ["steam:620", "steam:892970"] }] }, { apps: [] }]) {
+      expect(eligibleHosts({ ...catalog, hosts: [{ ...offline, ...change }] }, 620)).toEqual([]);
+    }
+  });
+  it("refreshes session state even if the preferences API is unavailable", async () => {
+    backend.call.mockImplementation(async (name: string) => {
+      if (name === "pyrolight_settings") throw new Error("missing preferences");
+      return { schema: 1, state: "disconnected", updatedAt: 1 };
+    });
+    const store = new PyrolightIntegration(); await store.refresh();
+    expect(store.getSnapshot().session.state).toBe("disconnected");
+  });
+});

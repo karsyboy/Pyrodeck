@@ -48,6 +48,7 @@ export interface LaunchContext {
   remoteAppId?: number;
   remoteAppName?: string;
   reusableLauncher?: boolean;
+  terminateAppId?: number;
 }
 
 /**
@@ -89,6 +90,7 @@ export function getLaunchOptionsString(currentValue: string, appId: number, appT
     launchOptions.push(makeEnvKeyValue(EnvVars.Action, context.action));
   }
 
+  if (context.terminateAppId) launchOptions.push(makeEnvKeyValue("PYRODECK_TERMINATE_APP_ID", context.terminateAppId));
   if (context.hostId) launchOptions.push(makeEnvKeyValue(EnvVars.HostId, context.hostId));
   if (appType === AppType.Utility && context.remoteAppId) launchOptions.push(makeEnvKeyValue(EnvVars.RemoteAppId, context.remoteAppId));
 
