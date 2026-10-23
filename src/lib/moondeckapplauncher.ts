@@ -325,8 +325,19 @@ export class MoonDeckAppLauncher {
         return null;
       const overview = getAppStoreEx()?.getAppOverview(current.steamAppId) as { local_per_client_data?: { display_status?: number } } | null;
       if (gameId === String(current.steamAppId) && [1, 4, 36].includes(overview?.local_per_client_data?.display_status ?? -1)) return null;
+      const generation = this.moonDeckApp.generationId;
       return async () => {
+        if (generation !== this.moonDeckApp.generationId) return;
         await this.moonDeckApp.killApp(true);
+        // Overlay Exit can finish without a second app-lifetime callback.
+        // Finish the owned launch here as well, never clearing a newer launch.
+        if (generation === this.moonDeckApp.generationId) {
+          if (await this.moonDeckApp.isStillRunning())
+            throw new Error("PyroDeck is still disconnecting. Retry Exit Game.");
+          await this.moonDeckApp.clearApp(generation);
+        }
+        await pyrolightIntegration.refreshSession(true);
+        logger.log("Steam Exit completed for PyroDeck stream", { steamAppId: current.steamAppId, helperAppId: current.moonDeckAppId });
       };
     });
   }

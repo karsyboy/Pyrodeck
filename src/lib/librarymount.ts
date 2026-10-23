@@ -86,6 +86,7 @@ interface Options {
   change: (mount: LibraryMount | null) => void;
   status?: (phase: string, appId: number | null) => void;
   diagnostic?: (report: LibraryMountDiagnostic) => void;
+  subscribe?: (refresh: () => void) => () => void;
 }
 
 /** An owned slot joins Steam's controls without replacing their action nodes. */
@@ -95,6 +96,7 @@ export function observeLibraryMount(options: Options): () => void {
   if (!win) return () => {};
   let active: LibraryMount | null = null;
   let frame: number | null = null;
+  const returnTimers = new Set<number>();
   let stopNavigation: (() => void) | null = null;
   let navigationParent: Element | null = null;
   let activePanel: Element | null = null;
@@ -102,6 +104,8 @@ export function observeLibraryMount(options: Options): () => void {
   let insertionTarget: Element | null = null;
   let insertionButton: Element | null = null;
   let knownPanels: Element[] = [];
+  const observedPanels = new Set<Element>();
+  let resizeObserver: ResizeObserver | null = null;
   const selectors = options.classes
     .filter(Boolean)
     .map((names) => names.split(/\s+/).map((name) => `.${win.CSS?.escape ? win.CSS.escape(name) : name.replace(/[^\w-]/g, "\\$&")}`).join(""));
@@ -145,6 +149,20 @@ export function observeLibraryMount(options: Options): () => void {
         }
       }
       if (anchor) break;
+    }
+    // Steam can restore a cached page through layout/animation alone, after
+    // the last DOM mutation was observed while the panel still had zero size.
+    for (const panel of observedPanels) {
+      if (!knownPanels.includes(panel)) {
+        resizeObserver?.unobserve(panel);
+        observedPanels.delete(panel);
+      }
+    }
+    for (const panel of knownPanels) {
+      if (!observedPanels.has(panel)) {
+        observedPanels.add(panel);
+        resizeObserver?.observe(panel);
+      }
     }
     const navigation = hasLibraryNavigation(contexts);
     activePanel = anchor;
@@ -198,6 +216,17 @@ export function observeLibraryMount(options: Options): () => void {
   const schedule = (): void => {
     if (frame === null) frame = win.requestAnimationFrame(scan);
   };
+  const refreshAfterReturn = (): void => {
+    returnTimers.forEach((timer) => win.clearTimeout(timer));
+    returnTimers.clear();
+    schedule();
+    // A retained Steam route can finish its visibility/focus-context transition
+    // after the exit/focus event. These bounded checks run only on return events.
+    for (const delay of [100, 400, 1000]) {
+      const timer = win.setTimeout(() => { returnTimers.delete(timer); schedule(); }, delay);
+      returnTimers.add(timer);
+    }
+  };
   const isPanel = (node: Node): boolean => node instanceof win.Element && selectors.some((selector) =>
     node.matches(selector) || node.querySelector(selector) !== null);
   const oldStyle = doc.createElement("div").style;
@@ -248,9 +277,10 @@ export function observeLibraryMount(options: Options): () => void {
   const observer = new win.MutationObserver((records) => {
     if (records.some(relevant)) schedule();
   });
+  if (typeof win.ResizeObserver === "function") resizeObserver = new win.ResizeObserver(schedule);
   win.addEventListener("popstate", schedule);
-  win.addEventListener("focus", schedule);
-  doc.addEventListener("visibilitychange", schedule);
+  win.addEventListener("focus", refreshAfterReturn);
+  doc.addEventListener("visibilitychange", refreshAfterReturn);
   observer.observe(doc.body, {
     childList: true,
     characterData: true,
@@ -260,11 +290,15 @@ export function observeLibraryMount(options: Options): () => void {
     subtree: true
   });
   scan();
+  const unsubscribe = options.subscribe?.(refreshAfterReturn);
   return () => {
+    unsubscribe?.();
+    returnTimers.forEach((timer) => win.clearTimeout(timer));
+    resizeObserver?.disconnect();
     observer.disconnect();
     win.removeEventListener("popstate", schedule);
-    win.removeEventListener("focus", schedule);
-    doc.removeEventListener("visibilitychange", schedule);
+    win.removeEventListener("focus", refreshAfterReturn);
+    doc.removeEventListener("visibilitychange", refreshAfterReturn);
     if (frame !== null) win.cancelAnimationFrame(frame);
     stopNavigation?.();
     active?.container.remove();

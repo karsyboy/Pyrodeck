@@ -302,6 +302,14 @@ extra catalog fetch. Helper exit cleanup compares the launch generation rather
 than immutable subject-object identity, and refreshes session state after
 clearing the ended helper. Presentation changes within that generation cannot
 leave the action disabled; an older exit cannot clear a newer launch.
+Overlay Exit also completes generation-checked cleanup directly after the
+owned runner stops, without depending on a second lifetime notification. Its
+status refresh waits out any poll begun before Exit and then reads fresh state.
+Owned-app changes, window focus and visibility schedule a Library scan plus
+three settling checks (100, 400 and 1000 ms). A ResizeObserver on the discovered
+native panels catches zero-size-to-visible restoration without DOM changes.
+These observers/subscriptions/timers are removed with the route; no recurring
+attachment polling runs while browsing or streaming.
 
 A retained Library session offers an options arrow even with one eligible host.
 End Remote Game uses the existing confirmation and `endHostGame` utility path,
@@ -309,6 +317,9 @@ pinned to the retained host/application instead of the selected alternative.
 Before confirmation executes, the current session generation and identities
 must still match and no resumed runner may be active. Ending is single-flight;
 backend conditional cancellation remains the final check on the actual host app.
+The context menu uses the button as its anchor; the confirmation modal uses
+that button's `ownerDocument.defaultView`, since Steam keys modal managers by
+Window. End failures are also surfaced as a toast if the game page loses focus.
 
 
 ## Launch progress and window observations
@@ -317,7 +328,7 @@ Native settings, Library registration and diagnostic routes start before the
 optional non-Steam discovery retry loop. A login generation prevents late
 initialization after unload. A synchronous launch guard protects independent
 Library/browser presses even before a runner PID exists. Only the owned helper’s
-lifetime notifications can clear its active launch.
+lifetime notification or completed owned Exit operation clears its active launch.
 
 The Python runner has no display dependency or fullscreen splash. The old
 Pyglet canvas provided progress labels only, stayed alive for the full stream,

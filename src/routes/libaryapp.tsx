@@ -1,4 +1,4 @@
-import { FC, ReactNode, useCallback, useEffect, useState } from "react";
+import { FC, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import {
   LibraryMount,
   SteamFiber,
@@ -10,12 +10,14 @@ import {
   getReactInstance,
   playSectionClasses
 } from "@decky/ui";
+import { MoonDeckContext } from "../contexts";
 import { MoonDeckLaunchButtonAnchor } from "../components/moondecklaunchbutton";
 import { createPortal } from "react-dom";
 import { getAppStoreEx } from "../steam-utils/getAppStoreEx";
 import { isAppTypeSupported } from "../lib/launchenv";
 import { logger } from "../lib/logger";
 import { routerHook } from "@decky/api";
+import { skip } from "rxjs";
 import { steamIntegrationStatus } from "../lib/steamintegrationstatus";
 import { useCurrentSettings } from "../hooks/usecurrentsettings";
 import { withLibraryContexts } from "../lib/librarycontext";
@@ -30,6 +32,7 @@ const mountMessages: Record<string, string> = {
 };
 
 const LibraryActionPortal: FC = () => {
+  const { moonDeckAppLauncher } = useContext(MoonDeckContext);
   const settings = useCurrentSettings();
   // Decky can render Steam's routes into a separate BrowserWindow. The
   // plugin's global document need not own the actual Library controls.
@@ -61,6 +64,10 @@ const LibraryActionPortal: FC = () => {
       focusClass: basicAppDetailsSectionStylerClasses?.AppButtons,
       beforeClass: playSectionClasses?.ControllerConfigButton,
       navigationRequired: true,
+      subscribe: (refresh) => {
+        const subscription = moonDeckAppLauncher.moonDeckApp.asObservable().pipe(skip(1)).subscribe(refresh);
+        return () => subscription.unsubscribe();
+      },
       diagnostic: (report) => {
         const signature = JSON.stringify(report);
         if (signature === previousReport) return;
@@ -94,7 +101,7 @@ const LibraryActionPortal: FC = () => {
           libraryDetails: undefined, currentAppId: null, eligibleHostIds: []
         });
     };
-  }, [settings?.enableMoondeckShortcuts, ownerDocument]);
+  }, [settings?.enableMoondeckShortcuts, ownerDocument, moonDeckAppLauncher]);
   return (
     <>
       <span ref={probe} hidden data-pyrodeck-library-probe="true" />

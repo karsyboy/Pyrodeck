@@ -77,6 +77,8 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("Library action in a real React DOM tree", () => {
@@ -196,6 +198,40 @@ describe("Library action in a real React DOM tree", () => {
 
 
 describe("compatibility adapter", () => {
+  it("bounds return-event rechecks and cancels them on teardown", async () => {
+    vi.useFakeTimers();
+    await act(async () => root.render(<NativeLibrary overview={valheim} />));
+    let refresh!: () => void; const unsubscribe = vi.fn(); const readFiber = vi.fn(fiber);
+    const stop = observeLibraryMount({ document, classes: ["steam-overview"], fiber: readFiber, lookup,
+      supported: () => true, change: vi.fn(), subscribe: (callback) => { refresh = callback; return unsubscribe; } });
+    readFiber.mockClear(); refresh();
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(readFiber).toHaveBeenCalledTimes(8); // Four checks, panel + controls.
+    readFiber.mockClear(); await vi.advanceTimersByTimeAsync(10000);
+    expect(readFiber).not.toHaveBeenCalled();
+    refresh(); stop(); await vi.advanceTimersByTimeAsync(1200);
+    expect(readFiber).not.toHaveBeenCalled(); expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+  it("attaches after the returning Library becomes measurable without another DOM mutation", async () => {
+    let visible = false;
+    vi.mocked(HTMLElement.prototype.getClientRects).mockImplementation(() => (visible ? [{ width: 500, height: 48 }] : []) as any);
+    let resized!: ResizeObserverCallback;
+    const observe = vi.fn(); const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: ResizeObserverCallback) { resized = callback; }
+      observe = observe; unobserve = vi.fn(); disconnect = disconnect;
+    });
+    await act(async () => root.render(<NativeLibrary overview={valheim} />));
+    const change = vi.fn();
+    const stop = observeLibraryMount({ document, classes: ["steam-overview"], fiber, lookup, supported: () => true, change });
+    try {
+      expect(change).not.toHaveBeenCalled();
+      expect(observe).toHaveBeenCalledWith(document.querySelector(".steam-overview"));
+      visible = true; resized([], {} as ResizeObserver); await frame();
+      expect(change.mock.calls.at(-1)?.[0].game.appId).toBe(892970);
+    } finally { stop(); }
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
   it("ignores animated ancestor transforms and focus, but still reacts to hidden pages", async () => {
     await act(async () => root.render(<NativeLibrary overview={valheim} />));
     const parent = document.querySelector("main")!;

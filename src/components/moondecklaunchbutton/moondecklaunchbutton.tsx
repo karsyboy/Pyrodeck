@@ -73,6 +73,13 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
   const label = active ? (session.state === "streaming" ? "Streaming" : progress) : failure ? "Retry Stream" : same ? "Resume Stream" : "Stream";
   const confirmEndGame = (anchor: EventTarget): void => {
     menu.current?.Hide();
+    // Context menus accept a DOM anchor; Steam's modal manager requires Window.
+    const parent = (anchor as HTMLElement).ownerDocument?.defaultView;
+    if (!parent) {
+      setError("The Library window is unavailable. Open the game page and try again.");
+      return;
+    }
+    logger.log("Opening retained-game confirmation", { steamAppId: appId });
     showModal(
       <EndHostGameModal onConfirm={() => {
         if (pending.current) return;
@@ -88,11 +95,16 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
         pending.current = true;
         setBusy("end");
         setError(null);
+        logger.log("Ending retained remote game", { steamAppId: appId, hostId: session.hostId, remoteAppId: session.remoteAppId });
         void moonDeckAppLauncher.endHostGame(session.hostId, session.remoteAppId)
-          .catch((problem: unknown) => setError(`Could not end remote game: ${String(problem)}`))
+          .catch((problem: unknown) => {
+            const message = `Could not end remote game: ${String(problem)}`;
+            setError(message);
+            logger.toast(message, { output: "error" });
+          })
           .finally(() => { pending.current = false; setBusy(null); void pyrolightIntegration.refreshSession(); });
       }}
-      />, anchor
+      />, parent
     );
   };
   return (

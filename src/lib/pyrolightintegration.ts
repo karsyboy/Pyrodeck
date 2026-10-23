@@ -128,8 +128,10 @@ export class PyrolightIntegration {
     } catch (error) { this.update({ error: String(error) }); } finally { await session; }
   }
 
-  refreshSession(): Promise<void> {
-    if (this.sessionRequest) return this.sessionRequest;
+  refreshSession(afterPending = false): Promise<void> {
+    // An explicit exit must observe status after cleanup, rather than join a
+    // poll that read the still-running client before Exit was clicked.
+    if (this.sessionRequest) return afterPending ? this.sessionRequest.then(() => this.refreshSession()) : this.sessionRequest;
     let request: Promise<SessionStatus>;
     try { request = call<[], SessionStatus>("session_status"); } catch (error) { this.update({ error: String(error) }); return Promise.resolve(); }
     this.sessionRequest = request.then((session) => {

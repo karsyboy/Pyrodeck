@@ -13,7 +13,11 @@ vi.mock("@decky/ui", () => ({
   MenuSeparator: () => null,
   ConfirmModal: () => null,
   showContextMenu: vi.fn((menu: any) => { data.menu = menu; return { Hide: data.hide }; }),
-  showModal: vi.fn((modal: any) => { data.modal = modal; })
+  showModal: vi.fn((modal: any, parent: Window) => {
+    // Steam keys its modal manager by Window and reads parent.document.title.
+    if (!parent?.document || parent.window !== parent) throw Error("A Steam modal requires its owning window");
+    data.modal = modal;
+  })
 }));
 vi.mock("../../src/contexts", async () => ({ MoonDeckContext: (await import("react")).createContext({ moonDeckAppLauncher: { launchApp: data.launch, endHostGame: data.end } }) }));
 vi.mock("../../src/hooks", () => ({ useCurrentSettings: () => ({ currentHostId: data.defaultHost }), useMoonDeckAppData: () => data.active }));
@@ -52,11 +56,25 @@ describe("native Library stream controls", () => {
     await act(async () => arrow.click()); return arrow;
   };
   const chooseEnd = async () => { await act(async () => data.menu.props.children.find((item: any) => item.key === "end-session").props.onSelected()); };
+  it("opens the confirmation in the Library's window when it differs from the plugin window", async () => {
+    await act(async () => root.unmount()); container.remove();
+    const iframe = document.body.appendChild(document.createElement("iframe"));
+    container = iframe.contentDocument!.body.appendChild(iframe.contentDocument!.createElement("div"));
+    root = createRoot(container);
+    try {
+      retained(); await render(); await openOptions(); await chooseEnd();
+      expect(showModal).toHaveBeenCalledWith(data.modal, iframe.contentWindow);
+      expect(data.end).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount()); iframe.remove();
+      container = document.body.appendChild(document.createElement("div")); root = createRoot(container);
+    }
+  });
   it("offers End Remote Game for one host, requires confirmation, and refreshes the ended session", async () => {
     retained(); vi.mocked(pyrolightIntegration.catalog).mockResolvedValue({ ...catalog, hosts: [hostA] });
     await render(); expect(container.querySelector("button")?.textContent).toBe("Resume Stream");
     const arrow = await openOptions(); await chooseEnd();
-    expect(showModal).toHaveBeenCalledWith(data.modal, arrow); expect(data.end).not.toHaveBeenCalled();
+    expect(showModal).toHaveBeenCalledWith(data.modal, arrow.ownerDocument.defaultView); expect(data.end).not.toHaveBeenCalled();
     data.end.mockImplementationOnce(async () => { data.session = { ...data.session, state: "ended" }; });
     await act(async () => data.modal.props.onConfirm());
     expect(data.end).toHaveBeenCalledWith("host-a", 42); expect(data.launch).not.toHaveBeenCalled();

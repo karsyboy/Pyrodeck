@@ -29,7 +29,7 @@ identities and implements conditional cancellation; no host change was needed.
 | --- | --- |
 | PyroDeck ESLint | Pass |
 | PyroDeck TypeScript | Pass |
-| Frontend Vitest | 118 tests passed across 15 files |
+| Frontend Vitest | 123 tests passed across 15 files |
 | Library visual fixture with installed Steam CSS | Checked at 1280×800 and 800×500; idle/focused buttons and footer clearance |
 | Backend Python unittest | 82 tests passed |
 | Python compilation | Pass |
@@ -237,6 +237,39 @@ The action uses the existing conditional quit utility and host confirmation
 instead of changing disconnect behavior. All 118 frontend tests pass across
 15 files. Physical controller selection, Steam's real page-restoration sequence
 and end/resume against a paired host still require device confirmation.
+
+## 0.2.11 actual dialog contract and overlay-return cleanup
+
+The user reported both 0.2.10 behaviors still failed. The earlier confirmation
+test accepted a DOM button as the `showModal` parent, but the installed Decky
+wrapper forwards that value to Steam's modal API. Steam keys modal managers by
+Window and reads `parent.document.title`; the button is not a valid parent.
+The corrected code passes the Library button's owning Window. Tests now reject
+DOM parents and check the separate-document case. The menu anchor remains the
+button. The confirmation and conditional host/app checks remain intact.
+
+Overlay Exit previously called `killApp` and still depended on a separate
+app-lifetime callback for `clearApp`. The Exit operation now checks its owned
+runner is stopped, clears that launch generation and refreshes status directly.
+A post-exit refresh waits for an earlier in-flight poll to finish and then
+fetches again, so joining an old streaming observation cannot leave it stale.
+The Exit test now asserts cleanup without delivering any lifetime callback.
+
+Returning cached Library pages can become measurable after their final DOM
+mutation. The adapter now observes native panel sizes and subscribes to owned
+app changes in addition to the existing document/focus events. Return events
+schedule one immediate frame and three settling checks at 100, 400 and 1000 ms;
+these do not become a recurring timer. Tests verify attachment on layout-only
+restoration and an owned-app update without navigation/DOM mutation, bounded
+work and timer/subscription teardown. Existing unrelated DOM churn counts pass.
+Rare action logs now distinguish confirmation opening, host-end execution and
+completed Steam Exit; end errors are visible outside the Library via a toast.
+
+All 123 frontend tests pass across 15 files. Lint/type checking and the release
+build/package checks pass. These reproduce corrected source/API failure modes,
+but they do not replace validation of the installed build in Game Mode. Verify
+that End Remote Game actually opens a confirmation before accepting it, then
+test Shift+Tab Exit and return to the same game page without navigating away.
 
 ## Required Steam Deck acceptance — not verified
 

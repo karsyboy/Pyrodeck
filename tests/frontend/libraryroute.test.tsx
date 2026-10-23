@@ -12,6 +12,12 @@ vi.mock("@decky/ui", () => ({
   getReactInstance: (node: any) => node[Object.keys(node).find((key) => key.startsWith("__reactFiber$"))!]
 }));
 vi.mock("../../src/hooks/usecurrentsettings", () => ({ useCurrentSettings: () => ({ enableMoondeckShortcuts: true }) }));
+vi.mock("../../src/contexts", async () => {
+  const { BehaviorSubject } = await import("rxjs");
+  const subject = new BehaviorSubject(null);
+  (navigation as any).appChanges = subject;
+  return { MoonDeckContext: (await import("react")).createContext({ moonDeckAppLauncher: { moonDeckApp: { asObservable: () => subject.asObservable() } } }) };
+});
 vi.mock("../../src/steam-utils/getAppStoreEx", () => ({ getAppStoreEx: () => null }));
 vi.mock("../../src/components/moondecklaunchbutton", () => ({ MoonDeckLaunchButtonAnchor: ({ appId, appName }: any) => {
   // Model the native Focusable contract: a node can register only under the
@@ -83,6 +89,15 @@ afterEach(async () => {
   stop(); await act(async () => root.unmount()); iframe.remove(); vi.restoreAllMocks();
 });
 describe("Decky Library route attachment", () => {
+  it("rechecks the retained route on an owned-app update without navigation or DOM mutation", async () => {
+    const measure = vi.mocked((doc.defaultView as any).HTMLElement.prototype.getClientRects);
+    measure.mockReturnValue([]);
+    await renderPage(); expect(doc.querySelector("[data-stream-game]")).toBeNull();
+    measure.mockReturnValue([{ width: 500, height: 100 }]);
+    (navigation as any).appChanges.next(null); await frame();
+    expect(doc.querySelector("[data-stream-game]")?.textContent).toBe("Stream Valheim");
+    expect(doc.querySelectorAll("[data-pyrodeck-library-action]")).toHaveLength(1);
+  });
   it("mounts into the route's BrowserWindow instead of the plugin's global document", async () => {
     expect(decky.addPatch).toHaveBeenCalledWith("/library/app/:appid", expect.any(Function));
     await renderPage();

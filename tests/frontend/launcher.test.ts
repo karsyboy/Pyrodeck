@@ -166,6 +166,8 @@ describe("library launch", () => {
     await disconnect!();
     expect(steam.terminated).toEqual([id]);
     expect(steam.names.at(-1)).toEqual([id, "Valheim"]);
+    // Steam's overlay path need not deliver another lifetime notification.
+    expect(launcher.moonDeckApp.value).toBeNull();
     // A late running notification cannot reapply the numeric name during exit.
     steam.lifetime!({ unAppID: id, bRunning: true });
     await Promise.resolve();

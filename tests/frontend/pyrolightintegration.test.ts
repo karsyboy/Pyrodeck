@@ -10,6 +10,17 @@ const host = { id: "default", name: "Default PC", status: "paired", apps: [app] 
 beforeEach(() => backend.call.mockReset());
 afterEach(() => vi.useRealTimers());
 describe("session polling work", () => {
+  it("fetches post-exit status after an older in-flight streaming poll finishes", async () => {
+    let finish!: (value: any) => void;
+    backend.call.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }))
+      .mockResolvedValueOnce({ schema: 1, state: "disconnected", runnerActive: false, updatedAt: 2 });
+    const store = new PyrolightIntegration(); const oldPoll = store.refreshSession();
+    const exit = store.refreshSession(true);
+    finish({ schema: 1, state: "streaming", runnerActive: true, updatedAt: 1 });
+    await Promise.all([oldPoll, exit]);
+    expect(backend.call).toHaveBeenCalledTimes(2);
+    expect(store.getSnapshot().session).toMatchObject({ state: "disconnected", runnerActive: false });
+  });
   it("recovers when the backend throws before returning a request promise", async () => {
     const store = new PyrolightIntegration();
     backend.call.mockImplementationOnce(() => { throw Error("Decky is restarting"); });
