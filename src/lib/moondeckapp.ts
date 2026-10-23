@@ -75,6 +75,7 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
   private readonly nameMutex = new Mutex();
   private generation = 0;
   closing = false;
+  get generationId(): number { return this.generation; }
   constructor() {
     super(new BehaviorSubject<MoonDeckAppData | null>(null));
   }
@@ -157,8 +158,8 @@ export class MoonDeckAppProxy extends ReadonlySubject<MoonDeckAppData | null> {
     return true;
   }
 
-  async clearApp(): Promise<void> {
-    if (this.subject.value === null) {
+  async clearApp(expectedGeneration = this.generation): Promise<void> {
+    if (this.subject.value === null || expectedGeneration !== this.generation) {
       return;
     }
 

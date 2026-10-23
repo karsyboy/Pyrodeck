@@ -266,7 +266,9 @@ PyroDeck's owned slot and unrelated focus/overlay animation. Panel visibility,
 native control replacement, title/artwork structure, navigation, document
 visibility and window focus still trigger attachment checks. The native title
 region is included even when it lies outside PlaySection. No polling loop
-replaces these DOM events.
+replaces these DOM events. Inline transform/background changes and the native
+`gpfocus`/`gpfocuswithin` flags do not schedule a layout or fiber scan; inline
+display/visibility changes and other structural classes still do.
 
 All mounted session views share one completion-paced two-second timer and one
 in-flight status request. The timer stops when the last visible consumer
@@ -274,15 +276,39 @@ leaves; a slow request cannot accumulate more requests. Equal observations,
 including timestamp-only updates, preserve the store snapshot. The latest
 timestamp is tracked separately to reject stale responses. Settings/profile
 controls subscribe to a separate snapshot, and Library/browser controls read
-only the session snapshot.
+only the session snapshot. The runner also skips status-file replacements for
+identical quality/window observations while preserving generation checks.
 
 Quick Access visibility pauses its consumers' subscriptions and polling while
 retaining their local page/search/profile state and the central settings draft.
 The Library's automatic catalog refresh pauses while a client is active, so it
-does not launch periodic headless catalog processes during gameplay. Initial
-loads, explicit Refresh and launch-time validation remain available. Concurrent
+does not launch periodic headless catalog processes during gameplay. Navigation
+to another game also reuses a loaded catalog during a stream, including after
+its normal 30-second TTL. Initial uncached loads, explicit Refresh and
+launch-time validation remain available. Concurrent
 catalog/settings refreshes join their existing requests. Remote Games caches
 filter/sort results until its catalog or filter controls change.
+
+Host-status polling cancels idle timers as soon as its last consumer leaves.
+A failure from an in-flight callback cannot revive a stopped loop. Logout and
+login reset its lifecycle before the next consumer starts it. Diagnostics
+clear errors on retry, show log-loading progress and ignore late responses
+after a log selection change or unmount.
+
+When Steam removes the owned Library slot while restoring a game page, the
+observer reinserts that same container and React/controller controls. Its own
+successful insertion is still ignored, avoiding a mutation feedback loop or
+extra catalog fetch. Helper exit cleanup compares the launch generation rather
+than immutable subject-object identity, and refreshes session state after
+clearing the ended helper. Presentation changes within that generation cannot
+leave the action disabled; an older exit cannot clear a newer launch.
+
+A retained Library session offers an options arrow even with one eligible host.
+End Remote Game uses the existing confirmation and `endHostGame` utility path,
+pinned to the retained host/application instead of the selected alternative.
+Before confirmation executes, the current session generation and identities
+must still match and no resumed runner may be active. Ending is single-flight;
+backend conditional cancellation remains the final check on the actual host app.
 
 
 ## Launch progress and window observations

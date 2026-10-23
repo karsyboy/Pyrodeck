@@ -1,6 +1,6 @@
 import { Catalog, SessionStatus } from "../../lib/pyrolightintegration";
 import { DropdownItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
-import { FC, useEffect, useState, useSyncExternalStore } from "react";
+import { FC, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ActionButton } from "../shared/actionbutton";
 import { call } from "@decky/api";
 import { steamIntegrationStatus } from "../../lib/steamintegrationstatus";
@@ -17,13 +17,33 @@ export const Diagnostics: FC = () => {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [logBusy, setLogBusy] = useState(false);
+  const query = useRef(0);
+  const logQuery = useRef(0);
   const [log, setLog] = useState("runner");
   const [output, setOutput] = useState<{ path: string; text: string } | null>(null);
   const refresh = (): void => {
+    const current = ++query.current;
     setBusy(true);
-    void call<[], Report>("troubleshooting").then(setReport).catch((problem: unknown) => setError(String(problem))).finally(() => setBusy(false));
+    setError(null);
+    void call<[], Report>("troubleshooting")
+      .then((value) => { if (current === query.current) setReport(value); })
+      .catch((problem: unknown) => { if (current === query.current) setError(String(problem)); })
+      .finally(() => { if (current === query.current) setBusy(false); });
   };
-  useEffect(refresh, []);
+  useEffect(() => {
+    refresh();
+    return () => { query.current++; logQuery.current++; };
+  }, []);
+  const viewLog = (): void => {
+    const current = ++logQuery.current;
+    setLogBusy(true);
+    setError(null);
+    void call<[string], { path: string; text: string }>("diagnostic_log", log)
+      .then((value) => { if (current === logQuery.current) setOutput(value); })
+      .catch((problem: unknown) => { if (current === logQuery.current) setError(String(problem)); })
+      .finally(() => { if (current === logQuery.current) setLogBusy(false); });
+  };
   return (
     <PanelSection title="Troubleshooting & Diagnostics">
       <PanelSectionRow><Field label={`PyroDeck ${report?.pyrodeckVersion ?? "unknown"}`} description={`Pyrolight: ${report?.pyrolightVersion ?? "Unavailable"}`} /></PanelSectionRow>
@@ -41,8 +61,8 @@ export const Diagnostics: FC = () => {
           {report.catalog?.hosts.map((host) => <PanelSectionRow key={host.id}><Field label={host.name} description={`${host.status} · ${host.apps.length} apps · Host software version: not advertised${host.cached ? " · previously validated catalog" : ""}${host.error ? ` · ${host.error}` : ""}`} /></PanelSectionRow>)}
         </>
       )}
-      <PanelSectionRow><DropdownItem label="Log" selectedOption={log} rgOptions={["frontend", "backend", "runner", "pyrolight"].map((name) => ({ data: name, label: name }))} onChange={(value) => { setLog(value.data as string); setOutput(null); }} /></PanelSectionRow>
-      <PanelSectionRow><ActionButton onClick={() => { void call<[string], { path: string; text: string }>("diagnostic_log", log).then(setOutput).catch((problem: unknown) => setError(String(problem))); }}>View Log</ActionButton></PanelSectionRow>
+      <PanelSectionRow><DropdownItem label="Log" selectedOption={log} rgOptions={["frontend", "backend", "runner", "pyrolight"].map((name) => ({ data: name, label: name }))} onChange={(value) => { logQuery.current++; setLogBusy(false); setLog(value.data as string); setOutput(null); }} /></PanelSectionRow>
+      <PanelSectionRow><ActionButton disabled={logBusy} onClick={viewLog}>{logBusy ? "Loading Log…" : "View Log"}</ActionButton></PanelSectionRow>
       {output && (
         <PanelSectionRow>
           <Field label={output.path} />

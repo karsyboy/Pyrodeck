@@ -38,6 +38,7 @@ import {
   UtilityAction,
   getLaunchOptionsString
 } from "./launchenv";
+import { SessionStatus, pyrolightIntegration } from "./pyrolightintegration";
 import { Subscription, pairwise } from "rxjs";
 import { getEnvKeyValueNumber, makeEnvKeyValue } from "./envutils";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
@@ -47,7 +48,6 @@ import { ExternalAppShortcuts } from "./externalappshortcuts";
 import { MoonDeckAppProxy } from "./moondeckapp";
 import { MoonDeckAppShortcuts } from "./moondeckappshortcuts";
 import { Mutex } from "async-mutex";
-import { SessionStatus } from "./pyrolightintegration";
 import { call } from "@decky/api";
 import { confirmStreamSwitch } from "./confirmswitch";
 import { executeAsync } from "./executeasync";
@@ -228,15 +228,19 @@ export class MoonDeckAppLauncher {
     this.unregisterLifetime = registerForGameLifetime((data) => {
       const current = this.moonDeckApp.value;
       if (!current || data.unAppID !== this.moonDeckApp.getAppId()) return;
+      const generation = this.moonDeckApp.generationId;
       executeAsync(async () => {
+        if (generation !== this.moonDeckApp.generationId) return;
         if (data.bRunning) {
           await this.moonDeckApp.applySessionOptions();
           return;
         }
         const result = await this.moonDeckApp.getRunnerResult();
+        if (generation !== this.moonDeckApp.generationId) return;
         if (result !== null && result !== "TERMINATED") logger.toast(result, { output: "warn" });
         // A notification for a previous helper lifetime must not clear a new launch.
-        if (this.moonDeckApp.value === current) await this.moonDeckApp.clearApp();
+        await this.moonDeckApp.clearApp(generation);
+        await pyrolightIntegration.refreshSession();
       });
     });
   }

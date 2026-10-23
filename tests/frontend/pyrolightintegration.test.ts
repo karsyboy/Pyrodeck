@@ -74,6 +74,20 @@ describe("session polling work", () => {
     expect(backend.call).toHaveBeenCalledTimes(1);
     finish({ schema: 1, ok: true, defaultHostId: "default", hosts: [host] }); await Promise.all(pending);
   });
+  it("reuses an expired catalog while streaming but honors explicit refresh and refreshes after disconnect", async () => {
+    vi.useFakeTimers();
+    const catalog = { schema: 1, ok: true, defaultHostId: "default", hosts: [host] };
+    backend.call.mockImplementation(async (name: string) => name === "remote_catalog" ? catalog : { schema: 1, state: "streaming", runnerActive: true });
+    const store = new PyrolightIntegration(); await store.catalog(); await store.refreshSession();
+    backend.call.mockClear(); await vi.advanceTimersByTimeAsync(60000);
+    expect(await store.catalog()).toBe(catalog);
+    expect(await store.catalog(false, true)).toBe(catalog);
+    expect(backend.call).not.toHaveBeenCalled();
+    await store.catalog(true); expect(backend.call).toHaveBeenCalledWith("remote_catalog", true);
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "disconnected", runnerActive: false }); await store.refreshSession();
+    backend.call.mockClear(); await vi.advanceTimersByTimeAsync(31000);
+    await store.catalog(); expect(backend.call).toHaveBeenCalledWith("remote_catalog", false);
+  });
 });
 describe("host and application identity", () => {
   it("uses exact Steam IDs and refuses ambiguous identity claims", () => {

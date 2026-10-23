@@ -80,6 +80,18 @@ afterEach(async () => {
 });
 
 describe("Library action in a real React DOM tree", () => {
+  it("restores the action when Steam removes only its owned slot while returning from a game", async () => {
+    await act(async () => root.render(<><NativeLibrary overview={valheim} /><GlobalPortal /></>));
+    await frame();
+    const slot = document.querySelector("[data-pyrodeck-library-action]")!;
+    const action = slot.querySelector("button")!;
+    const native = document.querySelector(".steam-overview > button")!;
+    slot.remove(); await frame();
+    expect(document.querySelectorAll("[data-pyrodeck-library-action]")).toHaveLength(1);
+    expect(document.querySelector("[data-stream-game]")).toBe(action);
+    expect(document.querySelector(".steam-overview > button")).toBe(native);
+    await act(async () => action.click()); expect(stream).toHaveBeenCalledOnce();
+  });
   it("mounts through the actual owning fiber without a route renderFunc, and preserves local Play", async () => {
     await act(async () =>
       root.render(
@@ -184,6 +196,30 @@ describe("Library action in a real React DOM tree", () => {
 
 
 describe("compatibility adapter", () => {
+  it("ignores animated ancestor transforms and focus, but still reacts to hidden pages", async () => {
+    await act(async () => root.render(<NativeLibrary overview={valheim} />));
+    const parent = document.querySelector("main")!;
+    const readFiber = vi.fn(fiber); const change = vi.fn();
+    const stop = observeLibraryMount({ document, classes: ["steam-overview"], fiber: readFiber, lookup,
+      supported: () => true, change });
+    await frame(); readFiber.mockClear();
+    const layout = vi.mocked(HTMLElement.prototype.getClientRects); layout.mockClear();
+    for (let batch = 0; batch < 5; batch++) {
+      for (let i = 0; i < 200; i++) {
+        parent.style.transform = `translateY(${i}px)`;
+        parent.className = i % 2 ? "gpfocuswithin" : "";
+      }
+      await frame();
+    }
+    expect(readFiber).not.toHaveBeenCalled(); expect(layout).not.toHaveBeenCalled();
+    parent.hidden = true; await frame();
+    expect(change).toHaveBeenLastCalledWith(null);
+    parent.hidden = false; await frame();
+    expect(change.mock.calls.at(-1)![0].game.appId).toBe(892970);
+    parent.style.display = "none"; await frame();
+    expect(layout).toHaveBeenCalled();
+    stop();
+  });
   it("detects navigation when only a title outside PlaySection changes", async () => {
     function Page({ overview }: { overview: typeof valheim }) {
       return <section className="steam-overview"><h1>{overview.display_name}</h1><div className="steam-play"><button>Play locally</button></div></section>;

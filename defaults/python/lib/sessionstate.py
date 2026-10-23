@@ -25,6 +25,10 @@ def update(generation: str, **changes):
         current = read()
         if current.get("generation") != generation:
             return
+        # Repeated quality/window notifications are observations, not changes.
+        # Avoid replacing the status file (and waking readers) for each one.
+        if all(key in current and current[key] == value for key, value in changes.items()):
+            return
         _write({**current, **changes, "updatedAt": time.time()})
 
 

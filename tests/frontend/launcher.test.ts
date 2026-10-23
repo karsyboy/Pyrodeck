@@ -307,6 +307,28 @@ describe("running session recovery", () => {
 });
 
 describe("launch recovery and races", () => {
+  it("clears an exited helper even when its presentation updates while the runner result is pending", async () => {
+    const { launcher } = makeLauncher(); await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    let finish!: (value: null) => void;
+    backend.get_runner_result = () => new Promise((resolve) => { finish = resolve; });
+    steam.lifetime!({ unAppID: steam.launched[0], bRunning: false });
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    // Same launch, new immutable subject snapshot (for example, Exit's name restoration).
+    launcher.moonDeckApp.canRedirect();
+    finish(null); await vi.waitFor(() => expect(launcher.moonDeckApp.value).toBeNull());
+    launcher.deinit();
+  });
+  it("does not clear a newer launch when an old helper exit finishes late", async () => {
+    const { launcher } = makeLauncher(); await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
+    let finish!: (value: null) => void;
+    backend.get_runner_result = () => new Promise((resolve) => { finish = resolve; });
+    steam.lifetime!({ unAppID: steam.launched[0], bRunning: false });
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+    launcher.moonDeckApp.setApp(620, steam.launched[0], "Portal", AppType.MoonDeck, { nameSetToAppId: false });
+    const newer = launcher.moonDeckApp.value; finish(null);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(launcher.moonDeckApp.value).toBe(newer); launcher.deinit();
+  });
   it("rejects concurrent Library presses before any runner PID exists", async () => {
     const { launcher } = makeLauncher();
     let release!: () => void;

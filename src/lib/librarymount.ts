@@ -168,8 +168,7 @@ export function observeLibraryMount(options: Options): () => void {
     if (
       active &&
       active.game.appId === game.appId &&
-      active.game.appName === game.appName &&
-      active.container.isConnected
+      active.game.appName === game.appName
     ) {
       if (active.container.parentElement !== controls || (before !== active.container && active.container.nextElementSibling !== before))
         controls!.insertBefore(active.container, before);
@@ -201,10 +200,30 @@ export function observeLibraryMount(options: Options): () => void {
   };
   const isPanel = (node: Node): boolean => node instanceof win.Element && selectors.some((selector) =>
     node.matches(selector) || node.querySelector(selector) !== null);
+  const oldStyle = doc.createElement("div").style;
+  const visibilityProperties = ["display", "visibility", "content-visibility"];
+  const nonFocusClasses = (value: string): string => value.split(/\s+/)
+    .filter((name) => name && name !== "gpfocus" && name !== "gpfocuswithin").join(" ");
   const relevant = (record: MutationRecord): boolean => {
     const target = record.target;
     if (active?.container.contains(target)) return false;
     if (record.type === "attributes") {
+      const structural = knownPanels.some((panel) => target.contains(panel)) ||
+        target === navigationParent || target === insertionTarget || target === insertionButton;
+      if (!structural && !(target instanceof win.Element &&
+        ((!active && beforeSelector && target.matches(beforeSelector)) ||
+          (!activePanel && selectors.some((selector) => target.matches(selector)))))) return false;
+      if (target instanceof win.HTMLElement) {
+        if (record.attributeName === "style") {
+          // Steam animates transforms/backgrounds on Library ancestors while
+          // scrolling and streaming. These cannot change slot identity or
+          // display visibility; avoid a forced layout/fiber walk each frame.
+          oldStyle.cssText = record.oldValue ?? "";
+          if (visibilityProperties.every((key) => oldStyle.getPropertyValue(key) === target.style.getPropertyValue(key))) return false;
+        }
+        if (record.attributeName === "class" &&
+          nonFocusClasses(record.oldValue ?? "") === nonFocusClasses(target.className)) return false;
+      }
       // Focus rings, spinners and overlay animation change classes constantly.
       // Only panel/ancestor visibility or actual control structure matters.
       if (knownPanels.some((panel) => target.contains(panel))) return true;
@@ -216,7 +235,12 @@ export function observeLibraryMount(options: Options): () => void {
     }
     if (record.type === "characterData") return Boolean(identityRegion?.contains(target));
     const nodes = [...record.addedNodes, ...record.removedNodes];
-    if (nodes.length && nodes.every((node) => node === active?.container)) return false;
+    if (active && nodes.length && nodes.every((node) => node === active!.container)) {
+      // Ignore our own successful insertion, but repair removal/reordering by
+      // Steam when it restores this page after exiting a game.
+      return !active.container.isConnected || active.container.parentElement !== navigationParent ||
+        active.container.nextElementSibling !== insertionTarget;
+    }
     if (identityRegion?.contains(target)) return true;
     if (activePanel && nodes.some((node) => node.contains(activePanel))) return true;
     return nodes.some(isPanel);
@@ -231,6 +255,7 @@ export function observeLibraryMount(options: Options): () => void {
     childList: true,
     characterData: true,
     attributes: true,
+    attributeOldValue: true,
     attributeFilter: ["class", "style", "hidden"],
     subtree: true
   });

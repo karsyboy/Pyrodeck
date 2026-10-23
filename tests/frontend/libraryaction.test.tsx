@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const data = vi.hoisted(() => ({ defaultHost: "host-a", session: { schema: 1, state: "none" } as any, active: null as any, launch: vi.fn(), menu: null as any, hide: vi.fn() }));
+const data = vi.hoisted(() => ({ defaultHost: "host-a", session: { schema: 1, state: "none" } as any, active: null as any, launch: vi.fn(), end: vi.fn(), menu: null as any, modal: null as any, hide: vi.fn() }));
 vi.mock("@decky/api", () => ({ call: vi.fn(), toaster: { toast: vi.fn() } }));
 vi.mock("@decky/ui", () => ({
   Button: ({ children, noFocusRing, focusable, onOKActionDescription, ...props }: any) => <button data-focus-ring={!noFocusRing} data-navigable={focusable} data-ok-label={onOKActionDescription} {...props}>{children}</button>,
@@ -10,14 +10,17 @@ vi.mock("@decky/ui", () => ({
   playSectionClasses: { MenuButton: "native-steam-menu-button" },
   Menu: () => null,
   MenuItem: () => null,
-  showContextMenu: vi.fn((menu: any) => { data.menu = menu; return { Hide: data.hide }; })
+  MenuSeparator: () => null,
+  ConfirmModal: () => null,
+  showContextMenu: vi.fn((menu: any) => { data.menu = menu; return { Hide: data.hide }; }),
+  showModal: vi.fn((modal: any) => { data.modal = modal; })
 }));
-vi.mock("../../src/contexts", async () => ({ MoonDeckContext: (await import("react")).createContext({ moonDeckAppLauncher: { launchApp: data.launch } }) }));
+vi.mock("../../src/contexts", async () => ({ MoonDeckContext: (await import("react")).createContext({ moonDeckAppLauncher: { launchApp: data.launch, endHostGame: data.end } }) }));
 vi.mock("../../src/hooks", () => ({ useCurrentSettings: () => ({ currentHostId: data.defaultHost }), useMoonDeckAppData: () => data.active }));
 vi.mock("../../src/hooks/usepyrolight", () => ({ usePyrolightSession: () => data.session, useSessionPolling: vi.fn() }));
 import { MoonDeckLaunchButtonAnchor } from "../../src/components/moondecklaunchbutton/moondecklaunchbutton";
 import { pyrolightIntegration } from "../../src/lib/pyrolightintegration";
-import { showContextMenu } from "@decky/ui";
+import { showContextMenu, showModal } from "@decky/ui";
 const app = { id: 42, name: "Valheim", sources: ["steam:892970"], hdr_supported: false };
 const hostA = { id: "host-a", name: "PC A", status: "paired", apps: [app] };
 const hostB = { ...hostA, id: "host-b", name: "PC B" };
@@ -33,21 +36,79 @@ beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   data.session = { schema: 1, state: "none" }; data.active = null; data.defaultHost = "host-a";
-  data.menu = null; data.hide.mockReset(); vi.mocked(showContextMenu).mockClear();
-  data.launch.mockReset().mockResolvedValue(undefined);
+  data.menu = null; data.modal = null; data.hide.mockReset(); vi.mocked(showContextMenu).mockClear(); vi.mocked(showModal).mockClear();
+  data.launch.mockReset().mockResolvedValue(undefined); data.end.mockReset().mockResolvedValue(undefined);
   vi.spyOn(pyrolightIntegration, "catalog").mockResolvedValue(catalog);
   vi.spyOn(pyrolightIntegration, "refreshSession").mockResolvedValue();
+  const snapshot = pyrolightIntegration.getSnapshot();
+  vi.spyOn(pyrolightIntegration, "getSnapshot").mockImplementation(() => ({ ...snapshot, session: data.session }));
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.useRealTimers(); });
 describe("native Library stream controls", () => {
+  const retained = () => { data.session = { schema: 1, state: "disconnected", runnerActive: false, generation: "retained", steamAppId: 892970, hostId: "host-a", remoteAppId: 42 }; };
+  const openOptions = async () => {
+    const arrow = container.querySelector('[aria-label="Stream options"]') as HTMLButtonElement;
+    expect(arrow).not.toBeNull(); expect(arrow.disabled).toBe(false);
+    await act(async () => arrow.click()); return arrow;
+  };
+  const chooseEnd = async () => { await act(async () => data.menu.props.children.find((item: any) => item.key === "end-session").props.onSelected()); };
+  it("offers End Remote Game for one host, requires confirmation, and refreshes the ended session", async () => {
+    retained(); vi.mocked(pyrolightIntegration.catalog).mockResolvedValue({ ...catalog, hosts: [hostA] });
+    await render(); expect(container.querySelector("button")?.textContent).toBe("Resume Stream");
+    const arrow = await openOptions(); await chooseEnd();
+    expect(showModal).toHaveBeenCalledWith(data.modal, arrow); expect(data.end).not.toHaveBeenCalled();
+    data.end.mockImplementationOnce(async () => { data.session = { ...data.session, state: "ended" }; });
+    await act(async () => data.modal.props.onConfirm());
+    expect(data.end).toHaveBeenCalledWith("host-a", 42); expect(data.launch).not.toHaveBeenCalled();
+    expect(pyrolightIntegration.refreshSession).toHaveBeenCalled();
+    await render();
+    expect(container.querySelector("button")?.textContent).toBe("Stream");
+    expect(container.querySelector('[aria-label="Stream options"]')).toBeNull();
+  });
+  it("ends the retained original host/game even after selecting another streaming host", async () => {
+    retained(); await render(); await openOptions();
+    await act(async () => data.menu.props.children[1].props.onSelected());
+    expect(container.querySelector("button")?.textContent).toBe("Stream");
+    await openOptions(); await chooseEnd(); await act(async () => data.modal.props.onConfirm());
+    expect(data.end).toHaveBeenCalledWith("host-a", 42); expect(data.defaultHost).toBe("host-a");
+  });
+  it("does not end a replacement session through an older confirmation", async () => {
+    retained(); await render(); await openOptions(); await chooseEnd();
+    data.session = { ...data.session, generation: "newer", remoteAppId: 99 };
+    await act(async () => data.modal.props.onConfirm());
+    expect(data.end).not.toHaveBeenCalled(); expect(container.textContent).toContain("session changed");
+  });
+  it("keeps ending single-flight and displays an end failure without losing retry access", async () => {
+    retained(); await render(); await openOptions(); await chooseEnd();
+    let fail!: (error: Error) => void;
+    data.end.mockReturnValueOnce(new Promise<void>((_resolve, reject) => { fail = reject; }));
+    await act(async () => { data.modal.props.onConfirm(); data.modal.props.onConfirm(); });
+    expect(data.end).toHaveBeenCalledOnce(); expect(container.querySelector("button")?.textContent).toBe("Ending game…");
+    expect(container.querySelector("button")?.disabled).toBe(true);
+    await act(async () => fail(Error("Host offline")));
+    expect(container.textContent).toContain("Could not end remote game");
+    expect(container.querySelector('[aria-label="Stream options"]')).not.toBeNull();
+  });
+  it("omits the end action without a retained remote application identity", async () => {
+    retained(); delete data.session.remoteAppId; await render();
+    expect(container.querySelector('[aria-label="Stream options"]')).toBeNull();
+    await act(async () => (container.querySelector('[aria-label="Choose streaming host"]') as HTMLButtonElement).click());
+    expect(data.menu.props.children.some((item: any) => item.key === "end-session")).toBe(false);
+    expect(data.end).not.toHaveBeenCalled();
+  });
   it("defers periodic catalog subprocesses during a stream and resumes after disconnect", async () => {
     vi.useFakeTimers(); data.session = { schema: 1, state: "streaming", runnerActive: true };
     await render(); await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
     expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(1);
     data.session = { schema: 1, state: "disconnected", runnerActive: false }; await render();
     await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
-    expect(pyrolightIntegration.catalog).toHaveBeenLastCalledWith(true);
+    expect(pyrolightIntegration.catalog).toHaveBeenLastCalledWith(true, false);
     expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(2);
+  });
+  it("requests cached availability when navigating to a new game during an active launch", async () => {
+    data.active = { steamAppId: 892970 };
+    await render(); await render(620);
+    expect(pyrolightIntegration.catalog).toHaveBeenLastCalledWith(false, true);
   });
   it("launches the default with one action and an alternative without changing settings", async () => {
     await render(); expect(data.menu).toBeNull();

@@ -70,6 +70,7 @@ Pairing is Pyrolight's own. PyroDeck never reads or copies its credentials.
 Open a game’s Steam Library page and choose **Stream**, immediately to the
 left of the Steam Input button. On a controller, navigate through the native
 action row to Stream, then press **A**. The
+Stream action and host arrow highlight green with mouse hover or controller focus. The
 separate action appears when a configured, paired host advertises that Steam
 App ID. Previously validated games remain available for Wake-on-LAN for up to
 seven days while that host is offline and has a MAC address configured. The
@@ -135,6 +136,9 @@ disconnected client; a recommended bitrate is only staged when you choose it.
 - **Disconnect**, Steam’s **Exit Game**, and suspend close the client and
   preserve the remote game under Pyroshine’s retention policy.
 - **Resume Stream** on the Library page reconnects to the original host and game.
+  Its **▾** menu includes **End Remote Game**, including with a single host;
+  confirmation closes the retained game on its original host. Returning from
+  a stream refreshes this action on the current Library page.
 - **Reconnect** in Session Controls resumes the pinned host/application using
   the active profile. Launching the same library game again also resumes it.
 - **End Remote Game** asks for confirmation, then explicitly closes that game

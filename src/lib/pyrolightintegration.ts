@@ -229,9 +229,13 @@ export class PyrolightIntegration {
     } catch (error) { this.update({ error: String(error) }); } finally { this.update({ busy: false }); }
   }
 
-  catalog(refresh = false): Promise<Catalog> {
+  catalog(refresh = false, preferCached = false): Promise<Catalog> {
     if (this.catalogLoading && this.catalogPromise) return this.catalogPromise;
-    if (refresh || !this.catalogPromise || Date.now() - this.catalogTime > 30000) {
+    // Navigating between Library pages during a stream must not start another
+    // headless client just because the normal browsing TTL elapsed. Explicit
+    // refresh still works, and the runner revalidates every launch target.
+    const streaming = preferCached || this.state.session.runnerActive;
+    if (refresh || !this.catalogPromise || (!streaming && Date.now() - this.catalogTime > 30000)) {
       this.catalogTime = Date.now();
       this.catalogLoading = true;
       let request: Promise<Catalog | ApiError>;

@@ -26,7 +26,8 @@ require local sockets and process signals; CI runs the suite on Python 3.13.
 Performance regressions use deterministic work counts rather than wall-clock
 thresholds: unrelated Steam lookup counts/MobX dependencies, ignored DOM churn,
 shared polling and pending-request counts, stable snapshots, hidden-view render
-counts, retained UI state and deferred catalog refresh during a stream. These
+counts, retained UI state, ancestor scroll animation, deferred catalog refresh
+across game-page navigation, duplicate session-file writes and polling teardown. These
 checks do not measure frame time on a Steam Deck.
 
 The Pyrolight side must also pass `streamingpreferences_test.pro` and

@@ -29,9 +29,9 @@ identities and implements conditional cancellation; no host change was needed.
 | --- | --- |
 | PyroDeck ESLint | Pass |
 | PyroDeck TypeScript | Pass |
-| Frontend Vitest | 101 tests passed across 12 files |
+| Frontend Vitest | 118 tests passed across 15 files |
 | Library visual fixture with installed Steam CSS | Checked at 1280×800 and 800×500; idle/focused buttons and footer clearance |
-| Backend Python unittest | 80 tests passed |
+| Backend Python unittest | 82 tests passed |
 | Python compilation | Pass |
 | Rollup frontend bundle | Pass |
 | Decky Docker packaging | Pass; local `out/Pyrodeck.zip` |
@@ -167,6 +167,77 @@ responsiveness are **not verified**. Compare Quick Access, Library navigation
 and Steam Input/Shift+Tab during a sustained Valheim stream after installing
 0.2.7. No Pyrolight, Pyroshine or backend protocol changes were needed.
 
+## 0.2.8 highlight, streaming work and release polish
+
+The user confirmed that the action immediately left of Steam Input works with
+the intended navigation. The primary action and host arrow now highlight
+Steam green (`#8bc53f`) on hover, DOM focus and `gpfocus`, with dark text/icons.
+Disabled buttons retain their native state. A visual fixture using the installed
+Steam stylesheet confirmed focus on both buttons, including computed colors;
+`out/Pyrodeck-0.2.8-preview.png` captures the main action. This is a fixture,
+not a capture from Game Mode or proof of physical-controller behavior.
+
+The new regression cases verify:
+
+- Five batches of 200 ancestor transform/focus updates cause zero layout reads
+  and zero fiber reads after attachment. Hide/show and inline display changes
+  still trigger validation; existing navigation and focus-context tests pass.
+- Expired catalogs remain cached during an active stream and while navigating
+  to another game's page. Explicit refresh bypasses that cache; normal expiry
+  resumes after disconnect. Uncached loads and launch validation remain intact.
+- One hundred duplicate quality/window observations cause zero status-file
+  replacements. A changed quality writes once; stale generations stay ignored.
+- Host polling releases idle timers immediately, cannot restart after a late
+  failure during teardown, and restarts after a fresh login lifecycle.
+- Diagnostics recover from a transient error and discard a stale log response
+  after the selected log changes. Loading actions prevent duplicate UI requests.
+
+All 109 frontend and 82 backend tests pass, along with lint/type checks and
+the frontend/package builds. The package version is 0.2.8. These changes remove
+confirmed avoidable work, but no Deck frame-time/CPU trace was available to
+identify the dominant cause of streaming-only Library stutter. Sustained
+streaming and Library scrolling on the target hardware remain required before
+calling this release production validated. No client/host build changes, push
+or deployment were performed for this follow-up.
+
+## 0.2.9 connecting-button layout
+
+The visual fixture reproduced the primary button growing from 128 px to
+175.08 px when Stream changed to Connecting. The label now reserves space for
+the longest launch status before Steam measures the button/focus decoration;
+the icon also retains its width. Stream, Connecting, Waking host, Starting
+stream, Starting game, Streaming, Resume Stream and Retry Stream all measured
+206.05 × 48 px in the same fixture, with the containing row staying at 250.05 px.
+These dimensions depend on the font; the invariant is an unchanged footprint
+through the state transition. The connecting screenshot is
+`out/Pyrodeck-0.2.9-connecting.png`. Native Game Mode decoration still needs
+device confirmation. This follow-up changes presentation only.
+
+## 0.2.10 Library return and retained-game options
+
+Two new regressions failed before the correction: removing just the owned
+Library slot left zero actions on the page, and a presentation update during
+pending helper-exit cleanup left the old active app uncleared. The observer now
+repairs an externally removed/reordered slot while retaining the existing
+container/button. Exit cleanup uses the launch generation, tolerating immutable
+subject updates within that launch while rejecting old exits after a newer one.
+It also refreshes session state after cleanup.
+
+A test with the real session store, polling hooks and launcher subscription
+changes Streaming to Resume Stream on the same mounted Library page, removes
+the slot as Steam does, and verifies the same DOM button is restored, enabled
+and launches the pinned original host/app. The native Play handler still works.
+Existing controller/context, unrelated DOM churn and lookup-cost tests pass.
+
+The Resume Stream arrow now opens Stream options with End Remote Game even
+when only one host is eligible. Tests cover confirmation before execution,
+the original target after choosing another host, stale-session rejection,
+single-flight ending, failure/retry access and missing remote app identity.
+The action uses the existing conditional quit utility and host confirmation
+instead of changing disconnect behavior. All 118 frontend tests pass across
+15 files. Physical controller selection, Steam's real page-restoration sequence
+and end/resume against a paired host still require device confirmation.
+
 ## Required Steam Deck acceptance — not verified
 
 Use a paired Pyroshine host with retained sessions and the matching Pyrolight
@@ -178,6 +249,8 @@ and handheld/docked display configuration.
    right from Play to Stream, select with A, open the host arrow,
    select/cancel with A/B, and verify focus returns to that arrow. Navigate to
    another game and back; repeat after plugin reload and Steam restart.
+   Check green hover/controller highlights on both Stream and the host arrow,
+   including Resume/Retry states, and unchanged disabled/native controls.
 2. Launch Valheim from Library and Remote Games. Verify the helper reaches its
    real running notification, Steam's spinner clears naturally, and video/audio
    are usable. Check name/artwork, Steam Input, Shift+Tab and Quick Access.
@@ -185,12 +258,21 @@ and handheld/docked display configuration.
 3. Close overlays and verify input focus returns. Disconnect/Steam Exit, verify
    owned processes/windows close, return to the native Library and resume the
    retained game on its original host with the active profile.
+   Remain on that same game page and verify Resume Stream returns without
+   navigating away. Open its arrow with A, cancel End Remote Game with B, then
+   repeat and confirm to end the retained host game. Repeat with one host and
+   with an alternative selected; ending must still target the original host.
 4. Confirm and cancel switches on the same host and between hosts. Verify
    conditional cancellation refuses a changed application or unsafe host state.
 5. Wake a known offline host, test wake timeout and Retry, and verify catalog
    refreshes do not start extra wake/launch attempts.
 6. Suspend during connection, streaming and reconnect; resume or cancel while
    cleanup runs. Repeat handheld/docked, where equipment is available.
+7. During a sustained stream, close Quick Access and scroll the native Library
+   grid and game pages. Compare responsiveness with streaming stopped; check
+   repeated navigation after the catalog's normal 30-second TTL and after
+   logout/login. Capture Steam UI frame time and client/Steam CPU if stutter
+   persists. The automated operation counts do not establish a device FPS gain.
 
 For a persistent spinner, collect **Troubleshooting & Diagnostics** and all four
 log tails immediately. Correlate the helper's Steam launch action/lifetime,

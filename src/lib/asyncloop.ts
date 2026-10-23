@@ -1,40 +1,38 @@
 import { logger } from "./logger";
-import { sleep } from "@decky/ui";
 
 export type AsyncCallback = () => void | Promise<void>;
 export type TimeoutLoopResult = () => Promise<void>;
 
+/** Completion-paced polling with interruptible idle time and final teardown. */
 export function asyncLoop(callback: AsyncCallback, timeout: number): TimeoutLoopResult {
-  let notifyStartReady: (() => void);
-  let notifyStop: (() => void);
-  let keepRunning = true;
-
-  const startReady = Promise.resolve(new Promise<void>((resolve) => { notifyStartReady = resolve; }));
-  const loopStoped = Promise.resolve(new Promise<void>((resolve) => { notifyStop = resolve; notifyStartReady(); }));
-  const stopLoop = async (): Promise<void> => {
-    keepRunning = false;
-    return await loopStoped;
-  };
-
+  let running = true;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let wake: (() => void) | null = null;
   const execute = async (): Promise<void> => {
-    await startReady;
-
-    while (keepRunning) {
+    // Let callers capture the stop function before the first callback runs.
+    await Promise.resolve();
+    while (running) {
       try {
         await callback();
       } catch (error) {
-        keepRunning = true;
         logger.critical(error);
       }
 
-      if (keepRunning) {
-        await sleep(timeout);
+      if (running) {
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+          timer = setTimeout(resolve, timeout);
+        });
+        timer = null;
+        wake = null;
       }
     }
-
-    notifyStop?.();
   };
-  execute().catch((e) => logger.critical(e)).finally(() => notifyStop?.());
-
-  return stopLoop;
+  const finished = execute();
+  return async () => {
+    running = false;
+    if (timer !== null) clearTimeout(timer);
+    wake?.();
+    await finished;
+  };
 }
