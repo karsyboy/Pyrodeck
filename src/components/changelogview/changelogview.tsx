@@ -5,6 +5,11 @@ export const ChangelogView: FC = () => {
   return (
     <DialogBody>
       <DialogControlsSection>
+        <DialogControlsSectionHeader>Upcoming</DialogControlsSectionHeader>
+        <Field description="Controller Back from a Quick Access subpage returns to PyroDeck's main menu before exiting to Decky's plugin list." />
+        <Field description="Add individual Remote Games applications, including the host's Steam entry, to your Steam Library. Saved shortcuts keep their original host and application. Host non-Steam Steam Library games are available with an updated Pyroshine build." />
+      </DialogControlsSection>
+      <DialogControlsSection>
         <DialogControlsSectionHeader>PyroDeck 0.2.0</DialogControlsSectionHeader>
         <Field description="Separate Stream with Pyrolight library action; explicit multi-host selection; Remote Games browser; native Pyrolight profiles and settings in Quick Access; staged Apply & Reconnect; pinned session controls and conditional remote termination." />
       </DialogControlsSection>

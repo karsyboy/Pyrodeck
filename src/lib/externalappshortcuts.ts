@@ -1,6 +1,6 @@
 import { AppType, EnvVars, addAppsToCollection, addShortcut, checkExecPathMatch, getAppDetailsForAppIds, getAppStoreEx, getMoonDeckRunPath, getOrCreateCollection, isMoonDeckShortcut, removeAppsFromCollection, removeShortcut, restartSteamClient, setAppLaunchOptions } from "./steamutils";
 import { HostSettings, SettingsManager, UserSettings } from "./settingsmanager";
-import { getEnvKeyValueString, makeEnvKeyValue } from "./envutils";
+import { getEnvKeyValueNumber, getEnvKeyValueString, makeEnvKeyValue } from "./envutils";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { AppSyncState } from "./appsyncstate";
 import { BehaviorSubject } from "rxjs";
@@ -14,15 +14,18 @@ export interface GameStreamAppInfo {
   appType: AppType.GameStream;
 }
 
-export type ExternalAppInfo = GameStreamAppInfo;
-export type ExternalAppType = ExternalAppInfo["appType"];
-
-export interface ManagedApp {
+export interface RemoteAppInfo {
   appId: number;
   appName: string;
-  appType: ExternalAppType;
-  gameId: string;
+  appType: AppType.Remote;
+  hostId: string;
+  remoteAppId: number;
 }
+
+export type ExternalAppInfo = GameStreamAppInfo | RemoteAppInfo;
+// Bulk sync and purge apply only to the legacy, name-based shortcuts.
+export type ExternalAppType = GameStreamAppInfo["appType"];
+export type ManagedApp = ExternalAppInfo & { gameId: string };
 
 interface GameStreamHostData {
   appType: AppType.GameStream;
@@ -118,13 +121,23 @@ export class ExternalAppShortcuts {
     const appInfo: Map<number, ExternalAppInfo> = new Map();
     const addAppInfo = (details: AppDetails, appType: ExternalAppType): void => { appInfo.set(details.unAppID, { appId: details.unAppID, appName: details.strDisplayName, appType }); };
     for (const details of appDetails) {
+      if (!isMoonDeckShortcut(details) || !details.strLaunchOptions.includes(`${EnvVars.AppType}=`)) continue;
       const overview = appStoreEx.getAppOverview(details.unAppID);
       if (overview === null) {
         logger.error(`Could not get app store overview for ${details.unAppID} while processing details!`);
         continue;
       }
 
-      if (details.strLaunchOptions.includes(makeEnvKeyValue(EnvVars.AppType, AppType.GameStream))) {
+      if (getEnvKeyValueNumber(details.strLaunchOptions, EnvVars.AppType) === AppType.Remote &&
+        details.strLaunchOptions.includes(`${EnvVars.LibraryShortcut}=`) &&
+        getEnvKeyValueNumber(details.strLaunchOptions, EnvVars.LibraryShortcut) === 1) {
+        const hostId = getEnvKeyValueString(details.strLaunchOptions, EnvVars.HostId);
+        const remoteAppId = getEnvKeyValueNumber(details.strLaunchOptions, EnvVars.RemoteAppId);
+        if (!hostId || !Number.isInteger(remoteAppId) || remoteAppId === null || remoteAppId <= 0 || remoteAppId >= 0x80000000) continue;
+        const info: RemoteAppInfo = { appId: details.unAppID, appName: details.strDisplayName, appType: AppType.Remote, hostId, remoteAppId };
+        this.managedApps.set(details.unAppID, { ...info, gameId: overview.gameid });
+        appInfo.set(details.unAppID, info);
+      } else if (getEnvKeyValueNumber(details.strLaunchOptions, EnvVars.AppType) === AppType.GameStream) {
         const appType = AppType.GameStream;
         this.managedApps.set(details.unAppID, { appId: details.unAppID, appName: details.strDisplayName, appType, gameId: overview.gameid });
         addAppInfo(details, appType);
@@ -186,6 +199,45 @@ export class ExternalAppShortcuts {
 
   get initializing(): boolean {
     return !this.doneInitializing;
+  }
+
+  /** Save one advertised application, pinned to its host and stable app ID. */
+  async addRemoteShortcut(hostId: string, app: { id: number; name: string }): Promise<number> {
+    if (this.initializing) throw new Error("Shortcut discovery is still initializing. Retry shortly.");
+    if (this.appSyncState.getState().syncing) throw new Error("Shortcut sync or launch is in progress. Retry when it finishes.");
+    const settings = this.settingsManager.settings.value;
+    if (!settings?.hostSettings[hostId]) throw new Error("This host is no longer configured.");
+    if (!Number.isInteger(app.id) || app.id <= 0 || app.id >= 0x80000000 || !app.name.trim()) throw new Error("Invalid host application.");
+    for (const info of this.appInfo.value.values()) {
+      if (info.appType === AppType.Remote && info.hostId === hostId && info.remoteAppId === app.id) return info.appId;
+    }
+
+    this.appSyncState.setState(false, AppType.Remote);
+    let added: number | null = null;
+    try {
+      const execPath = await getMoonDeckRunPath();
+      if (!execPath) throw new Error("PyroDeck runner is unavailable.");
+      added = await addShortcut(app.name, execPath);
+      if (added === null) throw new Error("Steam could not create the shortcut. Restart Steam, then retry.");
+      const options = [
+        makeEnvKeyValue(EnvVars.AppType, AppType.Remote),
+        makeEnvKeyValue(EnvVars.LibraryShortcut, 1),
+        makeEnvKeyValue(EnvVars.HostId, hostId),
+        makeEnvKeyValue(EnvVars.RemoteAppId, app.id),
+        "%command%"
+      ].join(" ");
+      if (!await setAppLaunchOptions(added, options)) throw new Error("Steam could not save the shortcut's launch options.");
+      const details = await getAppDetailsForAppIds([added]);
+      this.processAppDetails(details);
+      if (!this.managedApps.has(added)) throw new Error("Steam could not read the new shortcut.");
+      await this.updateCollection();
+      return added;
+    } catch (error) {
+      if (added !== null) await this.removeApps([added]);
+      throw error;
+    } finally {
+      this.appSyncState.resetState();
+    }
   }
 
   async syncShortcuts(appType: ExternalAppType): Promise<void> {

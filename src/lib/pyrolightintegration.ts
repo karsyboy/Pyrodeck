@@ -71,8 +71,8 @@ export function steamSourceId(app: RemoteApp): number | null {
   return ids.length === 1 && Number.isSafeInteger(ids[0]) && ids[0] < 0x80000000 ? ids[0] : null;
 }
 export function steamArtwork(app: RemoteApp): string | undefined {
-  const source = app.sources.find((value) => /^steam:[1-9][0-9]*$/.test(value));
-  return source ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${source.slice(6)}/library_600x900.jpg` : undefined;
+  const id = steamSourceId(app);
+  return id ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/library_600x900.jpg` : undefined;
 }
 
 interface StoreState {

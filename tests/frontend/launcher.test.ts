@@ -82,7 +82,7 @@ function makeSettings(resumeAfterSuspend = false) {
     runnerTimeouts: { servicePing: 5, wakeOnLan: 60, steamLaunch: 5 }
   };
   return {
-    settings: { value: { currentHostId: "host-a", hostSettings: { "host-a": hostSettings }, gameSession: { autoApplyAppId: false, resumeAfterSuspend, controllerConfig: null }, pythonExecPath: "" } },
+    settings: { value: { currentHostId: "host-a", hostSettings: { "host-a": hostSettings, "host-b": { ...hostSettings, address: "192.168.1.11" } }, gameSession: { autoApplyAppId: false, resumeAfterSuspend, controllerConfig: null }, pythonExecPath: "" } },
     hostSettings
   };
 }
@@ -120,6 +120,22 @@ beforeEach(() => {
 });
 
 describe("library launch", () => {
+  it("launches saved remote entries with their pinned host and preserves them when creating a utility helper", async () => {
+    steam.shortcuts.set(77, { unAppID: 77, strShortcutExe: "/home/deck/homebrew/plugins/PyroDeck/python/pyrodeckrun.sh", strLaunchOptions: "PYRODECK_APP_TYPE=3 PYRODECK_LIBRARY_SHORTCUT=1 PYRODECK_HOST_ID=host-b PYRODECK_REMOTE_APP_ID=42 %command%", strDisplayName: "Steam" });
+    const { launcher, externalAppShortcuts } = makeLauncher();
+    externalAppShortcuts.getEntryByGameId.mockReturnValue({ appId: 77, appName: "Steam", appType: AppType.Remote, hostId: "host-b", remoteAppId: 42 } as never);
+    steam.intercept!("gameid-77", vi.fn());
+    await vi.waitFor(() => expect(steam.launched).toEqual([77]));
+    const options = steam.shortcuts.get(77)!.strLaunchOptions;
+    expect(options).toContain("PYRODECK_REMOTE_APP_ID=42");
+    expect(options).toContain("PYRODECK_HOST_ID=host-b");
+    expect(options).toContain("PYRODECK_LIBRARY_SHORTCUT=1");
+    expect(options).not.toContain("PYRODECK_LAUNCHER");
+    await launcher.moonDeckApp.clearApp();
+    await launcher.launchUtility("pair", "host-a");
+    expect(steam.launched.at(-1)).not.toBe(77);
+    expect(steam.shortcuts.get(77)!.strLaunchOptions).toBe(options);
+  });
   it("launches through the shared Steam launcher with a pinned host and exact Steam app ID", async () => {
     const { launcher } = makeLauncher();
     await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);

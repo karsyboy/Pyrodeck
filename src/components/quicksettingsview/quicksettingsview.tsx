@@ -1,5 +1,5 @@
 import { FC, useEffect, useState } from "react";
-import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { Field, Focusable, PanelSection, PanelSectionRow } from "@decky/ui";
 import {
   PyrolightSettings,
   SettingsFeedback
@@ -41,7 +41,18 @@ const QuickSettingsContent: FC<{ visible: boolean }> = ({ visible }) => {
   // subpages. Local search/profile UI state and the central draft survive QAM.
   if (page)
     return (
-      <>
+      <Focusable
+        onCancelActionDescription="Back to PyroDeck"
+        onCancelButton={visible ?
+            (event) => {
+              // Handle bubbling Back only after child controls (dropdowns,
+              // dialogs) have had a chance to consume it themselves.
+              event.preventDefault();
+              event.stopPropagation();
+              setPage(null);
+            } :
+          undefined}
+      >
         <PanelSection>
           <PanelSectionRow>
             <ActionButton onClick={() => setPage(null)}>
@@ -65,7 +76,7 @@ const QuickSettingsContent: FC<{ visible: boolean }> = ({ visible }) => {
                 (
                   <PyrolightSettings category={page} />
                 )}
-      </>
+      </Focusable>
     );
   const prefs = state.session.effectivePreferences ?? state.preferences;
   return (

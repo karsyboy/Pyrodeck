@@ -273,6 +273,34 @@ test Shift+Tab Exit and return to the same game page without navigating away.
 
 ## Required Steam Deck acceptance — not verified
 
+In each Quick Access subpage (Remote Games, Session, Diagnostics and every
+settings category), press B from a focused control. Verify it returns to
+PyroDeck's main menu, then a second B returns to Decky's plugin list. An open
+dropdown/dialog must consume B before leaving its page. Repeat after closing
+and reopening Quick Access, and check the on-screen Back button still works.
+
+For Steam shortcut discovery and saved Library entries, also verify:
+
+- Add a native app and a Proton game to the host's Steam Library, save the
+  shortcuts, then rescan Pyroshine and refresh Remote Games. Launch both and
+  verify their Steam launch options, working directory and Proton settings.
+- At Quick Access width, verify artwork and game titles have room beside the
+  compact **⋯** button. Open that menu with A, X, mouse and touch; B must close
+  the menu first. Verify the menu stays open when Quick Access loses focus to
+  its native popup, and that selecting **Add to Steam Library** saves the entry.
+  Long titles should truncate inside their card without widening
+  the panel. Verify the same layout in the full settings page.
+- Save the advertised **Steam** entry from **⋯ → Add to Steam Library**. Launch it
+  from the Deck's Library, verify Big Picture video/audio and controller input,
+  then disconnect and resume.
+- Change the default host, reload PyroDeck and restart Steam. The saved entry
+  must retain its original host and app ID, remain visible, and keep its custom
+  artwork. Pairing or streaming another app must not rename or hide it.
+- Repeatedly add the same entry, add an equally named entry from a second host,
+  and remove/re-add one through Steam. Check duplicate prevention, separate
+  host targets and the PyroDeck collection. Legacy bulk sync/purge must leave
+  individually saved shortcuts intact.
+
 Use a paired Pyroshine host with retained sessions and the matching Pyrolight
 build. Record SteamOS, Steam client, Decky, PyroDeck, Pyrolight, host versions
 and handheld/docked display configuration.

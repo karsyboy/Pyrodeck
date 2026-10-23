@@ -115,6 +115,24 @@ Pyrolight's authenticated host request, then Steam metadata, then a title
 initial. Catalogs are cached for 30 seconds, with explicit refresh; artwork is
 bounded to 64 cached entries for an hour and at most two requests in flight.
 
+Each card has a compact **⋯** action button and an **X** controller action that
+open the native game menu. **Add to Steam Library** in that menu saves an individual
+streaming shortcut, including the host's Steam/Big Picture entry. The menu closes
+when its host, filter or page changes, or the view unmounts. Steam owns native
+popup dismissal; a Quick Access visibility change while the popup has focus
+must not close it. `ExternalAppShortcuts`
+creates these with `PYRODECK_APP_TYPE=3`, `PYRODECK_LIBRARY_SHORTCUT=1`, the
+host UUID and stable GameStream application ID. Discovery and launch
+interception restore that target across plugin/Steam restarts. Duplicate
+checks use host UUID plus application ID; names do not determine identity.
+They join the PyroDeck collection and are removed using Steam's normal shortcut
+controls. Legacy bulk sync/purge only manages name-based shortcuts.
+
+Saved shortcuts retain their marker on launch and are excluded from shared
+helper discovery, hiding and reuse. Normal browser launches still use the
+hidden shared helper. A saved shortcut uses its own Steam entry and the active
+Pyrolight profile, and rechecks the paired host's catalog before streaming.
+
 ## Session ownership and recovery
 
 States distinguish none, waking, connecting, launching, streaming, disconnected,
@@ -151,15 +169,24 @@ tuning share categories with the full settings sidebar. Profile editing and
 remote-game filters expand only when requested. Legacy shortcut and launcher
 tools live under Advanced Tools.
 
+Quick Access subpages handle the native controller cancel event through a
+`Focusable` around their content. Bubbling Back returns to PyroDeck's main menu
+and stops before Decky's plugin-list handler; child controls and dialogs can
+consume Back first. The main menu leaves Decky's normal Back behavior intact,
+and retained hidden subpages do not handle cancel events.
+
 Catalog commands must work from Decky's background service without a graphical
 session. Pyrolight uses QCoreApplication for list/artwork/network commands and
 help/capability queries. A Qt platform initialization failure is a client error,
 not an offline host or an empty catalog; the UI points to updating the AppImage
 and checking the executable path. No unauthenticated catalog fallback is used.
 
-Pyroshine's Steam scanner reads installed app manifests. Host Steam non-Steam
-shortcuts are not scanned; other advertised launcher, desktop and manual entries
-remain visible in Remote Games.
+Pyroshine's Steam scanner reads installed app manifests and host Steam non-Steam
+shortcuts. The latter advertise their full 64-bit Steam launch identity as a
+string; they remain remote applications rather than Steam store games.
+`steamSourceId` accepts only store IDs below `0x80000000`, so shortcut IDs are
+never used for native-library matching or Steam CDN artwork requests. Other
+advertised launcher, desktop and manual entries remain visible in Remote Games.
 
 ## Steam game context while streaming
 

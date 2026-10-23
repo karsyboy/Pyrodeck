@@ -9,15 +9,22 @@ import {
 import {
   DropdownItem,
   Field,
+  Focusable,
+  Menu,
+  MenuItem,
   PanelSection,
   PanelSectionRow,
-  TextField
+  TextField,
+  showContextMenu
 } from "@decky/ui";
-import { FC, useContext, useEffect, useMemo, useState } from "react";
+import { FC, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePyrolightSession, useSessionPolling } from "../../hooks/usepyrolight";
 import { ActionButton } from "../shared/actionbutton";
+import { FaEllipsisH } from "react-icons/fa";
 import { MoonDeckContext } from "../../contexts";
 import { call } from "@decky/api";
+import { useAppSyncState } from "../../hooks/useappsyncstate";
+import { useRemoteAppShortcuts } from "../../hooks/usegamestreamappshortcuts";
 
 const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
   const [image, setImage] = useState<string | undefined>(steamArtwork(app));
@@ -73,7 +80,10 @@ const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
 };
 
 export const RemoteGames: FC = () => {
-  const { moonDeckAppLauncher } = useContext(MoonDeckContext);
+  const { moonDeckAppLauncher, externalAppShortcuts } = useContext(MoonDeckContext);
+  const shortcuts = useRemoteAppShortcuts();
+  const syncState = useAppSyncState();
+  const menu = useRef<ReturnType<typeof showContextMenu> | null>(null);
   const session = usePyrolightSession();
   useSessionPolling();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -85,6 +95,7 @@ export const RemoteGames: FC = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const load = async (refresh = false): Promise<void> => {
     setBusy(true);
     setError(null);
@@ -122,6 +133,37 @@ export const RemoteGames: FC = () => {
   useEffect(() => {
     setPage(0);
   }, [hostId, query, kind, sort]);
+  useEffect(() => () => {
+    // A native popup can deactivate Quick Access while it owns focus. Steam
+    // handles popup dismissal; only changing its contents/owner invalidates it.
+    menu.current?.Hide();
+    menu.current = null;
+  }, [hostId, query, kind, sort, page]);
+  const openActions = (app: RemoteApp, anchor: EventTarget): void => {
+    if (busy) return;
+    menu.current?.Hide();
+    const saved = shortcuts.some((shortcut) => shortcut.hostId === hostId && shortcut.remoteAppId === app.id);
+    menu.current = showContextMenu(
+      <Menu label={app.name}>
+        <MenuItem
+          disabled={saved || syncState.syncing || !host?.validated}
+          onSelected={() => {
+            menu.current?.Hide();
+            menu.current = null;
+            setBusy(true);
+            setError(null);
+            setMessage(null);
+            void externalAppShortcuts.addRemoteShortcut(hostId, app)
+              .then(() => setMessage(`${app.name} added to your Steam Library.`))
+              .catch((problem: unknown) => setError(String(problem)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {saved ? "In Steam Library" : "Add to Steam Library"}
+        </MenuItem>
+      </Menu>, anchor, { bOverlapHorizontal: true, bPreferPopLeft: true }
+    );
+  };
   return (
     <PanelSection title="Remote Games" spinner={busy}>
       <PanelSectionRow>
@@ -204,9 +246,10 @@ export const RemoteGames: FC = () => {
       </PanelSectionRow>
       {error && (
         <PanelSectionRow>
-          <Field label="Could not load games" description={error} />
+          <Field label="Could not complete action" description={error} />
         </PanelSectionRow>
       )}
+      {message && <PanelSectionRow><Field label={message} /></PanelSectionRow>}
       {host && (
         <PanelSectionRow>
           <Field
@@ -248,17 +291,22 @@ export const RemoteGames: FC = () => {
       )}
       {apps.slice(page * 8, (page + 1) * 8).map((app) => (
         <PanelSectionRow key={`${hostId}:${app.id}`}>
-          <div
+          <Focusable
+            flow-children="row"
+            role="group"
+            aria-label={app.name}
+            onSecondaryActionDescription="Game actions"
+            onSecondaryButton={(event) => openActions(app, event.currentTarget!)}
             style={{
               display: "flex",
-              gap: 12,
+              gap: 8,
               alignItems: "center",
               width: "100%"
             }}
           >
             <Artwork hostId={hostId} app={app} />
             <ActionButton
-              style={{ flex: 1, textAlign: "left", padding: "10px 12px" }}
+              style={{ flex: "1 1 0", textAlign: "left", padding: "10px 12px" }}
               disabled={busy || !(host?.status === "paired" || (host?.status === "unreachable" && host.validated && host.cached && host.canWake)) || (session.runnerActive && session.hostId === hostId && session.remoteAppId === app.id)}
               onClick={() => {
                 setBusy(true);
@@ -269,10 +317,10 @@ export const RemoteGames: FC = () => {
                   .finally(() => { setBusy(false); void pyrolightIntegration.refreshSession(); });
               }}
             >
-              <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+              <div title={app.name} style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {app.name}
               </div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {appKind(app)}
                 {" "}
                 ·
@@ -282,7 +330,16 @@ export const RemoteGames: FC = () => {
                   "Stream game"}
               </div>
             </ActionButton>
-          </div>
+            <ActionButton
+              aria-label={`Actions for ${app.name}`}
+              onOKActionDescription="Game actions"
+              style={{ width: 40, flex: "0 0 40px", height: 44, padding: 0, display: "grid", placeItems: "center" }}
+              disabled={busy}
+              onClick={(event) => openActions(app, event.currentTarget!)}
+            >
+              <FaEllipsisH aria-hidden="true" size={16} />
+            </ActionButton>
+          </Focusable>
         </PanelSectionRow>
       ))}
       {host?.status === "paired" && apps.length === 0 && (

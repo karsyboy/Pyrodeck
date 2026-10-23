@@ -14,6 +14,7 @@ export enum EnvVars {
   Action = "PYRODECK_ACTION",
   HostId = "PYRODECK_HOST_ID",
   RemoteAppId = "PYRODECK_REMOTE_APP_ID",
+  LibraryShortcut = "PYRODECK_LIBRARY_SHORTCUT",
   Python = "PYRODECK_PYTHON"
 }
 
@@ -48,6 +49,7 @@ export interface LaunchContext {
   remoteAppId?: number;
   remoteAppName?: string;
   reusableLauncher?: boolean;
+  libraryShortcut?: boolean;
   terminateAppId?: number;
 }
 
@@ -111,6 +113,7 @@ export function getLaunchOptionsString(currentValue: string, appId: number, appT
   }
 
   if (context.reusableLauncher) launchOptions.push("PYRODECK_LAUNCHER=1");
+  if (context.libraryShortcut) launchOptions.push(makeEnvKeyValue(EnvVars.LibraryShortcut, 1));
   launchOptions.push("%command%");
   return launchOptions.join(" ");
 }

@@ -87,11 +87,25 @@ is optional; the browser uses one shared hidden Steam launcher. **Filter & Sortâ
 opens source and recent-play filters. The page count and Previous/Next controls
 appear above the cards; search covers every page.
 
-Adding a non-Steam shortcut to the host's Steam Library does **not** by itself
-make it discoverable. Pyroshine's Steam scanner reads installed Steam game
-manifests, not Steam's `shortcuts.vdf`. Non-Steam applications appear when
-advertised through Pyroshine's Heroic, Lutris, desktop-entry scanners or manual
-application configuration.
+Press the controller's **B / Back** button from a Quick Access subpage to return
+to PyroDeck's main menu. Press it again from the main menu to return to Decky's
+plugin list.
+
+Pyroshine's Steam scanner also advertises non-Steam games added to the host's
+Steam Library. After Steam saves the shortcut, refresh **Remote Games**; if
+needed, exit Steam normally on the host and use **Rescan** in Pyroshine's web
+interface. Steam launches these games with their existing launch options and
+Steam Play/Proton settings. This requires a Pyroshine build with Steam shortcut
+discovery support.
+
+To save one advertised application in your Deck's Steam Library, open its
+**â‹¯** actions menu in **Remote Games** and choose **Add to Steam Library**.
+You can also press **X** while its card is focused to open the same menu. For example, add
+the host's **Steam** entry to open its Big Picture interface directly from your
+Library. The shortcut appears in the **PyroDeck** collection and always streams
+that application from the host you selected when adding it, even if you later
+change the default host. Adding it again does not create a duplicate. Remove it
+through Steam's normal **Remove non-Steam game** action.
 
 For a remote game with one exact Steam App ID that is also in your Deck's Steam
 Library, the Gaming Mode running-game menu uses the real game's name, artwork

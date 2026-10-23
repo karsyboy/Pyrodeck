@@ -143,7 +143,10 @@ export class MoonDeckAppLauncher {
   private findUtilityShortcut(allDetails: AppDetails[]): void {
     const marker = makeEnvKeyValue(EnvVars.AppType, AppType.Utility);
     const remoteMarker = makeEnvKeyValue(EnvVars.AppType, AppType.Remote);
-    const found = allDetails.find((details) => isMoonDeckShortcut(details) && (details.strLaunchOptions.includes(marker) || details.strLaunchOptions.includes(remoteMarker) || details.strLaunchOptions.includes("PYRODECK_LAUNCHER=1")));
+    const found = allDetails.find((details) => {
+      const saved = details.strLaunchOptions.includes(`${EnvVars.LibraryShortcut}=`) && getEnvKeyValueNumber(details.strLaunchOptions, EnvVars.LibraryShortcut) === 1;
+      return isMoonDeckShortcut(details) && !saved && (details.strLaunchOptions.includes(marker) || details.strLaunchOptions.includes(remoteMarker) || details.strLaunchOptions.includes("PYRODECK_LAUNCHER=1"));
+    });
     this.utilityAppId = found?.unAppID ?? null;
   }
 
@@ -289,7 +292,11 @@ export class MoonDeckAppLauncher {
         } else {
           cancel();
           this.interceptedLaunch = true;
-          this.launchApp(entry.appId, entry.appName, entry.appType)
+          this.launchApp(entry.appId, entry.appName, entry.appType, undefined, entry.appType === AppType.Remote ?
+              {
+                hostId: entry.hostId, remoteAppId: entry.remoteAppId, remoteAppName: entry.appName, libraryShortcut: true
+              } :
+              {})
             .catch((err) => logger.critical(err))
             .finally(() => { this.interceptedLaunch = false; });
         }
@@ -611,7 +618,7 @@ export class MoonDeckAppLauncher {
           pythonExecPath: settings.pythonExecPath,
           action,
           ...target,
-          reusableLauncher: appType !== AppType.GameStream,
+          reusableLauncher: appType !== AppType.GameStream && !target.libraryShortcut,
           hostId: selectedHostId ?? undefined
         }
       );

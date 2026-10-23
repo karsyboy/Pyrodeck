@@ -111,6 +111,9 @@ describe("host and application identity", () => {
     expect(preferredHost([host], "other")).toBeNull();
   });
   it("keeps non-Steam applications and provides safe artwork identities", () => {
+    const shortcut = { ...app, sources: ["steam:17375808096043008000"] };
+    expect(steamSourceId(shortcut)).toBeNull();
+    expect(steamArtwork(shortcut)).toBeUndefined();
     expect(appKind({ ...app, sources: ["lutris:quake"] })).toBe("lutris");
     expect(appKind({ ...app, sources: [] })).toBe("other");
     expect(steamArtwork(app)).toContain("/620/");

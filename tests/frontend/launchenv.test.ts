@@ -8,6 +8,15 @@ const { getEnvKeyValueString, makeEnvKeyValue } = await import("../../src/lib/en
 const context = { displayMode: "1280x800", autoResolution: true, currentAudioDevice: null, currentDisplay: "internal", pythonExecPath: "" };
 
 describe("launch options", () => {
+  it("keeps saved remote shortcuts pinned without making them reusable helpers", () => {
+    const options = getLaunchOptionsString("", 123, AppType.Remote, {
+      ...context, hostId: "host-a", remoteAppId: 42, remoteAppName: "Steam", libraryShortcut: true
+    });
+    expect(options).toContain("PYRODECK_HOST_ID=host-a");
+    expect(options).toContain("PYRODECK_REMOTE_APP_ID=42");
+    expect(options).toContain("PYRODECK_LIBRARY_SHORTCUT=1");
+    expect(options).not.toContain("PYRODECK_LAUNCHER");
+  });
   it("carries the selected library entry's Steam app id", () => {
     const options = getLaunchOptionsString("", 892970, AppType.MoonDeck, context);
     expect(options).toBe("PYRODECK_APP_TYPE=0 PYRODECK_STEAM_APP_ID=892970 PYRODECK_AUTO_RES=1280x800 PYRODECK_LINKED_DISPLAY=internal %command%");
