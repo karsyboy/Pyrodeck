@@ -23,6 +23,12 @@ reconnects, process ownership and suspend orchestration. Python tests use
 `tests/python/fakes/fake_pyrolight.py` and loopback GameStream servers. They
 require local sockets and process signals; CI runs the suite on Python 3.13.
 
+Performance regressions use deterministic work counts rather than wall-clock
+thresholds: unrelated Steam lookup counts/MobX dependencies, ignored DOM churn,
+shared polling and pending-request counts, stable snapshots, hidden-view render
+counts, retained UI state and deferred catalog refresh during a stream. These
+checks do not measure frame time on a Steam Deck.
+
 The Pyrolight side must also pass `streamingpreferences_test.pro` and
 `settingsapi_test.pro`; its CI runs both. Pyroshine’s lifecycle suite tests
 conditional cancellation and its web tests verify authentication and legacy

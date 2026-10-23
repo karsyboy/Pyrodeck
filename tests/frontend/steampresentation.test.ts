@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { autorun, observable, runInAction } from "mobx";
 import { afterPatch, beforePatch } from "@decky/ui/dist/utils/patcher";
 import {
   installSteamPresentation,
@@ -43,8 +44,9 @@ function fixture() {
     [helper.appid, helper],
     [other.appid, other],
   ]);
+  const lookup = vi.fn((id: number) => map.get(id) ?? null);
   const store = {
-    GetAppOverviewByAppID: (id: number) => map.get(id) ?? null,
+    GetAppOverviewByAppID: lookup,
     GetAppOverviewByGameID: (id: string) =>
       [...map.values()].find((app) => app.gameid === id),
     GetIconURLForApp: vi.fn((app) => `steam-art/${app.appid}`),
@@ -104,6 +106,7 @@ function fixture() {
     other,
     map,
     store,
+    lookup,
     details,
     nativeDetails,
     helperDetails,
@@ -206,6 +209,22 @@ describe("running Steam game presentation", () => {
 
 
 describe("Steam running-game enumeration", () => {
+  it("does not subscribe unrelated game views to the streaming game's MobX state", () => {
+    const f = fixture(); f.native.local_per_client_data = observable({ display_status: 11 });
+    const rendered = vi.fn();
+    const stop = autorun(() => { rendered(f.store.GetAppOverviewByAppID(f.other.appid)?.display_name); });
+    runInAction(() => { f.native.local_per_client_data.display_status = 4; });
+    expect(rendered).toHaveBeenCalledOnce(); stop(); f.bridge.stop();
+  });
+  it("does no helper/native lookups while Steam reads 10000 unrelated overviews or artwork", () => {
+    const f = fixture(); f.bridge.refresh(); f.lookup.mockClear();
+    for (let i = 0; i < 10000; i++) f.store.GetAppOverviewByAppID(f.other.appid);
+    expect(f.lookup).toHaveBeenCalledTimes(10000);
+    f.lookup.mockClear();
+    for (let i = 0; i < 10000; i++) f.store.GetIconURLForApp(f.other);
+    expect(f.lookup).not.toHaveBeenCalled();
+    f.bridge.stop();
+  });
   it("does not synthesize a second running Valheim from the helper's window", () => {
     const f = fixture();
     // Steam ScopeRunningApps enumerates raw app overviews, then checks the

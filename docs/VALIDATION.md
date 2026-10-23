@@ -29,7 +29,7 @@ identities and implements conditional cancellation; no host change was needed.
 | --- | --- |
 | PyroDeck ESLint | Pass |
 | PyroDeck TypeScript | Pass |
-| Frontend Vitest | 89 tests passed across 11 files |
+| Frontend Vitest | 101 tests passed across 12 files |
 | Library visual fixture with installed Steam CSS | Checked at 1280×800 and 800×500; idle/focused buttons and footer clearance |
 | Backend Python unittest | 80 tests passed |
 | Python compilation | Pass |
@@ -133,6 +133,39 @@ because the inline DOM already bubbles to Steam's root. Regressions verify
 placement/order, native Steam Input and Play handlers, raw A activation once,
 direction/cancel bubbling, navigation and teardown. Device confirmation of
 this placement and physical controller navigation is still outstanding.
+
+## 0.2.7 performance follow-up
+
+The completed Library/streaming changes were committed as `c246e1c` before
+performance work began, as requested. No upstream synchronization or push was
+performed. The following checks ran against the pre-optimization code and the
+updated implementation; they count operations, not device CPU time or FPS.
+
+| Reproduction | Before | After |
+| --- | --- | --- |
+| Read 10,000 unrelated app overviews while a stream is mapped | 30,000 underlying lookups | 10,000 underlying lookups; zero extra helper/native reads |
+| Change native stream state while an unrelated MobX game view observes its overview | The lookup reads stream/native state and adds unrelated dependencies | Unrelated view remains at one render |
+| Five batches of unrelated/native focus animation and owned-slot updates | 10 fiber reads | Zero fiber reads after initial attachment |
+| Four simultaneous status refreshes | Four backend calls | One backend call |
+| Poll an unchanged session with a newer timestamp | Store replacement and subscriber notification | Same snapshot; no subscriber notification |
+
+Four session consumers now share one timer; the fake-clock test observes five
+requests across the initial fetch and eight seconds, with no timer after the
+last consumer leaves. A blocked backend request creates no queue or restarted
+poll after teardown. Hidden-view tests observe no polling or renders from
+external session changes, then restore the latest state with local UI state
+preserved. The Library catalog test observes only its initial request over
+60 seconds of active streaming; the periodic refresh resumes after disconnect.
+Settings/profile snapshots stay stable across session-only changes. Existing
+navigation, native actions, controller events, resume and launch cleanup tests
+remain green.
+
+These findings confirm avoidable code work, including broad Steam MobX
+dependencies and overlapping polling. They do not prove which cost dominates
+the reported device's lag. Real Game Mode frame time/CPU and sustained-stream
+responsiveness are **not verified**. Compare Quick Access, Library navigation
+and Steam Input/Shift+Tab during a sustained Valheim stream after installing
+0.2.7. No Pyrolight, Pyroshine or backend protocol changes were needed.
 
 ## Required Steam Deck acceptance — not verified
 

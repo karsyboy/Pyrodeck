@@ -14,7 +14,7 @@ vi.mock("@decky/ui", () => ({
 }));
 vi.mock("../../src/contexts", async () => ({ MoonDeckContext: (await import("react")).createContext({ moonDeckAppLauncher: { launchApp: data.launch } }) }));
 vi.mock("../../src/hooks", () => ({ useCurrentSettings: () => ({ currentHostId: data.defaultHost }), useMoonDeckAppData: () => data.active }));
-vi.mock("../../src/hooks/usepyrolight", () => ({ usePyrolight: () => ({ session: data.session }) }));
+vi.mock("../../src/hooks/usepyrolight", () => ({ usePyrolightSession: () => data.session, useSessionPolling: vi.fn() }));
 import { MoonDeckLaunchButtonAnchor } from "../../src/components/moondecklaunchbutton/moondecklaunchbutton";
 import { pyrolightIntegration } from "../../src/lib/pyrolightintegration";
 import { showContextMenu } from "@decky/ui";
@@ -38,8 +38,17 @@ beforeEach(() => {
   vi.spyOn(pyrolightIntegration, "catalog").mockResolvedValue(catalog);
   vi.spyOn(pyrolightIntegration, "refreshSession").mockResolvedValue();
 });
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); });
+afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.useRealTimers(); });
 describe("native Library stream controls", () => {
+  it("defers periodic catalog subprocesses during a stream and resumes after disconnect", async () => {
+    vi.useFakeTimers(); data.session = { schema: 1, state: "streaming", runnerActive: true };
+    await render(); await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(1);
+    data.session = { schema: 1, state: "disconnected", runnerActive: false }; await render();
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenLastCalledWith(true);
+    expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(2);
+  });
   it("launches the default with one action and an alternative without changing settings", async () => {
     await render(); expect(data.menu).toBeNull();
     await press("Stream"); expect(data.launch.mock.calls[0][4]).toEqual({ hostId: "host-a", remoteAppId: 42 });

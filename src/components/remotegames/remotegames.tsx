@@ -13,11 +13,11 @@ import {
   PanelSectionRow,
   TextField
 } from "@decky/ui";
-import { FC, useContext, useEffect, useState } from "react";
+import { FC, useContext, useEffect, useMemo, useState } from "react";
+import { usePyrolightSession, useSessionPolling } from "../../hooks/usepyrolight";
 import { ActionButton } from "../shared/actionbutton";
 import { MoonDeckContext } from "../../contexts";
 import { call } from "@decky/api";
-import { usePyrolight } from "../../hooks/usepyrolight";
 
 const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
   const [image, setImage] = useState<string | undefined>(steamArtwork(app));
@@ -74,7 +74,8 @@ const Artwork: FC<{ hostId: string; app: RemoteApp }> = ({ hostId, app }) => {
 
 export const RemoteGames: FC = () => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
-  const { session } = usePyrolight();
+  const session = usePyrolightSession();
+  useSessionPolling();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [hostId, setHostId] = useState<string>("");
   const [query, setQuery] = useState("");
@@ -104,12 +105,9 @@ export const RemoteGames: FC = () => {
   };
   useEffect(() => {
     void load();
-    void pyrolightIntegration.refreshSession();
-    const timer = setInterval(() => { if (!document.hidden) void pyrolightIntegration.refreshSession(); }, 2000);
-    return () => clearInterval(timer);
   }, []);
   const host = catalog?.hosts.find((entry) => entry.id === hostId);
-  const apps = (host?.apps ?? [])
+  const apps = useMemo(() => (host?.apps ?? [])
     .filter(
       (app) =>
         app.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()) &&
@@ -120,7 +118,7 @@ export const RemoteGames: FC = () => {
           (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) ||
           a.name.localeCompare(b.name) :
           a.name.localeCompare(b.name)
-    );
+    ), [host?.apps, query, kind, sort]);
   useEffect(() => {
     setPage(0);
   }, [hostId, query, kind, sort]);

@@ -1,4 +1,5 @@
 import { call } from "@decky/api";
+import { isEqual } from "lodash";
 
 export type SettingValue = number | boolean;
 export interface SettingDescriptor {
@@ -85,37 +86,85 @@ interface StoreState {
 
 export class PyrolightIntegration {
   private state: StoreState = { preferences: null, pending: {}, session: { schema: 1, state: "none" }, busy: false, error: null, message: null };
+  private settingsState = { preferences: this.state.preferences, pending: this.state.pending, busy: this.state.busy };
   private listeners = new Set<() => void>();
   private catalogPromise: Promise<Catalog> | null = null;
   private catalogTime = 0;
+  private catalogLoading = false;
+  private sessionRequest: Promise<void> | null = null;
+  private preferencesRequest: Promise<void> | null = null;
+  private sessionTime = 0;
+  private pollUsers = new Set<object>();
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private settingsEpoch = 0;
   getSnapshot = (): StoreState => this.state;
+  getSettingsSnapshot = () => this.settingsState;
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   private update(values: Partial<StoreState>): void {
+    if (Object.entries(values).every(([key, value]) => this.state[key as keyof StoreState] === value)) return;
     this.state = { ...this.state, ...values };
+    if (this.settingsState.preferences !== this.state.preferences || this.settingsState.pending !== this.state.pending || this.settingsState.busy !== this.state.busy)
+      this.settingsState = { preferences: this.state.preferences, pending: this.state.pending, busy: this.state.busy };
     this.listeners.forEach((listener) => listener());
   }
 
-  async refresh(): Promise<void> {
-    if (this.state.busy) return;
+  refresh(): Promise<void> {
+    if (this.preferencesRequest) return this.preferencesRequest;
+    if (this.state.busy) return Promise.resolve();
+    this.preferencesRequest = this.refreshPreferences().finally(() => { this.preferencesRequest = null; });
+    return this.preferencesRequest;
+  }
+
+  private async refreshPreferences(): Promise<void> {
     const epoch = this.settingsEpoch;
-    void this.refreshSession();
+    const session = this.refreshSession();
     try {
       const result = await call<[null], Preferences | ApiError>("pyrolight_settings", null);
       if (epoch !== this.settingsEpoch) return;
       if (!result.ok) throw new Error(result.error.message);
       // A draft keeps its original revision until explicitly discarded/applied.
-      if (Object.keys(this.state.pending).length === 0) this.update({ preferences: result, error: null });
+      if (Object.keys(this.state.pending).length === 0) this.update({ preferences: isEqual(result, this.state.preferences) ? this.state.preferences : result, error: null });
       else if (result.revision !== this.state.preferences?.revision) this.update({ error: "Pyrolight settings changed elsewhere. Discard this draft and refresh before applying." });
-      await this.refreshSession();
-    } catch (error) { this.update({ error: String(error) }); }
+    } catch (error) { this.update({ error: String(error) }); } finally { await session; }
   }
 
-  async refreshSession(): Promise<void> {
-    try {
-      const session = await call<[], SessionStatus>("session_status");
-      if ((session.updatedAt ?? 0) >= (this.state.session.updatedAt ?? 0)) this.update({ session });
-    } catch (error) { this.update({ error: String(error) }); }
+  refreshSession(): Promise<void> {
+    if (this.sessionRequest) return this.sessionRequest;
+    let request: Promise<SessionStatus>;
+    try { request = call<[], SessionStatus>("session_status"); } catch (error) { this.update({ error: String(error) }); return Promise.resolve(); }
+    this.sessionRequest = request.then((session) => {
+      if ((session.updatedAt ?? 0) < this.sessionTime) return;
+      this.sessionTime = session.updatedAt ?? 0;
+      // Timestamps alone do not change any displayed state. Keep the snapshot
+      // identity stable, while tracking freshness separately to reject races.
+      if (!isEqual({ ...session, updatedAt: 0 }, { ...this.state.session, updatedAt: 0 }))
+        this.update({ session });
+    }).catch((error: unknown) => { this.update({ error: String(error) }); })
+      .finally(() => { this.sessionRequest = null; });
+    return this.sessionRequest;
+  }
+
+  /** One completion-paced poll for every mounted session view combined. */
+  watchSession(): () => void {
+    const user = {};
+    this.pollUsers.add(user);
+    if (this.pollUsers.size === 1) this.pollSession();
+    return () => {
+      this.pollUsers.delete(user);
+      if (!this.pollUsers.size && this.pollTimer !== null) {
+        clearTimeout(this.pollTimer); this.pollTimer = null;
+      }
+    };
+  }
+
+  private pollSession(): void {
+    void this.refreshSession().finally(() => {
+      if (!this.pollUsers.size || this.pollTimer !== null) return;
+      this.pollTimer = setTimeout(() => {
+        this.pollTimer = null;
+        this.pollSession();
+      }, 2000);
+    });
   }
 
   stage(key: string, value: SettingValue): void {
@@ -181,12 +230,17 @@ export class PyrolightIntegration {
   }
 
   catalog(refresh = false): Promise<Catalog> {
+    if (this.catalogLoading && this.catalogPromise) return this.catalogPromise;
     if (refresh || !this.catalogPromise || Date.now() - this.catalogTime > 30000) {
       this.catalogTime = Date.now();
-      this.catalogPromise = call<[boolean], Catalog | ApiError>("remote_catalog", refresh).then((result) => {
+      this.catalogLoading = true;
+      let request: Promise<Catalog | ApiError>;
+      try { request = call<[boolean], Catalog | ApiError>("remote_catalog", refresh); } catch (error) { this.catalogLoading = false; this.catalogPromise = null; return Promise.reject(error instanceof Error ? error : new Error(String(error))); }
+      this.catalogPromise = request.then((result) => {
         if (!result.ok) throw new Error(result.error.message);
         return result;
-      }).catch((error: unknown) => { this.catalogPromise = null; throw error; });
+      }).catch((error: unknown) => { this.catalogPromise = null; throw error; })
+        .finally(() => { this.catalogLoading = false; });
     }
     return this.catalogPromise;
   }

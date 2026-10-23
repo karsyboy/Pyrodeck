@@ -97,6 +97,11 @@ export function observeLibraryMount(options: Options): () => void {
   let frame: number | null = null;
   let stopNavigation: (() => void) | null = null;
   let navigationParent: Element | null = null;
+  let activePanel: Element | null = null;
+  let identityRegion: Element | null = null;
+  let insertionTarget: Element | null = null;
+  let insertionButton: Element | null = null;
+  let knownPanels: Element[] = [];
   const selectors = options.classes
     .filter(Boolean)
     .map((names) => names.split(/\s+/).map((name) => `.${win.CSS?.escape ? win.CSS.escape(name) : name.replace(/[^\w-]/g, "\\$&")}`).join(""));
@@ -114,8 +119,10 @@ export function observeLibraryMount(options: Options): () => void {
     let contexts: LibraryContext[] = [];
     let controls: Element | null = null;
     let before: Element | null = null;
+    knownPanels = [];
     for (const selector of selectors) {
       for (const node of doc.querySelectorAll<HTMLElement>(selector)) {
+        knownPanels.push(node);
         panels++;
         if (!node.isConnected || !node.getClientRects().length) continue;
         candidates++;
@@ -130,6 +137,7 @@ export function observeLibraryMount(options: Options): () => void {
           controls = focusSelector ? node.querySelector(focusSelector) : node;
           before = beforeSelector ? controls?.querySelector(beforeSelector) ?? null : controls?.firstElementChild ?? null;
           if (before === active?.container) before = before.nextElementSibling;
+          insertionButton = before;
           while (before?.parentElement && before.parentElement !== controls) before = before.parentElement;
           const contextFiber = controls ? options.fiber(controls) : fiber;
           contexts = libraryContexts(contextFiber ? currentFiber(contextFiber) : null);
@@ -139,6 +147,11 @@ export function observeLibraryMount(options: Options): () => void {
       if (anchor) break;
     }
     const navigation = hasLibraryNavigation(contexts);
+    activePanel = anchor;
+    // Titles/artwork may be siblings of PlaySection. Keep those navigation
+    // signals without listening to every animated element elsewhere in Steam.
+    identityRegion = anchor?.closest(selectors[selectors.length - 1])?.parentElement ?? anchor;
+    insertionTarget = before;
     const phase = game ? (beforeSelector && !before ? "steam_input_unavailable" : options.navigationRequired && !navigation ? "focus_context_unavailable" : "attached") : candidates ? (fibers ? "page_identity_unavailable" : "fiber_unavailable") : selectors.length ? "waiting_for_page" : "selectors_unavailable";
     options.status?.(phase, game?.appId ?? null);
     options.diagnostic?.({ phase, appId: game?.appId ?? null, selectors: selectors.length,
@@ -186,8 +199,33 @@ export function observeLibraryMount(options: Options): () => void {
   const schedule = (): void => {
     if (frame === null) frame = win.requestAnimationFrame(scan);
   };
-  const observer = new win.MutationObserver(schedule);
+  const isPanel = (node: Node): boolean => node instanceof win.Element && selectors.some((selector) =>
+    node.matches(selector) || node.querySelector(selector) !== null);
+  const relevant = (record: MutationRecord): boolean => {
+    const target = record.target;
+    if (active?.container.contains(target)) return false;
+    if (record.type === "attributes") {
+      // Focus rings, spinners and overlay animation change classes constantly.
+      // Only panel/ancestor visibility or actual control structure matters.
+      if (knownPanels.some((panel) => target.contains(panel))) return true;
+      if (target === navigationParent) return true;
+      if (record.attributeName !== "class" && (target === insertionTarget || target === insertionButton)) return true;
+      if (target instanceof win.Element && beforeSelector &&
+        ((!active && target.matches(beforeSelector)) || (target === insertionButton && !target.matches(beforeSelector)))) return true;
+      return !activePanel && target instanceof win.Element && selectors.some((selector) => target.matches(selector));
+    }
+    if (record.type === "characterData") return Boolean(identityRegion?.contains(target));
+    const nodes = [...record.addedNodes, ...record.removedNodes];
+    if (nodes.length && nodes.every((node) => node === active?.container)) return false;
+    if (identityRegion?.contains(target)) return true;
+    if (activePanel && nodes.some((node) => node.contains(activePanel))) return true;
+    return nodes.some(isPanel);
+  };
+  const observer = new win.MutationObserver((records) => {
+    if (records.some(relevant)) schedule();
+  });
   win.addEventListener("popstate", schedule);
+  win.addEventListener("focus", schedule);
   doc.addEventListener("visibilitychange", schedule);
   observer.observe(doc.body, {
     childList: true,
@@ -200,6 +238,7 @@ export function observeLibraryMount(options: Options): () => void {
   return () => {
     observer.disconnect();
     win.removeEventListener("popstate", schedule);
+    win.removeEventListener("focus", schedule);
     doc.removeEventListener("visibilitychange", schedule);
     if (frame !== null) win.cancelAnimationFrame(frame);
     stopNavigation?.();

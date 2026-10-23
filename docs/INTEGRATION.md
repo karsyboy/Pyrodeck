@@ -253,6 +253,37 @@ exercise React DOM mounting and the Decky patcher, but real Gaming Mode overlay,
 controller navigation and Gamescope focus still require device acceptance on
 the installed Steam client version.
 
+## UI background work during streaming
+
+Steam overview/artwork hooks first check the cached owned helper identity.
+Unrelated app lookups return immediately, without reading helper/native MobX
+state or registering dependencies on the running stream. The launcher subject
+refreshes the identity when the owned app changes; helper operations still
+validate local-running state and preserve execution/window ownership.
+
+The Library MutationObserver filters before scheduling a frame. It ignores
+PyroDeck's owned slot and unrelated focus/overlay animation. Panel visibility,
+native control replacement, title/artwork structure, navigation, document
+visibility and window focus still trigger attachment checks. The native title
+region is included even when it lies outside PlaySection. No polling loop
+replaces these DOM events.
+
+All mounted session views share one completion-paced two-second timer and one
+in-flight status request. The timer stops when the last visible consumer
+leaves; a slow request cannot accumulate more requests. Equal observations,
+including timestamp-only updates, preserve the store snapshot. The latest
+timestamp is tracked separately to reject stale responses. Settings/profile
+controls subscribe to a separate snapshot, and Library/browser controls read
+only the session snapshot.
+
+Quick Access visibility pauses its consumers' subscriptions and polling while
+retaining their local page/search/profile state and the central settings draft.
+The Library's automatic catalog refresh pauses while a client is active, so it
+does not launch periodic headless catalog processes during gameplay. Initial
+loads, explicit Refresh and launch-time validation remain available. Concurrent
+catalog/settings refreshes join their existing requests. Remote Games caches
+filter/sort results until its catalog or filter controls change.
+
 
 ## Launch progress and window observations
 

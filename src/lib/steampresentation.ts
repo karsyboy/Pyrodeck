@@ -52,6 +52,7 @@ export function installSteamPresentation(options: Options): {
   const raw = (id: number): SteamObject | null =>
     object(lookup.call(appStore, id));
   const cleanup: Array<() => void> = [];
+  let identity = options.session();
   let cached: Mapping | null = null;
   let registeredId: number | null = null;
   let registration: { unregister(): void } | null = null;
@@ -62,6 +63,7 @@ export function installSteamPresentation(options: Options): {
   };
   const mapping = (): Mapping | null => {
     const session = options.session();
+    identity = session;
     const helper = session ? raw(session.helperAppId) : null;
     const native = session ? raw(session.steamAppId) : null;
     const local = object(native?.local_per_client_data);
@@ -162,6 +164,7 @@ export function installSteamPresentation(options: Options): {
     if (typeof target?.[key] !== "function") return;
     cleanup.push(
       hooks.before(target, key, (args) => {
+        if (args[0] !== identity?.steamAppId) return;
         const active = mapping();
         if (active && args[0] === active.session.steamAppId)
           args[0] = active.session.helperAppId;
@@ -170,10 +173,15 @@ export function installSteamPresentation(options: Options): {
   };
   try {
     after(appStore, "GetAppOverviewByAppID", ([id], result) => {
+      // This lookup runs for the whole Steam Library. Reading the helper or
+      // native overview here also adds their MobX dependencies to unrelated
+      // game views. Only the owned helper needs presentation work.
+      if (id !== identity?.helperAppId) return result;
       const active = mapping();
       return active && id === active.session.helperAppId ? active.view : result;
     });
     after(appStore, "GetAppOverviewByGameID", (_args, result) => {
+      if (object(result)?.appid !== identity?.helperAppId) return result;
       const active = mapping();
       return active && object(result)?.appid === active.session.helperAppId ?
         active.view :
@@ -197,6 +205,7 @@ export function installSteamPresentation(options: Options): {
         if (typeof target?.[key] === "function")
           cleanup.push(
             hooks.before(target, key, (args) => {
+              if (object(args[0])?.appid !== identity?.helperAppId) return;
               const active = mapping();
               if (
                 active &&
@@ -227,6 +236,7 @@ export function installSteamPresentation(options: Options): {
       cleanup.reverse().forEach((remove) => remove());
       releaseData();
       cached = null;
+      identity = null;
       options.status("No matched stream");
     }
   };

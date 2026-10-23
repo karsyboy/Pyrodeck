@@ -4,6 +4,7 @@ import {
   PyrolightSettings,
   SettingsFeedback
 } from "../pyrolightsettings/settings";
+import { PyrolightViewVisibility, usePyrolight, useSessionPolling } from "../../hooks/usepyrolight";
 import {
   useCurrentHostSettings,
   useCurrentSettings,
@@ -17,25 +18,27 @@ import { RemoteGames } from "../remotegames/remotegames";
 import { SessionControls } from "./sessioncontrols";
 import { pyrolightIntegration } from "../../lib/pyrolightintegration";
 import { settingsCategories } from "../pyrolightsettings/categories";
-import { usePyrolight } from "../../hooks/usepyrolight";
 import { useQuickAccessVisible } from "@decky/api";
 
 export const QuickSettingsView: FC = () => {
   const visible = useQuickAccessVisible();
+  return <PyrolightViewVisibility.Provider value={visible}><QuickSettingsContent visible={visible} /></PyrolightViewVisibility.Provider>;
+};
+
+const QuickSettingsContent: FC<{ visible: boolean }> = ({ visible }) => {
   const [page, setPage] = useState<string | null>(null);
   const [serverStatus, serverRefreshStatus] = useServerStatus(visible);
   const hostInfo = useHostInfo();
   const currentHostSettings = useCurrentHostSettings();
   const currentSettings = useCurrentSettings();
-  const state = usePyrolight();
+  const state = usePyrolight(visible && page === null);
+  useSessionPolling(visible);
   useEffect(() => {
     if (!visible) return;
     void pyrolightIntegration.refresh();
-    const timer = setInterval(() => {
-      void pyrolightIntegration.refreshSession();
-    }, 2000);
-    return () => clearInterval(timer);
   }, [visible]);
+  // The visibility provider pauses session subscriptions/polling in retained
+  // subpages. Local search/profile UI state and the central draft survive QAM.
   if (page)
     return (
       <>

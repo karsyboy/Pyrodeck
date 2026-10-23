@@ -3,11 +3,11 @@ import { Catalog, eligibleHosts, preferredHost, pyrolightIntegration, steamSourc
 import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Menu, MenuItem, showContextMenu } from "@decky/ui";
 import { useCurrentSettings, useMoonDeckAppData } from "../../hooks";
+import { usePyrolightSession, useSessionPolling } from "../../hooks/usepyrolight";
 import { MoonDeckContext } from "../../contexts";
 import { StreamAction } from "./streamaction";
 import { logger } from "../../lib/logger";
 import { steamIntegrationStatus } from "../../lib/steamintegrationstatus";
-import { usePyrolight } from "../../hooks/usepyrolight";
 
 interface Props { appId: number; appName: string; appType: number }
 export const MoonDeckLaunchButtonShell: FC = () => <StreamAction label="Stream" disabled />;
@@ -16,7 +16,10 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
   const settings = useCurrentSettings();
   const activeApp = useMoonDeckAppData();
-  const { session } = usePyrolight();
+  const session = usePyrolightSession();
+  useSessionPolling();
+  const streaming = useRef(false);
+  streaming.current = Boolean(session.runnerActive || activeApp);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [alternative, setAlternative] = useState<string | null>(null);
   const menu = useRef<ReturnType<typeof showContextMenu> | null>(null);
@@ -45,14 +48,12 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
       }).finally(() => { loading = false; });
     };
     refresh();
-    void pyrolightIntegration.refreshSession();
     const timer = setInterval(() => {
-      if (!document.hidden) refresh(true);
+      // Catalog refresh launches a separate headless Pyrolight process. Keep
+      // the validated catalog during gameplay; revalidate at the next launch.
+      if (!document.hidden && !streaming.current) refresh(true);
     }, 30000);
-    const sessions = setInterval(() => {
-      if (!document.hidden) void pyrolightIntegration.refreshSession();
-    }, 2000);
-    return () => { cancelled = true; clearInterval(timer); clearInterval(sessions); menu.current?.Hide(); menu.current = null; };
+    return () => { cancelled = true; clearInterval(timer); menu.current?.Hide(); menu.current = null; };
   }, [appId, appName]);
   if (!isAppTypeSupported(appType) || !settings || !catalog) return null;
   const hosts = eligibleHosts(catalog, appId);

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const backend = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock("@decky/api", () => backend);
 import { PyrolightIntegration, appKind, eligibleHosts, preferredHost, steamArtwork, steamSourceId } from "../../src/lib/pyrolightintegration";
@@ -8,6 +8,73 @@ const app = { id: 42, name: "A game", sources: ["steam:620"], hdr_supported: fal
 const host = { id: "default", name: "Default PC", status: "paired", apps: [app] };
 
 beforeEach(() => backend.call.mockReset());
+afterEach(() => vi.useRealTimers());
+describe("session polling work", () => {
+  it("recovers when the backend throws before returning a request promise", async () => {
+    const store = new PyrolightIntegration();
+    backend.call.mockImplementationOnce(() => { throw Error("Decky is restarting"); });
+    await store.refreshSession(); expect(store.getSnapshot().error).toContain("Decky is restarting");
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming" });
+    await store.refreshSession(); expect(store.getSnapshot().session.state).toBe("streaming");
+    backend.call.mockImplementationOnce(() => { throw Error("Decky is restarting"); });
+    await expect(store.catalog(true)).rejects.toThrow("Decky is restarting");
+    backend.call.mockResolvedValueOnce({ schema: 1, ok: true, defaultHostId: "default", hosts: [host] });
+    await expect(store.catalog(true)).resolves.toMatchObject({ ok: true });
+  });
+  it("shares one completion-paced timer and stops after the last view leaves", async () => {
+    vi.useFakeTimers(); backend.call.mockResolvedValue({ schema: 1, state: "streaming", updatedAt: 1 });
+    const store = new PyrolightIntegration();
+    const stops = Array.from({ length: 4 }, () => store.watchSession());
+    await vi.advanceTimersByTimeAsync(0); expect(backend.call).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(6000); expect(backend.call).toHaveBeenCalledTimes(4);
+    stops.slice(0, 3).forEach((stop) => stop());
+    await vi.advanceTimersByTimeAsync(2000); expect(backend.call).toHaveBeenCalledTimes(5);
+    stops[3](); expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(6000); expect(backend.call).toHaveBeenCalledTimes(5);
+  });
+  it("does not queue requests or restart a stopped poll while the backend is slow", async () => {
+    vi.useFakeTimers(); let finish!: (value: any) => void;
+    backend.call.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const store = new PyrolightIntegration(); const stop = store.watchSession();
+    await vi.advanceTimersByTimeAsync(10000); expect(backend.call).toHaveBeenCalledTimes(1);
+    stop(); finish({ schema: 1, state: "disconnected" });
+    await vi.advanceTimersByTimeAsync(0); expect(vi.getTimerCount()).toBe(0);
+  });
+  it("coalesces settings refreshes and keeps settings snapshots stable across session updates", async () => {
+    backend.call.mockImplementation(async (name: string) => name === "pyrolight_settings" ? structuredClone(prefs) : { schema: 1, state: "streaming", updatedAt: 1 });
+    const store = new PyrolightIntegration(); await Promise.all([store.refresh(), store.refresh()]);
+    expect(backend.call.mock.calls.map(([name]) => name).sort()).toEqual(["pyrolight_settings", "session_status"]);
+    const settings = store.getSettingsSnapshot();
+    backend.call.mockResolvedValue({ schema: 1, state: "disconnected", updatedAt: 2 }); await store.refreshSession();
+    expect(store.getSettingsSnapshot()).toBe(settings);
+    expect(store.getSnapshot().session.state).toBe("disconnected");
+    store.stage("fps", 90); expect(store.getSettingsSnapshot()).not.toBe(settings);
+  });
+  it("coalesces concurrent session requests and does not notify for unchanged observations", async () => {
+    let finish!: (value: any) => void;
+    backend.call.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const store = new PyrolightIntegration(); const changed = vi.fn(); store.subscribe(changed);
+    const pending = Array.from({ length: 4 }, () => store.refreshSession());
+    expect(backend.call).toHaveBeenCalledTimes(1);
+    finish({ schema: 1, state: "streaming", updatedAt: 10 }); await Promise.all(pending);
+    const snapshot = store.getSnapshot(); changed.mockClear();
+    backend.call.mockResolvedValue({ schema: 1, state: "streaming", updatedAt: 11 });
+    await store.refreshSession();
+    expect(store.getSnapshot()).toBe(snapshot); expect(changed).not.toHaveBeenCalled();
+    backend.call.mockResolvedValue({ schema: 1, state: "failed", updatedAt: 10.5 });
+    await store.refreshSession(); expect(store.getSnapshot()).toBe(snapshot);
+    backend.call.mockResolvedValue({ schema: 1, state: "disconnected", updatedAt: 12 });
+    await store.refreshSession(); expect(changed).toHaveBeenCalledOnce();
+  });
+  it("does not start duplicate forced catalog requests while one is pending", async () => {
+    let finish!: (value: any) => void;
+    backend.call.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const store = new PyrolightIntegration(); const pending = [store.catalog(true), store.catalog(true)];
+    expect(backend.call).toHaveBeenCalledTimes(1);
+    finish({ schema: 1, ok: true, defaultHostId: "default", hosts: [host] }); await Promise.all(pending);
+  });
+});
 describe("host and application identity", () => {
   it("uses exact Steam IDs and refuses ambiguous identity claims", () => {
     const catalog = { schema: 1, ok: true as const, defaultHostId: "default", hosts: [host, { ...host, id: "ambiguous", apps: [app, { ...app, id: 43 }] }, { ...host, id: "offline", status: "unreachable" }] };

@@ -14,11 +14,11 @@ import {
   SettingValue,
   pyrolightIntegration
 } from "../../lib/pyrolightintegration";
+import { usePyrolight, usePyrolightSettings } from "../../hooks/usepyrolight";
 import { ActionButton } from "../shared/actionbutton";
 import { NetworkTools } from "./networktools";
 import { NumericTextInput } from "../shared";
 import { steamIntegrationStatus } from "../../lib/steamintegrationstatus";
-import { usePyrolight } from "../../hooks/usepyrolight";
 
 const labels: Record<string, string> = {
   width: "Width (pixels)",
@@ -152,7 +152,7 @@ export const SettingsFeedback: FC = () => {
 const SettingControl: FC<{ descriptor: SettingDescriptor }> = ({
   descriptor
 }) => {
-  const state = usePyrolight();
+  const state = usePyrolightSettings();
   if (!state.preferences || descriptor.supported === false) return null;
   const values = { ...state.preferences.values, ...state.pending };
   const value = values[descriptor.key];
@@ -237,7 +237,7 @@ const SettingControl: FC<{ descriptor: SettingDescriptor }> = ({
 };
 
 export const StreamingProfiles: FC = () => {
-  const state = usePyrolight();
+  const state = usePyrolightSettings();
   const [name, setName] = useState("");
   const [managing, setManaging] = useState(false);
   const prefs = state.preferences;
@@ -331,7 +331,7 @@ export const StreamingProfiles: FC = () => {
 };
 
 export const PyrolightSettings: FC<{ category?: string }> = ({ category }) => {
-  const { preferences } = usePyrolight();
+  const { preferences } = usePyrolightSettings();
   const integration = useSyncExternalStore(steamIntegrationStatus.subscribe, steamIntegrationStatus.getSnapshot);
   useEffect(() => {
     void pyrolightIntegration.refresh();

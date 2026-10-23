@@ -184,6 +184,35 @@ describe("Library action in a real React DOM tree", () => {
 
 
 describe("compatibility adapter", () => {
+  it("detects navigation when only a title outside PlaySection changes", async () => {
+    function Page({ overview }: { overview: typeof valheim }) {
+      return <section className="steam-overview"><h1>{overview.display_name}</h1><div className="steam-play"><button>Play locally</button></div></section>;
+    }
+    await act(async () => root.render(<Page overview={valheim} />));
+    const change = vi.fn();
+    const stop = observeLibraryMount({ document, classes: ["steam-play", "steam-overview"], fiber, lookup,
+      supported: () => true, change });
+    await frame();
+    await act(async () => root.render(<Page overview={portal} />)); await frame();
+    expect(change.mock.calls.at(-1)![0].game.appId).toBe(620);
+    stop();
+  });
+  it("ignores unrelated UI churn, native focus animation and its own portal updates", async () => {
+    await act(async () => root.render(<NativeLibrary overview={valheim} />));
+    const outside = document.body.appendChild(document.createElement("aside"));
+    const readFiber = vi.fn(fiber); const change = vi.fn();
+    const stop = observeLibraryMount({ document, classes: ["steam-overview"], fiber: readFiber, lookup,
+      supported: () => true, change });
+    await frame(); readFiber.mockClear();
+    const native = document.querySelector(".steam-overview button")!;
+    const slot = document.querySelector("[data-pyrodeck-library-action]")!;
+    for (let batch = 0; batch < 5; batch++) {
+      for (let i = 0; i < 200; i++) { outside.className = `overlay-${i}`; native.className = `focus-${i}`; slot.textContent = `${i}`; }
+      await frame();
+    }
+    expect(readFiber).not.toHaveBeenCalled();
+    stop(); outside.remove();
+  });
   it("uses compound selectors, reports changed Steam structures, and cleans reloads", async () => {
     const node = document.createElement("section"); node.className = "native play"; document.body.append(node);
     const change = vi.fn(); const status = vi.fn();

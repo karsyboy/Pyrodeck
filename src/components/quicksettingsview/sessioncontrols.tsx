@@ -1,24 +1,18 @@
 import { AppType, logger } from "../../lib";
-import { FC, useContext, useEffect, useState } from "react";
+import { FC, useContext, useState } from "react";
 import { Field, PanelSection, PanelSectionRow, showModal } from "@decky/ui";
+import { usePyrolight, useSessionPolling } from "../../hooks/usepyrolight";
 import { ActionButton } from "../shared/actionbutton";
 import { EndHostGameModal } from "../shared";
 import { MoonDeckContext } from "../../contexts";
 import { pyrolightIntegration } from "../../lib/pyrolightintegration";
-import { usePyrolight } from "../../hooks/usepyrolight";
 
 export const SessionControls: FC = () => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
   const state = usePyrolight();
   const [working, setWorking] = useState(false);
   const session = state.session;
-  useEffect(() => {
-    void pyrolightIntegration.refreshSession();
-    const timer = setInterval(() => {
-      void pyrolightIntegration.refreshSession();
-    }, 2000);
-    return () => clearInterval(timer);
-  }, []);
+  useSessionPolling();
   const disabled = working || state.busy;
   const run = (action: () => Promise<void>): void => {
     setWorking(true);
