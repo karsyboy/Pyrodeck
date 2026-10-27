@@ -92,6 +92,3 @@ python
 
 # Ignore random testing stuff
 defaults/python/config.json
-
-
-pnpm-workspace.yaml
