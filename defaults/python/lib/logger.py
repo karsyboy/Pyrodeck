@@ -1,15 +1,15 @@
 import logging
+import logging.handlers
 
 def set_logger_settings(instance: logging.Logger, filename: str | None, rotate: bool = True, log_preamble: str | None = None, print_to_std: bool = False, verbose: bool = False):
     # Lazy import to improve CLI performance
     import sys
     from pathlib import Path
-    from logging.handlers import RotatingFileHandler
     
     handlers = []
 
     if filename is not None:
-        handler = RotatingFileHandler(
+        handler = _RuntimeFileHandler(
             filename=filename,
             mode='a' if rotate else 'w',
             maxBytes=1024000 if rotate else 0,
@@ -49,6 +49,15 @@ def set_logger_settings(instance: logging.Logger, filename: str | None, rotate: 
         instance.addHandler(h)
 
     instance.setLevel(logging.DEBUG if verbose else logging.INFO)
+
+
+class _RuntimeFileHandler(logging.handlers.RotatingFileHandler):
+    """Writes a log in PyroDeck's private runtime directory, never through a link."""
+
+    def _open(self):
+        from . import runtimefiles
+
+        return runtimefiles.open_file(self.baseFilename, self.mode, encoding=self.encoding, errors=self.errors)
 
 
 def get_logger(name: str | None = None):

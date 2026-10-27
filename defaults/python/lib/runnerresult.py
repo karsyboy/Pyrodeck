@@ -1,5 +1,4 @@
-import os
-from . import constants
+from . import constants, runtimefiles
 
 from enum import Enum
 from typing import Optional
@@ -23,7 +22,7 @@ class Result(Enum):
     PyrolightCannotReachHost = "Pyrolight cannot reach the host!"
     PyrolightListFailed = "Pyrolight could not read the host's app list!"
     PyrolightOutdated = "This Pyrolight is too old for PyroDeck! Update Pyrolight."
-    PyrolightFailed = "Pyrolight exited unexpectedly! See /tmp/pyrodeck-runner-pyrolight.log."
+    PyrolightFailed = f"Pyrolight exited unexpectedly! See {constants.PYROLIGHT_LOG_FILE}."
     HostWithoutConditionalCancel = "This host cannot end only the selected game! Update Pyroshine on the host; no game was ended."
     HostWithoutAppSources = "This host does not report Steam app IDs! Update Pyroshine on the host."
     HostAppNotFound = "This game is not available on the host! Install it there, or unhide it in Pyroshine's library."
@@ -49,24 +48,19 @@ def set_result(result: Optional[Enum | RunnerError], log_result=True):
         if result:
             message = result.message if isinstance(result, RunnerError) else result.value
             assert isinstance(message, str), f"{message} is not a string!"
-            with open(constants.RUNNER_RESULT_FILE, "w+") as file:
-                file.write(message)
-                if log_result:
-                    logger.error(message)
+            runtimefiles.write_atomic(constants.RUNNER_RESULT_FILE, message)
+            if log_result:
+                logger.error(message)
         else:
-            if os.path.exists(constants.RUNNER_RESULT_FILE):
-                os.remove(constants.RUNNER_RESULT_FILE)
+            runtimefiles.remove(constants.RUNNER_RESULT_FILE)
     except Exception:
         logger.exception("Unhandled exception")
 
 
 def get_result():
     try:
-        if os.path.exists(constants.RUNNER_RESULT_FILE):
-            with open(constants.RUNNER_RESULT_FILE, "r") as file:
-                return file.readline()
-
-        return None
+        text = runtimefiles.read_text(constants.RUNNER_RESULT_FILE, limit=4096)
+        return None if text is None else text.split("\n", 1)[0]
     except Exception:
         logger.exception("Unhandled exception")
         return "Expection while checking result!"

@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Any, AsyncGenerator, Generic, List, Literal, Optional, Type, TypedDict, Union, TypeVar, get_args, get_origin, is_typeddict, cast
 
 from .logger import logger
+from . import runtimefiles
 from .constants import RUNNER_PID_FILE, RUNNER_READY_FILE, RUNNER_SUSPENDED_FILE
 
 
@@ -225,39 +226,25 @@ async def wake_on_lan(hostname: str, address: str, mac: str, port: int = 9, cust
 
 
 def is_runner_ready():
-    # Lazy import to improve CLI performance
-    import pathlib
-
-    return pathlib.Path(RUNNER_READY_FILE).exists()
+    return runtimefiles.is_file(RUNNER_READY_FILE)
 
 
 def change_runner_ready_state(make_ready: bool):
-    # Lazy import to improve CLI performance
-    import pathlib
-
-    path = pathlib.Path(RUNNER_READY_FILE)
     if make_ready:
-        path.touch(exist_ok=True)
+        runtimefiles.touch(RUNNER_READY_FILE)
     else:
-        path.unlink(missing_ok=True)
+        runtimefiles.remove(RUNNER_READY_FILE)
 
 
 def is_runner_suspended():
-    # Lazy import to improve CLI performance
-    import pathlib
-
-    return pathlib.Path(RUNNER_SUSPENDED_FILE).exists()
+    return runtimefiles.is_file(RUNNER_SUSPENDED_FILE)
 
 
 def change_runner_suspended_state(make_suspended: bool):
-    # Lazy import to improve CLI performance
-    import pathlib
-
-    path = pathlib.Path(RUNNER_SUSPENDED_FILE)
     if make_suspended:
-        path.touch(exist_ok=True)
+        runtimefiles.touch(RUNNER_SUSPENDED_FILE)
     else:
-        path.unlink(missing_ok=True)
+        runtimefiles.remove(RUNNER_SUSPENDED_FILE)
 
 
 async def wait_runner_suspended_state(expected_suspended: bool):
@@ -278,8 +265,7 @@ def acquire_runner_pid_lock():
     import fcntl
     import os
 
-    fd = os.open(RUNNER_PID_FILE, os.O_CREAT | os.O_RDWR)
-    file = os.fdopen(fd, "r+")
+    file = runtimefiles.open_file(RUNNER_PID_FILE, "r+")
     try:
         fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError as err:
@@ -290,32 +276,32 @@ def acquire_runner_pid_lock():
         
         raise Exception("Runner PID file is already locked!") from None
 
-    # We own the file, thus write the PID
+    # We own the file, thus write the PID and its start time
     file.truncate(0)
-    file.write(str(os.getpid()))
+    file.write(f"{os.getpid()} {ProcessReaper.start_time(os.getpid())}")
     file.flush()
     return file
 
 
-def get_runner_pid():
+def get_runner_process() -> "ProcessReaper":
+    """The runner holding the PID lock, bound to its recorded start time."""
     # Lazy import to improve CLI performance
     import errno
     import fcntl
-    import pathlib
 
-    path = pathlib.Path(RUNNER_PID_FILE)
-    with open(path, "r") as file:
+    with runtimefiles.open_file(RUNNER_PID_FILE, "r") as file:
         try:
             fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as err:
             if err.errno not in [errno.EACCES, errno.EAGAIN]:
                 raise err
 
-            # Could not acquire the lock - runner is holding it so the PID is legit
-            return int(file.read().strip())
+            # The runner holds the lock, so the record is its own.
+            pid, start_time = (int(value) for value in file.read(64).split())
+            return ProcessReaper(pid, expected_start_time=start_time)
 
     # No lock means no runner instance - outdated PID file.
-    path.unlink(missing_ok=True)
+    runtimefiles.remove(RUNNER_PID_FILE)
     raise Exception("No runner instance is active!")
 
 
@@ -334,7 +320,8 @@ async def create_subprocess_shell(program: str, stderr_to_devnull = False):
                                                  env=env)
 
 
-async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = False, separate_stderr = False):
+async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = False, separate_stderr = False,
+                                 extra_env: Optional[dict[str, str]] = None):
     # Lazy import to improve CLI performance
     import asyncio
     import os
@@ -346,6 +333,7 @@ async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = F
     # passed through unchanged.
     env = os.environ.copy()
     env.pop("LD_LIBRARY_PATH", None)
+    env.update(extra_env or {})
 
     if separate_stderr:
         stderr = asyncio.subprocess.PIPE
@@ -529,6 +517,9 @@ class ProcessReaper:
         except ProcessReaper.__PROCESS_UNAVAILABLE_ERRORS:
             return None
 
+    def pids(self) -> list[int]:
+        return list(self.__stats)
+
     def exists(self) -> bool:
         for pid, (_, create_time) in self.__stats.items():
             try:
@@ -572,6 +563,16 @@ class ProcessReaper:
         import signal
 
         self.send_signal(signal.SIGUSR2, children)
+
+    @staticmethod
+    def has_environment(pid: int, name: str, value: str) -> bool:
+        """Whether `pid` was started with `name=value` in its environment."""
+        try:
+            with open(f"/proc/{pid}/environ", "rb") as file:
+                data = file.read(1 << 20)
+        except ProcessReaper.__PROCESS_UNAVAILABLE_ERRORS:
+            return False
+        return f"{name}={value}".encode() in data.split(b"\0")
 
     @staticmethod
     def __signal_pid(pid: int, create_time: int, signal: int) -> None:

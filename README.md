@@ -164,14 +164,20 @@ restarts or shuts down the host.
 
 **Troubleshooting & Diagnostics** (in Quick Access or the settings sidebar)
 shows host matches, launch state and errors. **View Log** shows recent log
-lines with credentials removed. In Desktop Mode, the full logs are:
+lines with credentials removed. In Desktop Mode, the full logs are in
+PyroDeck's private runtime directory, `/run/user/1000/pyrodeck/` for the
+`deck` user (`/tmp/pyrodeck-<user ID>/` on systems without `/run/user`):
 
 | Log | File |
 | --- | --- |
-| Plugin backend | `/tmp/pyrodeck-backend.log` |
-| Launches | `/tmp/pyrodeck-runner.log` |
-| Pyrolight output | `/tmp/pyrodeck-runner-pyrolight.log` |
-| Frontend | `/tmp/pyrodeck-frontend.log` |
+| Plugin backend | `backend.log` |
+| Launches | `runner.log` |
+| Pyrolight output | `runner-pyrolight.log` |
+| Frontend | `frontend.log` |
+
+The same directory holds PyroDeck's process records and session status. Only
+your user can open it; PyroDeck refuses to use it, or any file in it, that is a
+link or belongs to someone else.
 
 PyroDeck's own settings are in `~/.config/pyrodeck/`. Streaming settings and
 profiles are stored by Pyrolight.

@@ -215,7 +215,7 @@ class Plugin:
     @utils.async_scope_log(logger.info)
     async def suspend_runner(self):
         try:
-            utils.ProcessReaper(utils.get_runner_pid()).send_usr1()
+            utils.get_runner_process().send_usr1()
             await utils.wait_runner_suspended_state(expected_suspended=True)
             return True
 
@@ -226,7 +226,7 @@ class Plugin:
     @utils.async_scope_log(logger.info)
     async def unsuspend_runner(self):
         try:
-            utils.ProcessReaper(utils.get_runner_pid()).send_usr2()
+            utils.get_runner_process().send_usr2()
             await utils.wait_runner_suspended_state(expected_suspended=False)
             return True
 

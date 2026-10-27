@@ -14,7 +14,7 @@ export const pairingStatusDescriptions: Record<PairingStatus, string> = {
   WrongHost: "Pyrolight reached a different host at this address. Select the host again.",
   Outdated: "This Pyrolight is too old for PyroDeck. Update Pyrolight.",
   NotInstalled: "Pyrolight was not found. Install the Pyrolight AppImage in ~/Applications or set its path.",
-  Error: "Pyrolight failed. See /tmp/pyrodeck-backend.log."
+  Error: "Pyrolight failed. See the backend log in Troubleshooting & Diagnostics."
 };
 
 export async function getPairingStatus(address: string, port: number, hostId: string, pyrolightExecPath: string | null): Promise<PairingStatus> {

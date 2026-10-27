@@ -1,18 +1,16 @@
 """Versioned runner observations, scoped to one runner generation and launch attempt."""
 
 import json
-import os
 import time
 import uuid
 import fcntl
 from contextlib import contextmanager
-from pathlib import Path
-from . import constants
+from . import constants, runtimefiles
 
 
 def read() -> dict:
     try:
-        value = json.loads(Path(constants.SESSION_STATE_FILE).read_text())
+        value = json.loads(runtimefiles.read_text(constants.SESSION_STATE_FILE) or "null")
         if value.get("schema") == 1:
             return value
     except (OSError, ValueError, AttributeError):
@@ -45,8 +43,7 @@ def begin(settings: dict) -> str:
 
 @contextmanager
 def _locked():
-    fd = os.open(constants.SESSION_STATE_FILE + ".lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "r+") as lock:
+    with runtimefiles.open_file(constants.SESSION_STATE_FILE + ".lock", "r+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
             yield
@@ -55,12 +52,4 @@ def _locked():
 
 
 def _write(value: dict):
-    path = Path(constants.SESSION_STATE_FILE)
-    temporary = path.with_name(path.name + "." + uuid.uuid4().hex)
-    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(fd, "w") as output:
-            json.dump(value, output)
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    runtimefiles.write_atomic(constants.SESSION_STATE_FILE, json.dumps(value))

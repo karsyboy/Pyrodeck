@@ -125,7 +125,7 @@ async def main():
         logger.exception("Unhandled exception")
         current = sessionstate.read()
         if current.get("generation") == locals().get("settings", {}).get("generation"):
-            sessionstate.update(current["generation"], state="failed", error="Runner exception; see /tmp/pyrodeck-runner.log")
+            sessionstate.update(current["generation"], state="failed", error=f"Runner exception; see {constants.RUNNER_LOG_FILE}")
         runnerresult.set_result(runnerresult.Result.Exception)
 
 

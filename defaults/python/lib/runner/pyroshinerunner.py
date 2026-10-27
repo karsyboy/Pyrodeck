@@ -24,7 +24,7 @@ from ..runnerresult import Result, RunnerError
 from ..gamestreaminfo import GameStreamHost, get_server_info
 from ..logger import logger
 from ..pyrolightproxy import HostApp, HostAppList, PyrolightListError, PyrolightProxy, build_stream_args, find_pyrolight, needs_capability_probe, pyrolight_host
-from .. import sessionstate, history
+from .. import constants, sessionstate, history
 
 
 # A Pyrolight exit with an error this soon after start is a launch failure.
@@ -164,7 +164,7 @@ class PyroshineRunner:
             # command line.
             detail = None
             if elapsed < EARLY_EXIT_SECS:
-                detail = f"Pyrolight failed to start (exit code {returncode})! See /tmp/pyrodeck-runner-pyrolight.log."
+                detail = f"Pyrolight failed to start (exit code {returncode})! See {constants.PYROLIGHT_LOG_FILE}."
             raise RunnerError(Result.PyrolightFailed, detail)
 
     @classmethod

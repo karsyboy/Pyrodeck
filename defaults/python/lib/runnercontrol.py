@@ -1,7 +1,8 @@
 """Stop or query the PyroDeck runner from the plugin backend.
 
 Only processes PyroDeck started are touched: the runner holding PyroDeck's
-PID lock, and the Pyrolight process it recorded. Other Pyrolight, Moonlight or
+PID lock, and the Pyrolight process it recorded and marked with a token in
+its environment. Other Pyrolight, Moonlight or
 MoonDeck processes are never signalled, so a stream started elsewhere (or by
 the MoonDeck plugin) survives PyroDeck's cleanup.
 """
@@ -12,13 +13,13 @@ import contextlib
 from typing import Optional
 
 from .logger import logger
-from .utils import ProcessReaper, get_runner_pid
-from .pyrolightproxy import clear_client_process, read_client_process
+from .utils import ProcessReaper, get_runner_process
+from .pyrolightproxy import clear_client_process, owned_client_process, read_client_process
 
 
 def get_active_runner() -> Optional[ProcessReaper]:
     try:
-        reaper = ProcessReaper(get_runner_pid())
+        reaper = get_runner_process()
     except Exception:
         return None
     return reaper if reaper.exists() else None
@@ -51,12 +52,12 @@ async def stop_runner(runner_timeout: float = 8.0, client_timeout: float = 5.0):
 
     # If the runner died without cleaning up (killed, crashed), its Pyrolight
     # may still be running: stop exactly that process, if it is still the same.
-    client = read_client_process()
-    if client is not None:
-        pid, start_time = client
-        reaper = ProcessReaper(pid, expected_start_time=start_time)
-        if reaper.exists():
-            logger.info(f"Stopping the Pyrolight process the runner left behind ({pid})")
+    if read_client_process() is not None:
+        reaper = owned_client_process()
+        if reaper is None:
+            logger.info("The recorded Pyrolight process is gone or was not started by PyroDeck; leaving it alone")
+        else:
+            logger.info("Stopping the Pyrolight process the runner left behind")
             reaper.send_terminate()
             if not await wait_gone(reaper, client_timeout):
                 reaper.send_kill()

@@ -13,11 +13,12 @@ device are left alone.
 
 import contextlib
 
+import secrets
 from dataclasses import dataclass, field
 from typing import Optional, TypedDict
 
 from .logger import logger
-from . import constants
+from . import constants, runtimefiles
 
 
 class ResolutionSize(TypedDict):
@@ -393,9 +394,11 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
 
         assert self.process is None, "This proxy has already started Pyrolight!"
         logger.info(f"Executing: {self.exec_path} {' '.join(args)}")
-        self.process = await utils.create_subprocess_exec(self.exec_path, *args)
+        token = secrets.token_hex(16)
+        self.process = await utils.create_subprocess_exec(self.exec_path, *args,
+                                                          extra_env={constants.CLIENT_TOKEN_VARIABLE: token})
         self.__reaper = utils.ProcessReaper(self.process.pid)
-        record_client_process(self.process.pid)
+        record_client_process(self.process.pid, token)
 
     async def terminate(self):
         # Lazy import to improve CLI performance
@@ -437,7 +440,7 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
                 return
 
             logger.info("Starting to save Pyrolight output.")
-            with open(constants.PYROLIGHT_LOG_FILE, "w", 1) as file:
+            with runtimefiles.open_file(constants.PYROLIGHT_LOG_FILE, "w", 1) as file:
                 while not stream.at_eof():
                     data = await stream.readline()
                     if data.startswith(b"PYROLIGHT_EVENT ") and self.on_event is not None:
@@ -459,28 +462,46 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
         return self.process.returncode
 
 
-def record_client_process(pid: int):
+def record_client_process(pid: int, token: str):
     """Remember the started client so the backend can stop it if the runner dies."""
     from .utils import ProcessReaper
 
     start_time = ProcessReaper.start_time(pid)
     if start_time is None:
         return
-    with open(constants.RUNNER_CLIENT_FILE, "w") as file:
-        file.write(f"{pid} {start_time}")
+    runtimefiles.write_atomic(constants.RUNNER_CLIENT_FILE, f"{pid} {start_time} {token}")
 
 
 def clear_client_process():
-    import os
-
-    with contextlib.suppress(FileNotFoundError):
-        os.remove(constants.RUNNER_CLIENT_FILE)
+    runtimefiles.remove(constants.RUNNER_CLIENT_FILE)
 
 
-def read_client_process() -> Optional[tuple[int, int]]:
+def read_client_process() -> Optional[tuple[int, int, str]]:
+    """The recorded client as (pid, start time, token), or None without a valid record."""
     try:
-        with open(constants.RUNNER_CLIENT_FILE, "r") as file:
-            pid, start_time = file.read().split()
-            return int(pid), int(start_time)
-    except (FileNotFoundError, ValueError):
+        text = runtimefiles.read_text(constants.RUNNER_CLIENT_FILE, limit=256)
+        if text is None:
+            return None
+        pid, start_time, token = text.split()
+        return int(pid), int(start_time), token
+    except (OSError, ValueError):
         return None
+
+
+def owned_client_process() -> Optional["ProcessReaper"]:
+    """The recorded client, only if it is still the process the runner started.
+
+    The start time rules out PID reuse; the token in the process's own
+    environment proves that a PyroDeck runner started it, so a record naming
+    some other process is never trusted.
+    """
+    from .utils import ProcessReaper
+
+    record = read_client_process()
+    if record is None:
+        return None
+    pid, start_time, token = record
+    reaper = ProcessReaper(pid, expected_start_time=start_time)
+    if not reaper.exists() or not ProcessReaper.has_environment(pid, constants.CLIENT_TOKEN_VARIABLE, token):
+        return None
+    return reaper
