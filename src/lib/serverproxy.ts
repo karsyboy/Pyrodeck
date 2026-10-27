@@ -13,6 +13,8 @@ export interface GameStreamHost {
   uniqueId: string;
   // Version of Pyroshine's launcher identities; 0 when the host has none.
   appSources: number;
+  // Version of the host's checked conditional cancel; 0 when it would stop any game.
+  conditionalCancel: number;
   // GameStream ID of the app running on the host; 0 when idle.
   currentGame: number;
   // What Steam reports about that game on a Pyroshine host, if it is a Steam game.

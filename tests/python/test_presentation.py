@@ -7,7 +7,7 @@ from support import FakeHost, FakePyrolight, HOST_ID, isolate_state, process_ali
 from test_runner import settings, VALHEIM
 from lib import sessionstate
 from lib.runner.pyroshinerunner import PyroshineRunner
-from lib.runnerresult import RunnerError
+from lib.runnerresult import Result, RunnerError
 
 
 class PresentationTest(unittest.IsolatedAsyncioTestCase):
@@ -111,3 +111,12 @@ class PresentationTest(unittest.IsolatedAsyncioTestCase):
         streams = self.client.streams()
         self.assertEqual(streams[0][streams[0].index("--terminate-app-id") + 1], "99")
         self.assertNotIn("--terminate-app-id", streams[1])
+
+    async def test_confirmed_switch_is_refused_by_a_host_without_the_check(self):
+        async with FakeHost(conditional_cancel=None) as host:
+            selected = settings(host.port, str(self.client.executable))
+            selected["terminate_app_id"] = 99
+            with self.assertRaises(RunnerError) as caught:
+                await PyroshineRunner.run(selected)
+        self.assertEqual(caught.exception.result, Result.HostWithoutConditionalCancel)
+        self.assertEqual(self.client.streams(), [])

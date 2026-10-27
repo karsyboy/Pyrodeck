@@ -184,6 +184,9 @@ class PyroshineRunner:
                 logger.info(f"Running Pyrolight action: {action.value}")
                 args = [action.value, settings["host_id"] if settings.get("remote_app_id") else pyrolight_host(settings["address"], settings["host_port"])]
                 if action == UtilityAction.Quit and settings.get("remote_app_id"):
+                    # Older hosts ignore the expected app and stop whatever runs.
+                    if server_info["conditionalCancel"] < 1:
+                        raise RunnerError(Result.HostWithoutConditionalCancel)
                     args += ["--app-id", str(settings["remote_app_id"]), "--integration-events"]
                     if generation:
                         sessionstate.update(generation, state="ending", remoteAppId=settings["remote_app_id"])
@@ -217,6 +220,8 @@ class PyroshineRunner:
                 # replay an authorization to terminate an earlier application.
                 if not capabilities or not capabilities.conditional_switch:
                     raise RunnerError(Result.PyrolightOutdated, "Update Pyrolight to switch games safely.")
+                if server_info["conditionalCancel"] < 1:
+                    raise RunnerError(Result.HostWithoutConditionalCancel)
                 args = ["--terminate-app-id", str(settings.pop("terminate_app_id")), *args]
             if native_settings:
                 # The profile owns every stream preference. Only lifecycle safety

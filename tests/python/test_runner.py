@@ -210,6 +210,16 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
         await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Pair)
         self.assertEqual(self.pyrolight.invocations()[-1]["argv"], ["pair", self.host_arg])
 
+    async def test_ending_an_expected_game_requires_the_host_check(self):
+        await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Quit, remote_app_id=VALHEIM["id"])
+        self.assertEqual(self.pyrolight.invocations()[-1]["argv"][:4], ["quit", HOST_ID, "--app-id", str(VALHEIM["id"])])
+
+        # A host that ignores expectedAppId would end whatever runs: nothing is sent.
+        count = len(self.pyrolight.invocations())
+        await self.assert_fails(Result.HostWithoutConditionalCancel, FakeHost(conditional_cancel=None),
+                                runner_type=RunnerType.Utility, action=UtilityAction.Quit, remote_app_id=VALHEIM["id"])
+        self.assertEqual(len(self.pyrolight.invocations()), count)
+
     async def test_codec_and_vrr_are_only_passed_when_the_build_offers_them(self):
         self.pyrolight.set(help="  --vrr  Use variable refresh rate\n  --video-codec <video-codec>  Select video codec:\n      AV1/H.264/HEVC/auto.\n")
         await self.run_runner(cmd_options=options(video_codec="PyroWave", enable_vrr=True))

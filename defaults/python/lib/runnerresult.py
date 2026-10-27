@@ -24,6 +24,7 @@ class Result(Enum):
     PyrolightListFailed = "Pyrolight could not read the host's app list!"
     PyrolightOutdated = "This Pyrolight is too old for PyroDeck! Update Pyrolight."
     PyrolightFailed = "Pyrolight exited unexpectedly! See /tmp/pyrodeck-runner-pyrolight.log."
+    HostWithoutConditionalCancel = "This host cannot end only the selected game! Update Pyroshine on the host; no game was ended."
     HostWithoutAppSources = "This host does not report Steam app IDs! Update Pyroshine on the host."
     HostAppNotFound = "This game is not available on the host! Install it there, or unhide it in Pyroshine's library."
     HostAppAmbiguous = "The host offers more than one app with this name!"

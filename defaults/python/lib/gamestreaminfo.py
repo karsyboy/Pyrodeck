@@ -10,6 +10,9 @@ class GameStreamHost(TypedDict):
     # Version of Pyroshine's launcher identities in /applist; 0 for hosts
     # that do not report them (older Pyroshine, Sunshine, GFE).
     appSources: int
+    # Version of Pyroshine's checked `/cancel?expectedAppId=`; 0 for hosts
+    # that ignore the parameter and would stop any running game.
+    conditionalCancel: int
     # The host app currently running (its GameStream ID), 0 when idle.
     currentGame: int
     # What Steam reports about that game ("launching", "updating", "running",
@@ -152,6 +155,7 @@ async def get_server_info(address: str, port: int, timeout: float):
                     "hostName": hostname,
                     "uniqueId": unique_id,
                     "appSources": get_number(data, "PyroshineAppSources"),
+                    "conditionalCancel": get_number(data, "PyroshineConditionalCancel"),
                     "currentGame": get_number(data, "currentgame"),
                     "gameState": get_game_state(data),
                 })

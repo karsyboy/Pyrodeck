@@ -14,13 +14,13 @@ class ServerInfoTest(unittest.IsolatedAsyncioTestCase):
     async def test_reads_pyroshine_extensions(self):
         info = await self.info(FakeHost(current_game=1943979320, game_state="updating"))
         assert info is not None
-        self.assertEqual((info["uniqueId"], info["appSources"]), (support.HOST_ID, 1))
+        self.assertEqual((info["uniqueId"], info["appSources"], info["conditionalCancel"]), (support.HOST_ID, 1, 1))
         self.assertEqual((info["currentGame"], info["gameState"]), (1943979320, "updating"))
 
     async def test_other_hosts_report_no_extensions(self):
-        info = await self.info(FakeHost(app_sources=None))
+        info = await self.info(FakeHost(app_sources=None, conditional_cancel=None))
         assert info is not None
-        self.assertEqual((info["appSources"], info["currentGame"], info["gameState"]), (0, 0, None))
+        self.assertEqual((info["appSources"], info["conditionalCancel"], info["currentGame"], info["gameState"]), (0, 0, 0, None))
 
     async def test_unknown_game_states_are_ignored(self):
         info = await self.info(FakeHost(current_game=5, game_state="exploded"))

@@ -46,6 +46,9 @@ export const HostInfoView: FC = () => {
         <Field label="Steam app IDs" focusable={true} description="Whether the host reports which Steam game each app starts (Pyroshine with app sources).">
           {hostInfo === null ? "Unknown (host offline)" : (hostInfo.appSources > 0 ? `Reported (version ${hostInfo.appSources})` : "Not reported - update Pyroshine")}
         </Field>
+        <Field label="Safe game switching" focusable={true} description="Whether the host ends only the game you confirmed when switching or ending a remote game.">
+          {hostInfo === null ? "Unknown (host offline)" : (hostInfo.conditionalCancel > 0 ? "Supported" : "Not supported - update Pyroshine")}
+        </Field>
         <Field label="Running app ID" focusable={true}>
           {hostInfo === null ? "Unknown (host offline)" : (hostInfo.currentGame === 0 ? "None" : hostInfo.currentGame)}
         </Field>
