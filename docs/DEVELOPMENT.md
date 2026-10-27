@@ -55,6 +55,30 @@ Legacy generated library shortcuts remain available for migration/cleanup.
 Normal launches use the reusable `PYRODECK_LAUNCHER=1` shortcut. Only PyroDeck’s
 own `pyrodeckrun.sh` shortcuts and PID/start-time records are managed.
 
+## Publishing a release
+
+Releases use the same tag style as Pyroshine and Pyrolight. Set the release
+version in `package.json` (Decky shows it as the plugin version), commit it, and
+push a matching tag:
+
+```sh
+# Example only: replace with the version being released.
+git tag -a vX.Y.Z -m "PyroDeck vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+The [release workflow](../.github/workflows/release.yml) checks that the tag
+matches `package.json`, runs the [build workflow](../.github/workflows/build.yaml)
+(lint, type-check, frontend and Python tests, plugin build) on the tagged commit,
+and publishes a GitHub release with `pyrodeck-vX.Y.Z.zip` and `SHA256SUMS`.
+Release notes are generated from the commits since the previous release.
+
+A prerelease uses a `-prerelease` or `-prerelease.N` version, for example
+`0.3.0-prerelease.1` in `package.json` and tag `v0.3.0-prerelease.1`. The
+[prerelease workflow](../.github/workflows/prerelease.yml) runs the release
+workflow for these tags and marks the GitHub release as a prerelease. Pushes to
+`main` and pull requests run the build workflow only and publish nothing.
+
 ## Device acceptance
 
 Run the matrix in [INTEGRATION.md](INTEGRATION.md#validation-and-remaining-device-acceptance)

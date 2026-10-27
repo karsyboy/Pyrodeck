@@ -1,0 +1,119 @@
+name: Release PyroDeck
+
+# Release tags (vX.Y.Z) publish a GitHub release with the plugin ZIP and
+# SHA256SUMS. Prerelease tags (vX.Y.Z-prerelease[.N]) are built by
+# prerelease.yml, which calls this workflow and marks the release as a
+# prerelease. The tag must match the version in package.json, which Decky
+# shows as the plugin version.
+on:
+  push:
+    tags:
+      - 'v*'
+      - '!v*prerelease*'
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Resolve version from tag
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate tag against package.json
+        id: version
+        env:
+          SOURCE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${SOURCE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            prerelease=false
+          elif [[ "${SOURCE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-prerelease(\.[0-9]+)?$ ]]; then
+            prerelease=true
+          else
+            echo "Release tags must use vMAJOR.MINOR.PATCH;" \
+              "prerelease tags vMAJOR.MINOR.PATCH-prerelease or vMAJOR.MINOR.PATCH-prerelease.N." >&2
+            exit 1
+          fi
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "v${package_version}" != "${SOURCE_TAG}" ]; then
+            echo "Tag ${SOURCE_TAG} does not match package.json version ${package_version}." >&2
+            exit 1
+          fi
+          {
+            echo "release_tag=${SOURCE_TAG}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+  # Lint, type-check, frontend and Python tests, then the plugin ZIP, on the
+  # tagged revision itself; publishing waits for them.
+  build:
+    name: Test and build
+    needs: version
+    uses: ./.github/workflows/build.yaml
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - version
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: pyrodeck
+          path: build
+
+      - name: Name the asset and create checksums
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          zips=(build/*.zip)
+          if [ "${#zips[@]}" -ne 1 ]; then
+            echo "Expected one plugin ZIP, found ${#zips[@]}." >&2
+            exit 1
+          fi
+          mkdir release-assets
+          asset="pyrodeck-${RELEASE_TAG}.zip"
+          cp "${zips[0]}" "release-assets/${asset}"
+          cd release-assets
+          sha256sum "${asset}" > SHA256SUMS
+
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.version.outputs.release_tag }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" release-assets/* --clobber
+          else
+            channel=()
+            [ "${PRERELEASE}" != true ] || channel=(--prerelease)
+            gh release create "${RELEASE_TAG}" release-assets/* \
+              --verify-tag \
+              --target "${GITHUB_SHA}" \
+              --title "PyroDeck ${RELEASE_TAG}" \
+              "${channel[@]}" \
+              --generate-notes
+          fi

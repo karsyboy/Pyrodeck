@@ -1,0 +1,17 @@
+name: Prerelease PyroDeck
+
+# Builds prerelease tags (v1.2.3-prerelease or v1.2.3-prerelease.1) with the
+# release workflow itself: the same tests, build and assets. The GitHub
+# release is marked as a prerelease.
+on:
+  push:
+    tags:
+      - 'v*prerelease*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Prerelease
+    uses: ./.github/workflows/release.yml

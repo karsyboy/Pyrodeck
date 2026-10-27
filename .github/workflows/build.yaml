@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: ['main']
   workflow_dispatch:
+  # release.yml runs the same tests and build on the tagged revision.
+  workflow_call:
 
 jobs:
   test-plugin:
@@ -83,36 +85,3 @@ jobs:
           name: pyrodeck
           path: out/*.zip
           if-no-files-found: error
-
-  release-pre-check:
-    name: Check for release conditions
-    runs-on: ubuntu-latest
-    outputs:
-      do-release: ${{ steps.do-release.outputs.result }}
-    steps:
-      - name: Check if release can be performed
-        id: do-release
-        run: echo "result=${{ github.token != '' && github.ref == 'refs/heads/main' }}" >> "$GITHUB_OUTPUT"
-
-  release:
-    name: Nightly release
-    needs: [build-plugin, release-pre-check]
-    runs-on: ubuntu-latest
-    if: ${{ needs.release-pre-check.outputs.do-release == 'true' }}
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Nightly Release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        uses: andelf/nightly-release@main
-        with:
-          body: The latest version available! Might be broken, might be not ;)
-          prerelease: false
-          tag_name: nightly
-          name: 'Nightly Release'
-          files: |
-            ./artifacts/pyrodeck/*.zip
