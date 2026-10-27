@@ -100,6 +100,15 @@ class IntegrationTest(unittest.IsolatedAsyncioTestCase):
         with patch("lib.integration.runnercontrol.is_runner_active", return_value=False):
             self.assertEqual(self.service.status()["state"], "failed")
 
+    def test_status_observations_are_ordered_without_the_wall_clock(self):
+        with patch("lib.integration.runnercontrol.is_runner_active", return_value=False):
+            first = self.service.status()
+            with patch("lib.sessionstate.time.time", return_value=0):
+                sessionstate.begin({"host_id": HOST_ID, "hostname": "Host"})
+            second = self.service.status()
+        self.assertNotIn("updatedAt", first, "an absent record is still an observation")
+        self.assertGreater(second["observedAt"], first["observedAt"])
+
     async def test_catalog_rejects_changed_host_identity_and_caches(self):
         from lib.pyrolightproxy import HostAppList, HostApp
         proxy = AsyncMock()

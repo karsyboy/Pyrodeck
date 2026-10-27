@@ -28,3 +28,13 @@ class SessionStateTest(unittest.TestCase):
         replacement = sessionstate.begin({"host_id": "other", "hostname": "Other"})
         sessionstate.update(generation, state="failed")
         self.assertEqual(sessionstate.read()["generation"], replacement)
+
+    def test_records_the_launch_identity_for_reattaching(self):
+        from lib.runner.envparser import RunnerType
+
+        with patch.dict("os.environ", {"SteamGameId": "16245012813410566144"}):
+            sessionstate.begin({"host_id": "host", "hostname": "PC", "remote_app_id": 42,
+                                "runner_type": RunnerType.RemoteApp})
+        state = sessionstate.read()
+        self.assertEqual((state["launchKind"], state["remoteAppId"], state["launcherGameId"]),
+                         (RunnerType.RemoteApp.value, 42, "16245012813410566144"))

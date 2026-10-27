@@ -68,14 +68,15 @@ describe("session polling work", () => {
     const store = new PyrolightIntegration(); const changed = vi.fn(); store.subscribe(changed);
     const pending = Array.from({ length: 4 }, () => store.refreshSession());
     expect(backend.call).toHaveBeenCalledTimes(1);
-    finish({ schema: 1, state: "streaming", updatedAt: 10 }); await Promise.all(pending);
+    finish({ schema: 1, state: "streaming", updatedAt: 10, observedAt: 10 }); await Promise.all(pending);
     const snapshot = store.getSnapshot(); changed.mockClear();
-    backend.call.mockResolvedValue({ schema: 1, state: "streaming", updatedAt: 11 });
+    backend.call.mockResolvedValue({ schema: 1, state: "streaming", updatedAt: 10, observedAt: 11 });
     await store.refreshSession();
     expect(store.getSnapshot()).toBe(snapshot); expect(changed).not.toHaveBeenCalled();
-    backend.call.mockResolvedValue({ schema: 1, state: "failed", updatedAt: 10.5 });
+    // An observation made before the one already shown is stale, whatever its wall-clock time.
+    backend.call.mockResolvedValue({ schema: 1, state: "failed", updatedAt: 99, observedAt: 10.5 });
     await store.refreshSession(); expect(store.getSnapshot()).toBe(snapshot);
-    backend.call.mockResolvedValue({ schema: 1, state: "disconnected", updatedAt: 12 });
+    backend.call.mockResolvedValue({ schema: 1, state: "disconnected", updatedAt: 12, observedAt: 12 });
     await store.refreshSession(); expect(changed).toHaveBeenCalledOnce();
   });
   it("does not start duplicate forced catalog requests while one is pending", async () => {
@@ -207,5 +208,49 @@ describe("validated offline identities", () => {
     });
     const store = new PyrolightIntegration(); await store.refresh();
     expect(store.getSnapshot().session.state).toBe("disconnected");
+  });
+});
+
+describe("session observation order", () => {
+  it("accepts a newer generation after wall-clock rollback", async () => {
+    const store = new PyrolightIntegration();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming", runnerActive: true, generation: "old", updatedAt: 100, observedAt: 10 });
+    await store.refreshSession();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "failed", runnerActive: false, generation: "new", updatedAt: 90, observedAt: 11 });
+    await store.refreshSession();
+    expect(store.getSnapshot().session.state).toBe("failed");
+  });
+  it("accepts missing state after an earlier session", async () => {
+    const store = new PyrolightIntegration();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming", runnerActive: true, generation: "old", updatedAt: 100, observedAt: 10 });
+    await store.refreshSession();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "none", runnerActive: false, observedAt: 11 });
+    await store.refreshSession();
+    expect(store.getSnapshot().session.state).toBe("none");
+  });
+  it("still accepts observations from a backend without observation times", async () => {
+    const store = new PyrolightIntegration();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming", runnerActive: true, generation: "old", updatedAt: 100 });
+    await store.refreshSession();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "none", runnerActive: false });
+    await store.refreshSession();
+    expect(store.getSnapshot().session.state).toBe("none");
+  });
+  it("never lets an older observation restore an ended stream", async () => {
+    const store = new PyrolightIntegration();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "none", runnerActive: false, observedAt: 20 });
+    await store.refreshSession();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming", runnerActive: true, generation: "old", updatedAt: 200, observedAt: 19 });
+    await store.refreshSession();
+    expect(store.getSnapshot().session.state).toBe("none");
+  });
+  it("does not re-render when only observation times change", async () => {
+    const store = new PyrolightIntegration();
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming", runnerActive: true, generation: "g", updatedAt: 1, observedAt: 1 });
+    await store.refreshSession();
+    const snapshot = store.getSnapshot().session;
+    backend.call.mockResolvedValueOnce({ schema: 1, state: "streaming", runnerActive: true, generation: "g", updatedAt: 1, observedAt: 2 });
+    await store.refreshSession();
+    expect(store.getSnapshot().session).toBe(snapshot);
   });
 });

@@ -33,8 +33,14 @@ export interface SessionStatus {
   schema: number;
   state: SessionPhase;
   runnerActive?: boolean;
+  // Wall-clock time of the last change, for diagnostics only.
   updatedAt?: number;
+  // When the backend made this observation, on a clock that never goes back.
+  observedAt?: number;
   generation?: string;
+  // The runner's launch variant (AppType) and the Steam game ID of the shortcut that started it.
+  launchKind?: number | null;
+  launcherGameId?: string | null;
   hostId?: string;
   hostName?: string;
   appName?: string;
@@ -93,7 +99,7 @@ export class PyrolightIntegration {
   private catalogLoading = false;
   private sessionRequest: Promise<void> | null = null;
   private preferencesRequest: Promise<void> | null = null;
-  private sessionTime = 0;
+  private sessionObservedAt = -Infinity;
   private pollUsers = new Set<object>();
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private settingsEpoch = 0;
@@ -135,11 +141,17 @@ export class PyrolightIntegration {
     let request: Promise<SessionStatus>;
     try { request = call<[], SessionStatus>("session_status"); } catch (error) { this.update({ error: String(error) }); return Promise.resolve(); }
     this.sessionRequest = request.then((session) => {
-      if ((session.updatedAt ?? 0) < this.sessionTime) return;
-      this.sessionTime = session.updatedAt ?? 0;
+      // Order observations by when the backend made them. Wall-clock
+      // updatedAt can go back and an absent record has none: a new runner
+      // generation or a cleared session must still replace the old stream.
+      if (session.observedAt !== undefined) {
+        if (session.observedAt < this.sessionObservedAt) return;
+        this.sessionObservedAt = session.observedAt;
+      }
       // Timestamps alone do not change any displayed state. Keep the snapshot
       // identity stable, while tracking freshness separately to reject races.
-      if (!isEqual({ ...session, updatedAt: 0 }, { ...this.state.session, updatedAt: 0 }))
+      const timeless = (value: SessionStatus) => ({ ...value, updatedAt: 0, observedAt: 0 });
+      if (!isEqual(timeless(session), timeless(this.state.session)))
         this.update({ session });
     }).catch((error: unknown) => { this.update({ error: String(error) }); })
       .finally(() => { this.sessionRequest = null; });

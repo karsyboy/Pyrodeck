@@ -40,7 +40,7 @@ import {
 } from "./launchenv";
 import { SessionStatus, pyrolightIntegration } from "./pyrolightintegration";
 import { Subscription, pairwise } from "rxjs";
-import { getEnvKeyValueNumber, makeEnvKeyValue } from "./envutils";
+import { getEnvKeyValueNumber, getEnvKeyValueString, makeEnvKeyValue } from "./envutils";
 import { AppDetails } from "@decky/ui/dist/globals/steam-client/App";
 import { AppSyncState } from "./appsyncstate";
 import { EThirdPartyControllerConfiguration } from "@decky/ui/dist/globals/steam-client/Input";
@@ -123,6 +123,38 @@ export function updateControllerConfig(
     ] as unknown as EThirdPartyControllerConfiguration;
     SteamClient.Apps.SetThirdPartyControllerConfiguration(appId, option);
   }
+}
+
+/** Whether Steam's SteamGameId (the 64-bit game ID, or the app ID itself) names this shortcut. */
+function isLauncherGameId(gameId: string, appId: number): boolean {
+  if (!/^[0-9]+$/.test(gameId)) return false;
+  const value = BigInt(gameId);
+  return value === BigInt(appId) || value >> 32n === BigInt(appId);
+}
+
+/** The single PyroDeck shortcut whose launch options started the runner described by `status`. */
+export function findOwnedLaunch(allDetails: AppDetails[], status: SessionStatus, utilityAppId: number | null): { details: AppDetails; appType: AppType } | null {
+  const sameHost = (options: string): boolean =>
+    !!status.hostId && getEnvKeyValueString(options, EnvVars.HostId)?.toLowerCase() === status.hostId.toLowerCase();
+  const matches = allDetails.filter((details) => isMoonDeckShortcut(details)).flatMap((details) => {
+    const options = details.strLaunchOptions;
+    const kind = getEnvKeyValueNumber(options, EnvVars.AppType);
+    if (status.launchKind !== undefined && status.launchKind !== null && kind !== status.launchKind) return [];
+    if (status.launcherGameId && !isLauncherGameId(status.launcherGameId, details.unAppID)) return [];
+    let matches = false;
+    if (kind === AppType.MoonDeck) {
+      // Library games always launch through the reusable helper.
+      matches = details.unAppID === utilityAppId && !!status.steamAppId &&
+        getEnvKeyValueNumber(options, EnvVars.SteamAppId) === status.steamAppId;
+    } else if (kind === AppType.Remote) {
+      matches = !!status.remoteAppId && getEnvKeyValueNumber(options, EnvVars.RemoteAppId) === status.remoteAppId && sameHost(options);
+    } else if (kind === AppType.GameStream) {
+      matches = !!status.appName && getEnvKeyValueString(options, EnvVars.AppName) === status.appName && sameHost(options);
+    }
+    // Pair and quit actions are not streams.
+    return matches && kind !== null ? [{ details, appType: kind as AppType }] : [];
+  });
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export class MoonDeckAppLauncher {
@@ -349,6 +381,14 @@ export class MoonDeckAppLauncher {
     });
   }
 
+  /**
+   * After a plugin or Steam UI reload, reattach the stream a PyroDeck runner
+   * still owns, for every launch variant: a Steam library game through the
+   * helper, a remote app through the helper or a saved remote shortcut, and a
+   * synced host app. The runner's recorded identity must match exactly one
+   * PyroDeck shortcut's launch options (and, when Steam reported it, that
+   * shortcut's game ID); otherwise nothing is adopted.
+   */
   discoverShortcuts(allDetails: AppDetails[]): void {
     const lifecycle = this.lifecycle;
     const launchGeneration = this.launchGeneration;
@@ -356,16 +396,24 @@ export class MoonDeckAppLauncher {
     // Do not replace a helper created while optional discovery was pending.
     if (this.utilityAppId === null) this.findUtilityShortcut(allDetails);
     executeAsync(async () => {
-      const status = await call<[], { runnerActive?: boolean; steamAppId?: number; appName?: string }>("session_status");
-      if (!canRecover() || !status?.runnerActive || !status.steamAppId || !this.utilityAppId) return;
-      const details = allDetails.find((entry) => entry.unAppID === this.utilityAppId);
-      if (!details || getEnvKeyValueNumber(details.strLaunchOptions, EnvVars.SteamAppId) !== status.steamAppId) return;
-      const name = getAppStoreEx()?.getAppOverview(status.steamAppId)?.display_name ?? status.appName;
+      const status = await call<[], SessionStatus>("session_status");
+      if (!canRecover() || !status?.runnerActive) return;
+      const owned = findOwnedLaunch(allDetails, status, this.utilityAppId);
+      if (!owned) return;
+      const { details, appType } = owned;
+      // A library game is tracked by its Steam app ID, other launches by their own shortcut.
+      let steamAppId = details.unAppID;
+      let name = status.appName ?? details.strDisplayName;
+      if (appType === AppType.MoonDeck && status.steamAppId) {
+        steamAppId = status.steamAppId;
+        name = getAppStoreEx()?.getAppOverview(steamAppId)?.display_name ?? status.appName ?? "";
+      }
       if (!name) return;
       const gameId = await getGameId(details.unAppID);
       if (!canRecover()) return;
-      this.moonDeckApp.setApp(status.steamAppId, details.unAppID, name, AppType.MoonDeck, { nameSetToAppId: false }, gameId);
+      this.moonDeckApp.setApp(steamAppId, details.unAppID, name, appType, { nameSetToAppId: false }, gameId);
       await this.moonDeckApp.applySessionOptions();
+      logger.log("Reattached the running PyroDeck stream", { appType, helperAppId: details.unAppID, generation: status.generation });
     });
   }
 

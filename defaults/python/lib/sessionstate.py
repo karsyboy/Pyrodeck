@@ -31,12 +31,20 @@ def update(generation: str, **changes):
 
 
 def begin(settings: dict) -> str:
+    """Start a runner generation; it records what the frontend needs to reattach after a reload."""
+    import os
+
     generation = uuid.uuid4().hex
+    kind = settings.get("runner_type")
     with _locked():
         _write({"schema": 1, "generation": generation, "attempt": 0, "state": "connecting",
                 "hostId": settings["host_id"], "hostName": settings["hostname"],
                 "appName": settings.get("app_name"), "steamAppId": settings.get("steam_app_id"),
                 "remoteAppId": settings.get("remote_app_id"), "stage": "connecting",
+                # The launch variant (the shortcut's PYRODECK_APP_TYPE) and the
+                # Steam game ID of the shortcut that started this runner.
+                "launchKind": kind.value if kind is not None else None,
+                "launcherGameId": os.environ.get("SteamGameId") or None,
                 "updatedAt": time.time()})
     return generation
 

@@ -67,9 +67,15 @@ class Integration:
         return result
 
     def status(self) -> dict:
+        import time
+
+        # When this observation was made, on a clock that never goes back:
+        # the frontend orders observations by it. updatedAt is wall-clock
+        # time for diagnostics, and an absent record has none.
+        observed = time.monotonic()
         value = sessionstate.read()
         active = runnercontrol.is_runner_active()
-        value = {**value, "runnerActive": active}
+        value = {**value, "runnerActive": active, "observedAt": observed}
         if value.get("state") in ("waking", "connecting", "launching", "streaming", "reconnecting", "ending") and not active:
             return {**value, "state": "failed", "error": "The PyroDeck runner exited. Launch again to resume the host game."}
         return value

@@ -343,6 +343,45 @@ describe("running session recovery", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(launcher.moonDeckApp.value).toBeNull(); expect(steam.names).toEqual([]);
   });
+  const runPath = '"/home/deck/homebrew/plugins/PyroDeck/python/pyrodeckrun.sh"';
+  const shortcutGameId = (appId: number) => String((BigInt(appId) << 32n) | 0x02000000n);
+  function remoteHelper() {
+    steam.shortcuts.set(5, { unAppID: 5, strShortcutExe: runPath, strLaunchOptions: "PYRODECK_APP_TYPE=3 PYRODECK_REMOTE_APP_ID=42 PYRODECK_HOST_ID=host-b PYRODECK_LAUNCHER=1 %command%", strDisplayName: "Quake" });
+  }
+  function savedRemoteShortcut() {
+    steam.shortcuts.set(77, { unAppID: 77, strShortcutExe: runPath, strLaunchOptions: "PYRODECK_APP_TYPE=3 PYRODECK_LIBRARY_SHORTCUT=1 PYRODECK_HOST_ID=host-b PYRODECK_REMOTE_APP_ID=42 %command%", strDisplayName: "Quake" });
+  }
+  const remoteStatus = { runnerActive: true, steamAppId: null, remoteAppId: 42, hostId: "host-b", appName: "Quake", generation: "owned", launchKind: AppType.Remote };
+  async function settle() { await vi.waitFor(() => expect(calls.some(([name]) => name === "session_status")).toBe(true)); await new Promise((resolve) => setTimeout(resolve, 20)); }
+
+  it("recovers an owned active remote helper after reload", async () => {
+    remoteHelper(); backend.session_status = () => remoteStatus;
+    const { launcher } = makeLauncher(); await settle();
+    try {
+      expect(launcher.moonDeckApp.value).toMatchObject({ steamAppId: 5, appType: AppType.Remote, name: "Quake", launcherGameId: "gameid-5" });
+      expect(steam.launched).toEqual([]);
+    } finally { launcher.deinit(); }
+  });
+  it("recovers a saved remote shortcut, using Steam's game ID to tell it from the helper", async () => {
+    remoteHelper(); savedRemoteShortcut();
+    backend.session_status = () => ({ ...remoteStatus, launcherGameId: shortcutGameId(77) });
+    const { launcher } = makeLauncher(); await settle();
+    try { expect(launcher.moonDeckApp.value).toMatchObject({ steamAppId: 77, appType: AppType.Remote }); } finally { launcher.deinit(); }
+  });
+  it("does not adopt an ambiguous, other-host, stale-identity or utility runner", async () => {
+    for (const [setup, status] of [
+      [() => { remoteHelper(); savedRemoteShortcut(); }, remoteStatus],
+      [remoteHelper, { ...remoteStatus, hostId: "host-a" }],
+      [remoteHelper, { ...remoteStatus, remoteAppId: 43 }],
+      [remoteHelper, { ...remoteStatus, launcherGameId: shortcutGameId(6) }],
+      [remoteHelper, { ...remoteStatus, launchKind: AppType.Utility }],
+      [remoteHelper, { ...remoteStatus, runnerActive: false }]
+    ] as const) {
+      steam.shortcuts.clear(); calls.length = 0; setup(); backend.session_status = () => status;
+      const { launcher } = makeLauncher(); await settle();
+      try { expect(launcher.moonDeckApp.value, JSON.stringify(status)).toBeNull(); } finally { launcher.deinit(); }
+    }
+  });
   it("passes local Steam Exit through when the same game is running locally", async () => {
     const { launcher } = makeLauncher();
     await launcher.launchApp(892970, "Valheim", AppType.MoonDeck);
