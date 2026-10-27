@@ -1,6 +1,6 @@
 {
   "name": "pyrodeck",
-  "version": "0.2.11",
+  "version": "0.3.0",
   "description": "Steam Library streaming, remote games, and Pyrolight profiles and settings in Quick Access. Based on MoonDeck by FrogTheFrog.",
   "type": "module",
   "scripts": {
