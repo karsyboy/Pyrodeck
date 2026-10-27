@@ -16,7 +16,7 @@ advertised application catalog, launching and retained host sessions.
 | Pyrolight artwork | `list --json --artwork-id ID ADDRESS[:PORT]`, bounded PNG data URI and checked host UUID |
 | Pyrolight network tools | `list --json --network-action check\|calibrate\|fix HOST_UUID`; explicit user actions only |
 | Pyrolight lifecycle | `PYROLIGHT_EVENT {"schema":1,"state":"streaming",…}` on stdout; actual Session signals, with negotiated codec, dimensions, FPS, bitrate and display backend |
-| Explicit termination | `quit HOST_UUID --app-id ID --integration-events`; Pyroshine compares `expectedAppId` under its lifecycle lock |
+| Explicit termination | `quit HOST_UUID --integration-events`; standard Pyrolight Quit App for the application currently running on the paired host |
 
 No new network service, host credentials or GameStream implementation is
 introduced in PyroDeck. Settings CLI calls use a same-user local socket when
@@ -140,11 +140,12 @@ reconnecting, ending, ended and failed. A private atomic observation file
 carries runner generation and attempt; stale events cannot change a replacement
 attempt. A dead owned runner is reported as failed rather than streaming.
 Disconnect and suspend close only the owned Pyrolight process tree. Host games
-remain available under Pyroshine's established retention policy. End Remote
-Game always asks for confirmation and pins host/app identity. The conditional
-host cancellation extension is required to protect against a different app
-replacing the selected one during the request. It does not distinguish two
-successive host sessions running the same application ID.
+remain available under the host's retention policy. End Remote Game always asks
+for confirmation and pins the host identity. It uses the same host-level Quit
+App request as Pyrolight's GUI on both Pyroshine and Vibeshine, without requiring
+conditional cancellation. The remembered application ID remains session
+metadata; the host closes whichever application is running when it handles quit.
+Confirmed switches still require conditional cancellation.
 
 ## Validation and remaining device acceptance
 
@@ -343,7 +344,7 @@ End Remote Game uses the existing confirmation and `endHostGame` utility path,
 pinned to the retained host/application instead of the selected alternative.
 Before confirmation executes, the current session generation and identities
 must still match and no resumed runner may be active. Ending is single-flight;
-backend conditional cancellation remains the final check on the actual host app.
+Pyrolight performs the paired host-level quit.
 The context menu uses the button as its anchor; the confirmation modal uses
 that button's `ownerDocument.defaultView`, since Steam keys modal managers by
 Window. End failures are also surfaced as a toast if the game page loses focus.

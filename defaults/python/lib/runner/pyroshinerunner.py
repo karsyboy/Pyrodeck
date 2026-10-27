@@ -182,14 +182,14 @@ class PyroshineRunner:
                 action: Optional[UtilityAction] = settings["action"]
                 assert action is not None
                 logger.info(f"Running Pyrolight action: {action.value}")
-                args = [action.value, settings["host_id"] if settings.get("remote_app_id") else pyrolight_host(settings["address"], settings["host_port"])]
-                if action == UtilityAction.Quit and settings.get("remote_app_id"):
-                    # Older hosts ignore the expected app and stop whatever runs.
-                    if server_info["conditionalCancel"] < 1:
-                        raise RunnerError(Result.HostWithoutConditionalCancel)
-                    args += ["--app-id", str(settings["remote_app_id"]), "--integration-events"]
+                args = [action.value, pyrolight_host(settings["address"], settings["host_port"])]
+                if action == UtilityAction.Quit:
+                    # Match Pyrolight's Quit App action: end the application
+                    # currently running on this paired host. The remembered app
+                    # ID is session metadata, not a conditional cancel request.
+                    args = [action.value, settings["host_id"], "--integration-events"]
                     if generation:
-                        sessionstate.update(generation, state="ending", remoteAppId=settings["remote_app_id"])
+                        sessionstate.update(generation, state="ending")
                         def quit_event(event):
                             if event.get("state") in ("ending", "ended", "failed"):
                                 sessionstate.update(generation, state=event["state"], error=event.get("error") or None)

@@ -205,20 +205,41 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
     async def test_utility_actions_run_without_resolving_an_app(self):
         await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Quit)
         argvs = [entry["argv"] for entry in self.pyrolight.invocations()]
-        self.assertEqual(argvs, [["quit", self.host_arg]])
+        self.assertEqual(argvs, [["quit", HOST_ID, "--integration-events"]])
 
         await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Pair)
         self.assertEqual(self.pyrolight.invocations()[-1]["argv"], ["pair", self.host_arg])
 
-    async def test_ending_an_expected_game_requires_the_host_check(self):
-        await self.run_runner(runner_type=RunnerType.Utility, action=UtilityAction.Quit, remote_app_id=VALHEIM["id"])
-        self.assertEqual(self.pyrolight.invocations()[-1]["argv"][:4], ["quit", HOST_ID, "--app-id", str(VALHEIM["id"])])
+    async def test_explicit_quit_matches_the_client_on_pyroshine_and_other_hosts(self):
+        for conditional_cancel in (1, None):
+            with self.subTest(conditional_cancel=conditional_cancel):
+                # Quit App ends the host's current application, even when it
+                # differs from the remembered app. No expected-ID check is sent.
+                await self.run_runner(FakeHost(conditional_cancel=conditional_cancel, current_game=PORTAL["id"]),
+                                      runner_type=RunnerType.Utility, action=UtilityAction.Quit, remote_app_id=VALHEIM["id"])
+                self.assertEqual(self.pyrolight.invocations()[-1]["argv"], ["quit", HOST_ID, "--integration-events"])
 
-        # A host that ignores expectedAppId would end whatever runs: nothing is sent.
-        count = len(self.pyrolight.invocations())
-        await self.assert_fails(Result.HostWithoutConditionalCancel, FakeHost(conditional_cancel=None),
-                                runner_type=RunnerType.Utility, action=UtilityAction.Quit, remote_app_id=VALHEIM["id"])
-        self.assertEqual(len(self.pyrolight.invocations()), count)
+    async def test_explicit_quit_reports_lifecycle_and_failure_without_host_extensions(self):
+        from lib import sessionstate
+
+        for state, exit_code in (("ended", 0), ("failed", 1)):
+            with self.subTest(state=state):
+                self.pyrolight.set(quit={"exit": exit_code, "events": [
+                    {"schema": 1, "state": "ending"},
+                    {"schema": 1, "state": state, "error": "Host refused quit" if exit_code else ""},
+                ]})
+                async with FakeHost(app_sources=None, conditional_cancel=None) as host:
+                    selected = settings(host.port, str(self.pyrolight.executable), runner_type=RunnerType.Utility,
+                                        action=UtilityAction.Quit, remote_app_id=VALHEIM["id"])
+                    selected["generation"] = sessionstate.begin(selected)
+                    if exit_code:
+                        with self.assertRaises(RunnerError) as caught:
+                            await PyroshineRunner.run(selected)
+                        self.assertEqual(caught.exception.result, Result.PyrolightFailed)
+                    else:
+                        await PyroshineRunner.run(selected)
+                self.assertEqual(sessionstate.read()["state"], state)
+                self.assertEqual(sessionstate.read()["error"], "Host refused quit" if exit_code else None)
 
     async def test_codec_and_vrr_are_only_passed_when_the_build_offers_them(self):
         self.pyrolight.set(help="  --vrr  Use variable refresh rate\n  --video-codec <video-codec>  Select video codec:\n      AV1/H.264/HEVC/auto.\n")

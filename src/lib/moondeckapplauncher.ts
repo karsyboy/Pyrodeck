@@ -397,7 +397,7 @@ export class MoonDeckAppLauncher {
    * Game Mode focus and controller input like a game. "quit" ends the game on
    * the host: only ever started by an explicit user action.
    */
-  async launchUtility(action: UtilityAction, hostId?: string, expectedAppId?: number): Promise<void> {
+  async launchUtility(action: UtilityAction, hostId?: string, remoteAppId?: number): Promise<void> {
     const execPath = await getMoonDeckRunPath();
     if (execPath === null) {
       logger.toast("Failed to get pyrodeckrun.sh path!", { output: "error" });
@@ -410,7 +410,7 @@ export class MoonDeckAppLauncher {
       return;
     }
 
-    await this.launchApp(appId, action === "pair" ? "PyroDeck - Pair" : "PyroDeck - End host game", AppType.Utility, action, { hostId, remoteAppId: expectedAppId });
+    await this.launchApp(appId, action === "pair" ? "PyroDeck - Pair" : "PyroDeck - End host game", AppType.Utility, action, { hostId, remoteAppId });
   }
 
   async launchRemote(
@@ -444,8 +444,8 @@ export class MoonDeckAppLauncher {
     });
   }
 
-  /** Disconnect a running stream (if any), then end the game on the host. */
-  async endHostGame(hostId?: string, expectedAppId?: number): Promise<void> {
+  /** Disconnect our stream, then use Pyrolight's Quit App on the selected host. */
+  async endHostGame(hostId?: string, remoteAppId?: number): Promise<void> {
     if (
       this.moonDeckApp.value !== null ||
       (await this.moonDeckApp.isStillRunning())
@@ -461,7 +461,7 @@ export class MoonDeckAppLauncher {
           "PyroDeck is still disconnecting. Retry End Remote Game."
         );
     }
-    await this.launchUtility("quit", hostId, expectedAppId);
+    await this.launchUtility("quit", hostId, remoteAppId);
   }
 
   async launchApp(
@@ -580,9 +580,7 @@ export class MoonDeckAppLauncher {
       if (hostSettings.resolution.useLinkedDisplays) {
         const displays = await getDisplayIdentifiers();
         if (displays === null) {
-          logger.toast("Failed to get display info from Steam!", {
-            output: "error"
-          });
+          logger.warn("Steam display information unavailable; continuing without a linked display.");
         }
         currentDisplay = displays?.current ?? null;
       }

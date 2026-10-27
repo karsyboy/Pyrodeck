@@ -102,9 +102,10 @@ function makeLauncher(resumeAfterSuspend = false) {
     updateAppLaunchTimestamp: vi.fn()
   };
   const externalAppShortcuts = { initializing: false, getEntryByGameId: vi.fn(() => null) };
-  const launcher = new MoonDeckAppLauncher(new AppSyncState(), makeSettings(resumeAfterSuspend) as never, moonDeckAppShortcuts as never, externalAppShortcuts as never);
+  const settingsManager = makeSettings(resumeAfterSuspend);
+  const launcher = new MoonDeckAppLauncher(new AppSyncState(), settingsManager as never, moonDeckAppShortcuts as never, externalAppShortcuts as never);
   launcher.init([...steam.shortcuts.values()] as never);
-  return { launcher, moonDeckShortcuts, externalAppShortcuts };
+  return { launcher, moonDeckShortcuts, externalAppShortcuts, settingsManager };
 }
 
 beforeEach(() => {
@@ -120,6 +121,25 @@ beforeEach(() => {
 });
 
 describe("library launch", () => {
+  it("launches a remote shortcut without an error toast when Steam has no display information", async () => {
+    const { toaster } = await import("@decky/api");
+    const { getCurrentDisplayModeString } = await import("../../src/lib/steamutils");
+    vi.mocked(toaster.toast).mockClear();
+    vi.mocked(getCurrentDisplayModeString).mockResolvedValueOnce(null);
+    const { launcher, settingsManager } = makeLauncher();
+    settingsManager.settings.value.hostSettings["host-b"].resolution.useLinkedDisplays = true;
+
+    await launcher.launchRemote("host-b", 42, "Steam Big Picture");
+
+    expect(steam.launched).toHaveLength(1);
+    const options = steam.shortcuts.get(steam.launched[0])!.strLaunchOptions;
+    expect(options).toContain("PYRODECK_HOST_ID=host-b");
+    expect(options).toContain("PYRODECK_REMOTE_APP_ID=42");
+    expect(options).not.toContain("PYRODECK_AUTO_RES");
+    expect(options).not.toContain("PYRODECK_LINKED_DISPLAY");
+    expect(toaster.toast).not.toHaveBeenCalled();
+  });
+
   it("launches saved remote entries with their pinned host and preserves them when creating a utility helper", async () => {
     steam.shortcuts.set(77, { unAppID: 77, strShortcutExe: "/home/deck/homebrew/plugins/PyroDeck/python/pyrodeckrun.sh", strLaunchOptions: "PYRODECK_APP_TYPE=3 PYRODECK_LIBRARY_SHORTCUT=1 PYRODECK_HOST_ID=host-b PYRODECK_REMOTE_APP_ID=42 %command%", strDisplayName: "Steam" });
     const { launcher, externalAppShortcuts } = makeLauncher();
@@ -224,6 +244,15 @@ describe("library launch", () => {
 });
 
 describe("ending the host game", () => {
+  it("keeps quit pinned to the requested host when another host is the default", async () => {
+    const { launcher } = makeLauncher();
+    await launcher.endHostGame("host-b", 42);
+    const options = steam.shortcuts.get(steam.launched[0])!.strLaunchOptions;
+    expect(options).toContain("PYRODECK_ACTION=quit");
+    expect(options).toContain("PYRODECK_HOST_ID=host-b");
+    expect(options).toContain("PYRODECK_REMOTE_APP_ID=42");
+  });
+
   it("is a separate utility launch running Pyrolight's quit, with one shortcut reused", async () => {
     const { launcher } = makeLauncher();
     await launcher.endHostGame();
