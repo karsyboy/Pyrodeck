@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { getAppStoreEx } from "../steam-utils/getAppStoreEx";
 import { isAppTypeSupported } from "../lib/launchenv";
 import { logger } from "../lib/logger";
+import { pyrolightIntegration } from "../lib/pyrolightintegration";
 import { routerHook } from "@decky/api";
 import { skip } from "rxjs";
 import { steamIntegrationStatus } from "../lib/steamintegrationstatus";
@@ -33,7 +34,7 @@ const mountMessages: Record<string, string> = {
 
 const LibraryActionPortal: FC = () => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
-  const settings = useCurrentSettings();
+  const loaded = useCurrentSettings() !== null;
   // Decky can render Steam's routes into a separate BrowserWindow. The
   // plugin's global document need not own the actual Library controls.
   const [ownerDocument, setOwnerDocument] = useState<Document | null>(null);
@@ -42,18 +43,15 @@ const LibraryActionPortal: FC = () => {
   }, []);
   const [mount, setMount] = useState<LibraryMount | null>(null);
   useEffect(() => {
-    if (!settings?.enableMoondeckShortcuts) {
+    if (!loaded) {
       setMount(null);
-      steamIntegrationStatus.update({
-        libraryPhase: settings ? "disabled" : "loading_settings", currentAppId: null, eligibleHostIds: [],
-        library: settings ?
-          "Library streaming is disabled in Advanced Tools" :
-          "Loading settings"
-      });
+      steamIntegrationStatus.update({ libraryPhase: "loading_settings", currentAppId: null, eligibleHostIds: [], library: "Loading settings" });
       return;
     }
     if (!ownerDocument) return;
     logger.log("Library route mounted; observing its owning document");
+    // Start the catalog request while Steam is still building the page.
+    void pyrolightIntegration.catalog().catch(() => undefined);
     let previousReport = "";
     const stop = observeLibraryMount({
       document: ownerDocument,
@@ -101,7 +99,7 @@ const LibraryActionPortal: FC = () => {
           libraryDetails: undefined, currentAppId: null, eligibleHostIds: []
         });
     };
-  }, [settings?.enableMoondeckShortcuts, ownerDocument, moonDeckAppLauncher]);
+  }, [loaded, ownerDocument, moonDeckAppLauncher]);
   return (
     <>
       <span ref={probe} hidden data-pyrodeck-library-probe="true" />

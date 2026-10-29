@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@decky/api", () => ({ call: vi.fn(), toaster: { toast: vi.fn() } }));
-import { LibraryMount, gameFromFiber, observeLibraryMount } from "../../src/lib/librarymount";
+import { IDENTITY_RECHECKS, IDENTITY_RECHECK_MS, LibraryMount, gameFromFiber, observeLibraryMount } from "../../src/lib/librarymount";
 
 const valheim = { appid: 892970, display_name: "Valheim", app_type: 1 };
 const portal = { appid: 620, display_name: "Portal 2", app_type: 1 };
@@ -211,6 +211,39 @@ describe("compatibility adapter", () => {
     expect(readFiber).not.toHaveBeenCalled();
     refresh(); stop(); await vi.advanceTimersByTimeAsync(1200);
     expect(readFiber).not.toHaveBeenCalled(); expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+  it("attaches as soon as Steam names the shown page's game, without a DOM mutation", async () => {
+    vi.useFakeTimers();
+    // Steam renders the page with an app ID before its overview is loaded.
+    let loaded = false;
+    const idPage = (id: number) => <main><section className="steam-overview" {...{ appid: id } as any}><button>Play</button></section></main>;
+    function IdPage() { return idPage(892970); }
+    await act(async () => root.render(<IdPage />));
+    const change = vi.fn(); const readFiber = vi.fn(fiber);
+    const stop = observeLibraryMount({ document, classes: ["steam-overview"], fiber: readFiber,
+      lookup: (id) => (loaded ? lookup(id) : undefined), supported: () => true, change });
+    try {
+      expect(change).not.toHaveBeenCalled();
+      loaded = true;
+      await vi.advanceTimersByTimeAsync(IDENTITY_RECHECK_MS + 50);
+      expect(change.mock.calls.at(-1)?.[0].game.appId).toBe(892970);
+      // Attached pages are not polled.
+      readFiber.mockClear(); await vi.advanceTimersByTimeAsync(5000);
+      expect(readFiber).not.toHaveBeenCalled();
+    } finally { stop(); vi.useRealTimers(); }
+  });
+  it("bounds identity rechecks for a page Steam never names", async () => {
+    vi.useFakeTimers();
+    function Unknown() { return <main><section className="steam-overview"><button>Play</button></section></main>; }
+    await act(async () => root.render(<Unknown />));
+    const readFiber = vi.fn(fiber);
+    const stop = observeLibraryMount({ document, classes: ["steam-overview"], fiber: readFiber, lookup, supported: () => true, change: vi.fn() });
+    try {
+      await vi.advanceTimersByTimeAsync(IDENTITY_RECHECK_MS * (IDENTITY_RECHECKS + 10));
+      expect(readFiber.mock.calls.length).toBeLessThanOrEqual(IDENTITY_RECHECKS + 1);
+      readFiber.mockClear(); await vi.advanceTimersByTimeAsync(10000);
+      expect(readFiber).not.toHaveBeenCalled();
+    } finally { stop(); vi.useRealTimers(); }
   });
   it("attaches after the returning Library becomes measurable without another DOM mutation", async () => {
     let visible = false;

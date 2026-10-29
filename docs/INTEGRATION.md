@@ -237,8 +237,9 @@ remote-game filters expand only when requested. The sidebar groups play
 Pyrolight's stream settings, and PyroDeck itself (Updates, Advanced Tools,
 Troubleshooting & Diagnostics, Setup & Help). Hosts & Pairing holds only host
 selection and pairing; Pyrolight is installed and updated from Updates, and its
-executable path, launcher timeouts and legacy shortcut tools live under Advanced
-Tools.
+executable path, session options, launch timeouts, host app shortcuts and
+debug logs share the single Advanced Tools page. The Library action is always
+shown; it has no setting to turn it off.
 
 Quick Access subpages handle the native controller cancel event through a
 `Focusable` around their content. Bubbling Back returns to PyroDeck's main menu

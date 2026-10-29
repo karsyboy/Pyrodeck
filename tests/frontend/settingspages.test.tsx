@@ -32,14 +32,16 @@ vi.mock("../../src/hooks", async (original) => ({
   ...(await original<object>()),
   useCurrentSettings: () => current.settings,
   useCurrentHostSettings: () => current.host,
-  useServerStatus: () => ["Online", false]
+  useServerStatus: () => ["Online", false],
+  useGameStreamAppShortcuts: () => [],
+  useAppSyncState: () => ({ syncing: false, formatText: (_busy: boolean, _type: unknown, text: string) => text })
 }));
 import { HostSelectionView } from "../../src/components/hostselectionview";
-import { RunnerSettingsView } from "../../src/components/runnersettingsview";
+import { AdvancedView } from "../../src/components/advancedview";
 
-const settings = { currentHostId: "host", hostSettings: {}, useMoonlightExec: false, moonlightExecPath: "", pythonExecPath: "", runnerDebugLogs: false, pyrolightPrereleases: false } as any;
+const settings = { currentHostId: "host", hostSettings: {}, gameSession: { controllerConfig: null, resumeAfterSuspend: false }, useMoonlightExec: false, moonlightExecPath: "", pythonExecPath: "", runnerDebugLogs: false, pyrolightPrereleases: false } as any;
 const host = { currentHostId: "host", address: "10.0.0.2", hostInfoPort: 47989, hostName: "Host", runnerTimeouts: { servicePing: 5, wakeOnLan: 60, steamLaunch: 5 },
-  resolution: { appResolutionOverride: "Native", appResolutionOverrideForInternalDisplay: false } } as any;
+  resolution: { appResolutionOverride: "Native", appResolutionOverrideForInternalDisplay: false }, gameStreamApps: { showQuickAccessButton: false } } as any;
 let container: HTMLDivElement; let root: ReturnType<typeof createRoot>;
 const render = async (node: JSX.Element) => { await act(async () => root.render(node)); await act(async () => {}); };
 const headers = () => [...container.querySelectorAll("h2")].map((header) => header.textContent);
@@ -61,17 +63,18 @@ describe("settings pages", () => {
     expect(container.textContent).toContain("Install it from Updates");
   });
 
-  it("offers the Pyrolight executable in Launcher & executables without a host", async () => {
+  it("puts Advanced Tools on one page and needs no host for the Pyrolight executable", async () => {
     current.host = null;
-    await render(<RunnerSettingsView />);
-    expect(headers()).toEqual(["Executables", "Logging", "Host"]);
+    await render(<AdvancedView />);
+    expect(headers()).toEqual(["Executables", "Session", "Host", "Logging"]);
     expect(container.textContent).toContain("Use a specific Pyrolight executable");
     expect(container.textContent).toContain("HOST IS NOT SELECTED");
-    expect(container.textContent).not.toContain("Timeouts");
+    // The legacy toggle that could hide the Library action is gone.
+    expect(container.textContent).not.toContain("Show Stream with Pyrolight");
   });
 
-  it("adds the host's launcher settings once a host is selected", async () => {
-    await render(<RunnerSettingsView />);
-    expect(headers()).toEqual(["Executables", "Logging", "App Resolution Override", "Timeouts"]);
+  it("adds the host's launch settings and app shortcuts once a host is selected", async () => {
+    await render(<AdvancedView />);
+    expect(headers()).toEqual(["Executables", "Session", "App Resolution Override", "Launch Timeouts", "Host App Shortcuts", "Logging"]);
   });
 });

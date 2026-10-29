@@ -10,7 +10,7 @@ const modeDescriptions: Record<InstallMode, string> = {
   missing: "Pyrolight was not found. Install the latest AppImage into ~/Applications.",
   managed: "Installed and updated by PyroDeck.",
   package: "Installed by the system's package manager. Update it there.",
-  selected: "PyroDeck uses the executable set in Advanced Tools → Launcher & executables. Turn that off to use an AppImage PyroDeck installs.",
+  selected: "PyroDeck uses the executable set in Advanced Tools → Executables. Turn that off to use an AppImage PyroDeck installs.",
   appimage: "An AppImage you added. Installing the latest release adds ~/Applications/Pyrolight.AppImage, which PyroDeck then uses."
 };
 

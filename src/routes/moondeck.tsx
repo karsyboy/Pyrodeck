@@ -1,57 +1,17 @@
-import { DialogBody, DropdownItem, SidebarNavigation } from "@decky/ui";
-import { FC, useState } from "react";
+import { DialogBody, SidebarNavigation } from "@decky/ui";
+import { AdvancedView } from "../components/advancedview";
 import { Diagnostics } from "../components/diagnostics/diagnostics";
-import { GameSessionView } from "../components/gamesessionview";
-import { GameStreamAppsView } from "../components/gamestreamappsview";
+import { FC } from "react";
 import { HostInfoView } from "../components/hostinfoview";
 import { HostSelectionView } from "../components/hostselectionview";
-import { MoonDeckAppsView } from "../components/moondeckappsview";
 import { PyrolightSettings } from "../components/pyrolightsettings/settings";
 import { RemoteGames } from "../components/remotegames/remotegames";
-import { RunnerSettingsView } from "../components/runnersettingsview";
 import { SessionControls } from "../components/quicksettingsview/sessioncontrols";
 import { SetupGuideView } from "../components/setupguideview";
 import { UpdatesView } from "../components/updatesview/updatesview";
 import { WOLSettingsView } from "../components/wolsettingsview";
 import { routerHook } from "@decky/api";
 import { settingsCategories } from "../components/pyrolightsettings/categories";
-
-const AdvancedTools: FC = () => {
-  const [tool, setTool] = useState("runner");
-  return (
-    <>
-      <DialogBody>
-        <DropdownItem
-          label="Advanced tool"
-          layout="below"
-          selectedOption={tool}
-          rgOptions={[
-            { data: "runner", label: "Launcher & executables" },
-            { data: "session", label: "Session behavior" },
-            { data: "cleanup", label: "Legacy shortcut cleanup" },
-            { data: "shortcuts", label: "Optional host shortcut sync" }
-          ]}
-          onChange={(choice) => setTool(choice.data as string)}
-        />
-      </DialogBody>
-      {tool === "runner" ?
-          (
-            <RunnerSettingsView />
-          ) :
-        tool === "session" ?
-            (
-              <GameSessionView />
-            ) :
-          tool === "cleanup" ?
-              (
-                <MoonDeckAppsView />
-              ) :
-              (
-                <GameStreamAppsView />
-              )}
-    </>
-  );
-};
 
 const MoonDeckRouter: FC<object> = () => (
   <SidebarNavigation
@@ -119,7 +79,7 @@ const MoonDeckRouter: FC<object> = () => (
       },
       {
         title: "Advanced Tools",
-        content: <AdvancedTools />,
+        content: <AdvancedView />,
         route: "/pyrodeck/advanced-tools",
         visible: true
       },

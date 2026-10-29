@@ -81,11 +81,9 @@ class GameSessionSettings(TypedDict):
 
 class UserSettings(TypedDict):
     # Continues MoonDeck's numbering: 44 is the first PyroDeck schema.
-    version: Literal[46]
+    version: Literal[47]
     currentHostId: Optional[str]
     gameSession: GameSessionSettings
-    enableMoondeckShortcuts: bool
-    enableMoondeckButtonPrompt: bool
     hostSettings: Dict[str, HostSettings]
     runnerDebugLogs: bool
     # Pyrolight executable: found automatically unless useMoonlightExec is set.
@@ -120,8 +118,6 @@ class UserSettingsManager(SettingsManager[UserSettings]):
                 "resumeAfterSuspend": False,
                 "controllerConfig": None
             },
-            "enableMoondeckShortcuts": True,
-            "enableMoondeckButtonPrompt": False,
             "hostSettings": {},
             "runnerDebugLogs": False,
             "useMoonlightExec": False,
@@ -411,6 +407,10 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             data["pyrolightPrereleases"] = False
             data["pyrodeckPrereleases"] = self._follows_prereleases()
         if data["version"] == 46:
+            data["version"] = 47
             # Local builds before 0.3.0-prerelease.2 wrote version 46 without these.
             data.setdefault("pyrolightPrereleases", False)
             data.setdefault("pyrodeckPrereleases", self._follows_prereleases())
+            # The Library action is always shown; the old toggle could hide it.
+            data.pop("enableMoondeckShortcuts", None)
+            data.pop("enableMoondeckButtonPrompt", None)

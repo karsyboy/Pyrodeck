@@ -89,6 +89,12 @@ interface Options {
   subscribe?: (refresh: () => void) => () => void;
 }
 
+// Steam can show a Library page before its fiber names the game, and no
+// observed mutation need follow once it does. A visible page without an
+// identity is rechecked this often, for at most this many checks.
+export const IDENTITY_RECHECK_MS = 100;
+export const IDENTITY_RECHECKS = 30;
+
 /** An owned slot joins Steam's controls without replacing their action nodes. */
 export function observeLibraryMount(options: Options): () => void {
   const { document: doc } = options;
@@ -97,6 +103,8 @@ export function observeLibraryMount(options: Options): () => void {
   let active: LibraryMount | null = null;
   let frame: number | null = null;
   const returnTimers = new Set<number>();
+  let identityTimer: number | null = null;
+  let identityChecks = IDENTITY_RECHECKS;
   let stopNavigation: (() => void) | null = null;
   let navigationParent: Element | null = null;
   let activePanel: Element | null = null;
@@ -171,6 +179,11 @@ export function observeLibraryMount(options: Options): () => void {
     identityRegion = anchor?.closest(selectors[selectors.length - 1])?.parentElement ?? anchor;
     insertionTarget = before;
     const phase = game ? (beforeSelector && !before ? "steam_input_unavailable" : options.navigationRequired && !navigation ? "focus_context_unavailable" : "attached") : candidates ? (fibers ? "page_identity_unavailable" : "fiber_unavailable") : selectors.length ? "waiting_for_page" : "selectors_unavailable";
+    if (phase === "attached" || !candidates) identityChecks = IDENTITY_RECHECKS;
+    else if (identityTimer === null && identityChecks > 0) {
+      identityChecks--;
+      identityTimer = win.setTimeout(() => { identityTimer = null; schedule(); }, IDENTITY_RECHECK_MS);
+    }
     options.status?.(phase, game?.appId ?? null);
     options.diagnostic?.({ phase, appId: game?.appId ?? null, selectors: selectors.length,
       panels, visiblePanels: candidates, fibers, visibility: doc.visibilityState, contexts: contexts.length, navigation });
@@ -216,7 +229,13 @@ export function observeLibraryMount(options: Options): () => void {
   const schedule = (): void => {
     if (frame === null) frame = win.requestAnimationFrame(scan);
   };
+  // A new page gets its own identity rechecks.
+  const navigate = (): void => {
+    identityChecks = IDENTITY_RECHECKS;
+    schedule();
+  };
   const refreshAfterReturn = (): void => {
+    identityChecks = IDENTITY_RECHECKS;
     returnTimers.forEach((timer) => win.clearTimeout(timer));
     returnTimers.clear();
     schedule();
@@ -278,7 +297,7 @@ export function observeLibraryMount(options: Options): () => void {
     if (records.some(relevant)) schedule();
   });
   if (typeof win.ResizeObserver === "function") resizeObserver = new win.ResizeObserver(schedule);
-  win.addEventListener("popstate", schedule);
+  win.addEventListener("popstate", navigate);
   win.addEventListener("focus", refreshAfterReturn);
   doc.addEventListener("visibilitychange", refreshAfterReturn);
   observer.observe(doc.body, {
@@ -294,9 +313,10 @@ export function observeLibraryMount(options: Options): () => void {
   return () => {
     unsubscribe?.();
     returnTimers.forEach((timer) => win.clearTimeout(timer));
+    if (identityTimer !== null) win.clearTimeout(identityTimer);
     resizeObserver?.disconnect();
     observer.disconnect();
-    win.removeEventListener("popstate", schedule);
+    win.removeEventListener("popstate", navigate);
     win.removeEventListener("focus", refreshAfterReturn);
     doc.removeEventListener("visibilitychange", refreshAfterReturn);
     if (frame !== null) win.cancelAnimationFrame(frame);

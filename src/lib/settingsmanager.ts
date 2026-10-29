@@ -101,8 +101,6 @@ export interface UserSettings {
   version: number;
   currentHostId: string | null;
   gameSession: GameSessionSettings;
-  enableMoondeckShortcuts: boolean;
-  enableMoondeckButtonPrompt: boolean;
   hostSettings: { [key: string]: HostSettings };
   runnerDebugLogs: boolean;
   useMoonlightExec: boolean;

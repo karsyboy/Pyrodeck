@@ -343,7 +343,7 @@ export const PyrolightSettings: FC<{ category?: string }> = ({ category }) => {
           <PanelSectionRow>
             <Field
               label="Settings unavailable"
-              description="Check Pyrolight in Updates, or its path in Advanced Tools → Launcher & executables, then retry."
+              description="Check Pyrolight in Updates, or its path in Advanced Tools → Executables, then retry."
             />
           </PanelSectionRow>
         </PanelSection>

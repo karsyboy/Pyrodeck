@@ -39,7 +39,9 @@ const MoonDeckLaunchButton: FC<Props & { anchor: RefObject<HTMLDivElement | null
     let loading = false;
     let retries = 0;
     let retry: ReturnType<typeof setTimeout> | null = null;
-    setCatalog(null);
+    // Offer the last validated catalog at once; the refresh below replaces it.
+    // A launch revalidates its host and game in any case.
+    setCatalog(pyrolightIntegration.cachedCatalog());
     setAlternative(null);
     setError(null);
     // The plugin's own document is not Steam's Library window.

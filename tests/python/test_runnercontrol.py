@@ -117,6 +117,14 @@ class RuntimeFileTest(unittest.TestCase):
         with mock.patch("os.getuid", return_value=os.getuid() + 1):
             self.assertIsNone(read_client_process())
 
+    def test_backend_and_runner_agree_on_the_runtime_directory_at_any_time(self):
+        # Decky starts the backend at boot, before the login session's
+        # /run/user directory exists; the runner starts after it does.
+        with mock.patch("os.lstat", side_effect=FileNotFoundError):
+            at_boot = constants._runtime_dir()
+        self.assertEqual(at_boot, constants._runtime_dir())
+        self.assertEqual(at_boot, f"/tmp/pyrodeck-{os.getuid()}")
+
     def test_the_runtime_directory_must_be_private(self):
         directory = self.directory / "runtime"
         directory.mkdir(mode=0o755)

@@ -158,6 +158,13 @@ describe("native Library stream controls", () => {
     await press("Stream"); expect(data.launch.mock.calls[1][4]).toEqual({ hostId: "host-b", remoteAppId: 42 });
     expect(data.defaultHost).toBe("host-a");
   });
+  it("shows Stream from the last catalog while a slow refresh is still running", async () => {
+    vi.spyOn(pyrolightIntegration, "cachedCatalog").mockReturnValue(catalog);
+    vi.mocked(pyrolightIntegration.catalog).mockReturnValue(new Promise(() => {}));
+    await act(async () => root.render(<MoonDeckLaunchButtonAnchor appId={892970} appName="Valheim" appType={1} />));
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent === "Stream")).toBe(true);
+    expect(pyrolightIntegration.catalog).toHaveBeenCalled();
+  });
   it("hides empty, ambiguous and unavailable games", async () => {
     for (const apps of [[], [{ ...app, sources: ["steam:620"] }], [app, { ...app, id: 43 }], [{ ...app, sources: ["steam:620", "steam:892970"] }]]) {
       vi.mocked(pyrolightIntegration.catalog).mockResolvedValue({ ...catalog, hosts: [{ ...hostA, apps }] });

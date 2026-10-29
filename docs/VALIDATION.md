@@ -307,9 +307,34 @@ are not verified.
 The settings sidebar was regrouped in 0.3.0-prerelease.4: Hosts & Pairing holds
 only host selection and pairing, Pyrolight installs and updates only from
 **Updates**, and the Pyrolight executable path moved to **Advanced Tools →
-Launcher & executables**, which no longer needs a selected host. Component tests
-check the sections of both pages; the layout and controller focus in Game Mode
-are not verified on a device.
+Executables**, which no longer needs a selected host. Component tests check the
+sections of both pages; the layout and controller focus in Game Mode are not
+verified on a device.
+
+In 0.3.0-prerelease.5 the Library action has no off switch. The old
+`enableMoondeckShortcuts` toggle, under Advanced Tools' legacy shortcut
+cleanup, hid it entirely; settings version 47 drops it and the unused
+`enableMoondeckButtonPrompt`. Advanced Tools is one page without a tool
+dropdown, and the legacy PyroDeck shortcut purge is gone.
+
+Stream did nothing after some boots: Decky starts the backend before the login
+session's `/run/user/<uid>` exists (on the Bazzite test device the backend
+created `/tmp/pyrodeck-1000` 130 ms before `/run/user/1000` appeared), so the
+backend used `/tmp` while every Steam-launched runner used `/run/user`. The
+runner never saw the ready flag, exited, and wrote "runner closed prematurely"
+where the backend never looked. Both now always use `/tmp/pyrodeck-<uid>`,
+still verified private by `runtimefiles`; a test pins the path regardless of
+`/run/user`.
+
+The Library action appeared 1-3.6 s late on the device. Steam showed the page
+before its fiber named the game (`page_identity_unavailable`), and the observer
+waited for an unrelated mutation to rescan. A visible page without an identity
+is now rechecked every 100 ms, at most 30 times; attached pages are not polled.
+The button also shows the last validated catalog at once while a newer one
+loads, and a Library route mount starts the catalog request before the action
+attaches. Tests cover the identity recheck (failing without it), its bound, the
+cached catalog and the early request; the timing on the device is not yet
+measured.
 
 ## Required Steam Deck acceptance — not verified
 

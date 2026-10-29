@@ -108,6 +108,7 @@ export class PyrolightIntegration {
   private settingsState = { preferences: this.state.preferences, pending: this.state.pending, busy: this.state.busy };
   private listeners = new Set<() => void>();
   private catalogPromise: Promise<Catalog> | null = null;
+  private lastCatalog: Catalog | null = null;
   private catalogTime = 0;
   private catalogLoading = false;
   private sessionRequest: Promise<void> | null = null;
@@ -256,6 +257,11 @@ export class PyrolightIntegration {
     } catch (error) { this.update({ error: String(error) }); } finally { this.update({ busy: false }); }
   }
 
+  /** The last catalog the backend returned, shown while a newer one loads. */
+  cachedCatalog(): Catalog | null {
+    return this.lastCatalog;
+  }
+
   catalog(refresh = false, preferCached = false): Promise<Catalog> {
     if (this.catalogLoading && this.catalogPromise) return this.catalogPromise;
     // Navigating between Library pages during a stream must not start another
@@ -269,6 +275,7 @@ export class PyrolightIntegration {
       try { request = call<[boolean], Catalog | ApiError>("remote_catalog", refresh); } catch (error) { this.catalogLoading = false; this.catalogPromise = null; return Promise.reject(error instanceof Error ? error : new Error(String(error))); }
       this.catalogPromise = request.then((result) => {
         if (!result.ok) throw new Error(result.error.message);
+        this.lastCatalog = result;
         return result;
       }).catch((error: unknown) => { this.catalogPromise = null; throw error; })
         .finally(() => { this.catalogLoading = false; });

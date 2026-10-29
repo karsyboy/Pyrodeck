@@ -13,7 +13,7 @@ export const pairingStatusDescriptions: Record<PairingStatus, string> = {
   Unreachable: "Pyrolight cannot reach the host. Check that it is on and that Pyroshine is running.",
   WrongHost: "Pyrolight reached a different host at this address. Select the host again.",
   Outdated: "This Pyrolight is too old for PyroDeck. Update Pyrolight.",
-  NotInstalled: "Pyrolight was not found. Install it from Updates, or set its path in Advanced Tools → Launcher & executables.",
+  NotInstalled: "Pyrolight was not found. Install it from Updates, or set its path in Advanced Tools → Executables.",
   Error: "Pyrolight failed. See the backend log in Troubleshooting & Diagnostics."
 };
 

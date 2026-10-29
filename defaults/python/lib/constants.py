@@ -6,23 +6,15 @@ def _runtime_dir() -> str:
     """The user's private PyroDeck directory.
 
     The Decky backend and the Steam-launched runner run as the same user but
-    with different environments, so the path depends only on the user ID:
-    the login session's runtime directory when it exists and is private,
-    otherwise a per-user directory in /tmp. lib.runtimefiles creates it and
-    refuses it unless it is a directory owned by the user.
+    with different environments, so the path depends only on the user ID.
+    It is never the login session's /run/user directory: Decky starts the
+    backend at boot, often before that directory exists, and the two
+    processes would then disagree for the whole boot. lib.runtimefiles
+    creates it and refuses it unless it is a directory owned by the user.
     """
     import os
-    import stat
 
-    uid = os.getuid()
-    session = f"/run/user/{uid}"
-    try:
-        info = os.lstat(session)
-        if stat.S_ISDIR(info.st_mode) and info.st_uid == uid and not info.st_mode & 0o077:
-            return f"{session}/pyrodeck"
-    except OSError:
-        pass
-    return f"/tmp/pyrodeck-{uid}"
+    return f"/tmp/pyrodeck-{os.getuid()}"
 
 
 RUNTIME_DIR = _runtime_dir()

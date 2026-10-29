@@ -11,7 +11,7 @@ vi.mock("@decky/ui", () => ({
   playSectionClasses: { ControllerConfigButton: "steam-input" },
   getReactInstance: (node: any) => node[Object.keys(node).find((key) => key.startsWith("__reactFiber$"))!]
 }));
-vi.mock("../../src/hooks/usecurrentsettings", () => ({ useCurrentSettings: () => ({ enableMoondeckShortcuts: true }) }));
+vi.mock("../../src/hooks/usecurrentsettings", () => ({ useCurrentSettings: () => ({}) }));
 vi.mock("../../src/contexts", async () => {
   const { BehaviorSubject } = await import("rxjs");
   const subject = new BehaviorSubject(null);
@@ -19,6 +19,8 @@ vi.mock("../../src/contexts", async () => {
   return { MoonDeckContext: (await import("react")).createContext({ moonDeckAppLauncher: { moonDeckApp: { asObservable: () => subject.asObservable() } } }) };
 });
 vi.mock("../../src/steam-utils/getAppStoreEx", () => ({ getAppStoreEx: () => null }));
+const catalog = vi.hoisted(() => vi.fn(async () => ({ schema: 1, ok: true, defaultHostId: null, hosts: [] })));
+vi.mock("../../src/lib/pyrolightintegration", () => ({ pyrolightIntegration: { catalog } }));
 vi.mock("../../src/components/moondecklaunchbutton", () => ({ MoonDeckLaunchButtonAnchor: ({ appId, appName }: any) => {
   // Model the native Focusable contract: a node can register only under the
   // exact context supplied by its owning Steam page, even across a DOM portal.
@@ -106,6 +108,8 @@ describe("Decky Library route attachment", () => {
     expect(doc.querySelectorAll("[data-pyrodeck-library-action]")).toHaveLength(1);
     expect(steamIntegrationStatus.getSnapshot().libraryPhase).toBe("attached");
     expect(JSON.parse(steamIntegrationStatus.getSnapshot().libraryDetails!).navigation).toBe(true);
+    // The catalog request starts with the page, not after the action attaches.
+    expect(catalog).toHaveBeenCalled();
     const slot = doc.querySelector("[data-pyrodeck-library-action]")!;
     const input = doc.querySelector("[data-native-input-wrapper]")!;
     expect(slot.parentElement).toBe(doc.querySelector(".steam-app-buttons"));
