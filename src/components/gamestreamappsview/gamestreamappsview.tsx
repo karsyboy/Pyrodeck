@@ -1,9 +1,8 @@
 import { DialogBody, DialogButton, DialogControlsSection, DialogControlsSectionHeader, Field, Navigation } from "@decky/ui";
-import { ExternalAppsPurgeButton, ExternalAppsSyncButton, LabelWithIcon, ToggleField } from "../shared";
+import { ExternalAppsPurgeButton, ExternalAppsSyncButton, NoHostSelectedField, ToggleField } from "../shared";
 import { FC, ReactNode, useContext } from "react";
 import { useCurrentHostSettings, useCurrentSettings, useGameStreamAppShortcuts } from "../../hooks";
 import { AppType } from "../../lib";
-import { HostOff } from "../icons";
 import { MoonDeckContext } from "../../contexts";
 
 export const GameStreamAppsView: FC = () => {
@@ -17,11 +16,7 @@ export const GameStreamAppsView: FC = () => {
     syncButton =
       <DialogControlsSection>
         <DialogControlsSectionHeader>Sync with the host</DialogControlsSectionHeader>
-        <Field
-          label={<LabelWithIcon icon={HostOff} label="HOST IS NOT SELECTED" />}
-          description="Go to host selection page to select host"
-          bottomSeparator="none"
-        />
+        <NoHostSelectedField />
       </DialogControlsSection>;
   } else {
     syncButton =

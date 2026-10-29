@@ -232,8 +232,13 @@ and fake-host tests do not establish these hardware behaviors.
 Quick Access uses full-width native Steam dialog buttons with native focus
 styling. Profiles, video, audio, input, connection, advanced settings and VRR
 tuning share categories with the full settings sidebar. Profile editing and
-remote-game filters expand only when requested. Legacy shortcut and launcher
-tools live under Advanced Tools.
+remote-game filters expand only when requested. The sidebar groups play
+(Remote Games, Session), the host (Hosts & Pairing, Host Details, Wake on LAN),
+Pyrolight's stream settings, and PyroDeck itself (Updates, Advanced Tools,
+Troubleshooting & Diagnostics, Setup & Help). Hosts & Pairing holds only host
+selection and pairing; Pyrolight is installed and updated from Updates, and its
+executable path, launcher timeouts and legacy shortcut tools live under Advanced
+Tools.
 
 Quick Access subpages handle the native controller cancel event through a
 `Focusable` around their content. Bubbling Back returns to PyroDeck's main menu

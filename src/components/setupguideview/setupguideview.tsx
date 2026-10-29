@@ -26,18 +26,18 @@ export const SetupGuideView: FC = () => {
         </Field>
         <Field
           label="Step 2 - Install Pyrolight on the Steam Deck"
-          description="On &quot;Host Selection&quot;, press Install under Pyrolight App. PyroDeck downloads the latest AppImage into ~/Applications and updates it from there. An AppImage you download yourself into ~/Applications works too."
+          description="On &quot;Updates&quot;, press Install under Pyrolight. PyroDeck downloads the latest AppImage into ~/Applications and updates it from there. An AppImage you download yourself into ~/Applications works too."
         >
           <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(pyrolightLink); }}>Open</DialogButton>
         </Field>
         <Field
           label="Step 3 - Select the host"
-          description="On the left, open &quot;Host Selection&quot;, scan the network (or add the host by address) and select it."
+          description="On the left, open &quot;Hosts &amp; Pairing&quot;, scan the network (or add the host by address) and select it."
           focusable={true}
         />
         <Field
           label="Step 4 - Pair Pyrolight"
-          description="On &quot;Host Selection&quot;, press Pair. Pyrolight shows a PIN: approve it on the host in Pyroshine's web interface or with `pyroshine pair`. Press Check to confirm the pairing."
+          description="On &quot;Hosts &amp; Pairing&quot;, press Pair. Pyrolight shows a PIN: approve it on the host in Pyroshine's web interface or with `pyroshine pair`. Press Check to confirm the pairing."
           focusable={true}
         />
         <Field

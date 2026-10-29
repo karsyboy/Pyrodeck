@@ -1,7 +1,7 @@
 import { DialogBody, DialogButton, DialogControlsSection, DialogControlsSectionHeader, Field } from "@decky/ui";
 import { FC, useContext } from "react";
 import { MoonDeckContext } from "../../contexts";
-import { PyrolightInstallSection } from "../hostselectionview/pyrolightinstallsection";
+import { PyrolightInstallSection } from "./pyrolightinstallsection";
 import { ToggleField } from "../shared";
 import { UpdateState } from "../../lib/pyrodeckupdate";
 import { UserSettings } from "../../lib";

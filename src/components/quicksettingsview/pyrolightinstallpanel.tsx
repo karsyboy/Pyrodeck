@@ -3,9 +3,9 @@ import { isInstalling, progressText } from "../../lib/pyrolightinstall";
 import { ActionButton } from "../shared/actionbutton";
 import { FC } from "react";
 import { UserSettings } from "../../lib";
-import { usePyrolightInstallControls } from "../hostselectionview/pyrolightinstallsection";
+import { usePyrolightInstallControls } from "../updatesview/pyrolightinstallsection";
 
-/** Offers the install only while no Pyrolight is found; updates live in Host Selection. */
+/** Offers the install only while no Pyrolight is found; updates live in Updates. */
 export const PyrolightInstallPanel: FC<{ settings: UserSettings | null }> = ({ settings }) => {
   const { state, mode, prerelease, action, install } = usePyrolightInstallControls(settings);
   const installing = isInstalling(state.status);

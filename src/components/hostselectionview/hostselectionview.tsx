@@ -7,9 +7,7 @@ import { HostForgetButton } from "./hostforgetbutton";
 import { HostScanButton } from "./hostscanbutton";
 import { HostSelectionDropdown } from "./hostselectiondropdown";
 import { MoonDeckContext } from "../../contexts";
-import { PyrolightExecutableSelection } from "./pyrolightexecutableselection";
-import { PyrolightInstallSection } from "./pyrolightinstallsection";
-import { PyrolightSection } from "./pyrolightsection";
+import { PairingSection } from "./pairingsection";
 
 export const HostSelectionView: FC = () => {
   const { settingsManager } = useContext(MoonDeckContext);
@@ -25,7 +23,7 @@ export const HostSelectionView: FC = () => {
   return (
     <DialogBody>
       <DialogControlsSection>
-        <DialogControlsSectionHeader>Pyroshine Host</DialogControlsSectionHeader>
+        <DialogControlsSectionHeader>Host</DialogControlsSectionHeader>
         <ServerStatusField label="Status" status={serverStatus} isRefreshing={serverRefreshStatus} />
         <Field
           label="Default host"
@@ -74,10 +72,8 @@ export const HostSelectionView: FC = () => {
           />
         </Field>
       </DialogControlsSection>
-      <DialogControlsSection><PyrolightExecutableSelection /></DialogControlsSection>
-      <PyrolightInstallSection settings={settings} />
       {hostSettings &&
-        <PyrolightSection
+        <PairingSection
           hostSettings={hostSettings}
           pyrolightExecPath={settings.useMoonlightExec ? settings.moonlightExecPath : null}
           serverStatus={serverStatus}

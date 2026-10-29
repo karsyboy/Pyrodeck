@@ -39,8 +39,8 @@ Mode is still in progress; see the [validation report](docs/VALIDATION.md).
 
 PyroDeck can install Pyrolight for you once PyroDeck itself is installed
 ([step 2](#2-install-pyrodeck)): while no Pyrolight is found, Quick Access shows
-**Install Pyrolight**. The same action is under **Hosts & Pairing → Pyrolight
-App**, which also shows **Update** when a newer release is out. Turn on
+**Install Pyrolight**. The same action is under **Updates → Pyrolight**, which
+also shows **Update** when a newer release is out. Turn on
 **Include prereleases** there to install and update to prereleases as well.
 
 PyroDeck downloads the latest `pyrolight-*-linux-x86_64.AppImage` from the
@@ -64,8 +64,8 @@ To install it by hand instead:
 
 PyroDeck finds `pyrolight` on `PATH`, or the newest Pyrolight AppImage in
 `~/Applications`, `~/AppImages`, `~/Downloads` or your home folder. To use a
-different file, set it in **Hosts & Pairing → Use a specific Pyrolight
-executable**.
+different file, set it in **Advanced Tools → Launcher & executables → Use a
+specific Pyrolight executable**.
 
 ### 2. Install PyroDeck
 
@@ -88,6 +88,17 @@ SHA-256 checksum, replaces PyroDeck and reloads it. Turn on **Include
 prereleases** there to update to prereleases as well. The same page installs
 and updates Pyrolight.
 
+## Settings
+
+PyroDeck's settings sidebar is grouped as follows:
+
+| Group | Pages |
+|---|---|
+| Play | **Remote Games**, **Session** |
+| Host | **Hosts & Pairing** (find, add, select and pair hosts), **Host Details**, **Wake on LAN** |
+| Streaming | Pyrolight's stream settings: **Profiles**, **Video & Display**, **Audio**, **Controller & Input**, **Connection**, **Advanced**, **VRR Tuning** |
+| PyroDeck | **Updates** (PyroDeck and Pyrolight), **Advanced Tools** (executables, launcher timeouts, session behavior, shortcut tools), **Troubleshooting & Diagnostics**, **Setup & Help** |
+
 ## Quick start
 
 ### 1. Add the host
@@ -104,7 +115,7 @@ app IDs.
 
 ### 2. Pair
 
-On **Hosts & Pairing**, under **Pyrolight**:
+On **Hosts & Pairing**, under **Pairing**:
 
 1. Select **Pair**. Pyrolight opens and shows a four-digit PIN.
 2. On the host, enter that PIN in Pyroshine's web interface under **Clients**,
@@ -175,10 +186,10 @@ restarts or shuts down the host.
 
 | Message | What to do |
 | --- | --- |
-| Pyrolight was not found | Select **Install Pyrolight** in Quick Access, install it as in [Install Pyrolight](#1-install-pyrolight), or set its path in **Hosts & Pairing**. |
+| Pyrolight was not found | Select **Install Pyrolight** in Quick Access, install it as in [Install Pyrolight](#1-install-pyrolight), or set its path in **Advanced Tools → Launcher & executables**. |
 | Installing Pyrolight failed | Check the Deck's internet connection and retry. A failed or interrupted download keeps the installed AppImage. Disconnect the stream before updating. |
 | This Pyrolight is too old for PyroDeck | Update Pyrolight. |
-| Pyrolight crashed while initializing a display / missing `eglfs` plugin | Update Pyrolight. If you set a custom path in **Hosts & Pairing**, select the new file, then refresh **Remote Games**. |
+| Pyrolight crashed while initializing a display / missing `eglfs` plugin | Update Pyrolight. If you set a custom path in **Advanced Tools → Launcher & executables**, select the new file, then refresh **Remote Games**. |
 | Pyrolight is not paired with this host | [Pair](#2-pair) again. |
 | The host is not responding / Pyrolight cannot reach the host | Check that the host is on and Pyroshine is running, and check the address in **Host Details**. Set the host's MAC address to use Wake-on-LAN. |
 | This host does not report Steam app IDs | Update Pyroshine on the host. |

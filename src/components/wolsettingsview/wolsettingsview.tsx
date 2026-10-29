@@ -1,7 +1,6 @@
 import { DialogBody, DialogControlsSection, DialogControlsSectionHeader, Field } from "@decky/ui";
 import { FC, useContext } from "react";
-import { LabelWithIcon, NumericTextInput } from "../shared";
-import { HostOff } from "../icons";
+import { NoHostSelectedView, NumericTextInput } from "../shared";
 import { MoonDeckContext } from "../../contexts";
 import { WOLExecutableSelection } from "./wolexecutableselection";
 import { useCurrentHostSettings } from "../../hooks";
@@ -11,17 +10,7 @@ export const WOLSettingsView: FC = () => {
   const hostSettings = useCurrentHostSettings();
 
   if (hostSettings === null) {
-    return (
-      <DialogBody>
-        <DialogControlsSection>
-          <Field
-            label={<LabelWithIcon icon={HostOff} label="HOST IS NOT SELECTED" />}
-            description="Go to host selection page to select host"
-            bottomSeparator="none"
-          />
-        </DialogControlsSection>
-      </DialogBody>
-    );
+    return <NoHostSelectedView />;
   }
 
   return (

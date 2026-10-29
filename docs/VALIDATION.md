@@ -304,6 +304,13 @@ against the live releases, and the frontend tests check the exact Decky
 `utilities/install_plugin` call. Decky's prompt, install and reload on a device
 are not verified.
 
+The settings sidebar was regrouped in 0.3.0-prerelease.4: Hosts & Pairing holds
+only host selection and pairing, Pyrolight installs and updates only from
+**Updates**, and the Pyrolight executable path moved to **Advanced Tools →
+Launcher & executables**, which no longer needs a selected host. Component tests
+check the sections of both pages; the layout and controller focus in Game Mode
+are not verified on a device.
+
 ## Required Steam Deck acceptance — not verified
 
 In each Quick Access subpage (Remote Games, Session, Diagnostics and every
@@ -371,8 +378,9 @@ and handheld/docked display configuration.
    of its page and open it again: Stream (or Resume Stream) must be there within
    a few seconds. Run End Remote Game and check its window closes by itself.
 9. With no Pyrolight, install from Quick Access; then, with **Include
-   prereleases** on and off, check **Update** and **Up to date** in Hosts &
-   Pairing, and that pairing finds the new AppImage without a reload.
+   prereleases** on and off, check **Update** and **Up to date** in
+   **Updates**, and that pairing in Hosts & Pairing finds the new AppImage
+   without a reload.
 10. Install an older PyroDeck release, then update from Quick Access and from
     **Updates**, with **Include prereleases** off and on. Check Decky's
     confirmation, cancel once, then confirm; PyroDeck must reload with the new

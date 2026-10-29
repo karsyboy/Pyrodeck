@@ -5,7 +5,7 @@ vi.mock("@decky/ui", () => ({}));
 vi.mock("../../src/contexts", () => ({ MoonDeckContext: null }));
 vi.mock("../../src/hooks/usepyrolightinstall", () => ({ usePyrolightInstall: vi.fn() }));
 import { InstallState, InstallStatus, PyrolightInstallStore, installMode, progressText } from "../../src/lib/pyrolightinstall";
-import { installAction } from "../../src/components/hostselectionview/pyrolightinstallsection";
+import { installAction } from "../../src/components/updatesview/pyrolightinstallsection";
 
 const managed = { path: "/home/deck/Applications/Pyrolight.AppImage", tag: "v6.2.7", prerelease: false, installedAt: 1 };
 const status = (values: Partial<InstallStatus> = {}): InstallStatus => ({

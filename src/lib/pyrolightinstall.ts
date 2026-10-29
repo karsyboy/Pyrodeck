@@ -58,7 +58,7 @@ const POLL_INTERVAL = 500;
 // GitHub allows 60 anonymous API requests an hour per address.
 export const RELEASE_CHECK_TTL = 600000;
 
-/** One installation view shared by Quick Access and Host Selection. */
+/** One installation view shared by Quick Access, Updates and pairing. */
 export class PyrolightInstallStore {
   private state: InstallState = { status: null, release: null, releaseChannel: null, updateAvailable: false, checking: false, error: null };
   private listeners = new Set<() => void>();

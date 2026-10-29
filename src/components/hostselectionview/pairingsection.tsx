@@ -32,12 +32,13 @@ const PairModal: FC<{ closeModal?: () => void; onConfirm: () => void }> = ({ clo
 // Pyrolight owns pairing: PyroDeck starts Pyrolight's own pairing screen and
 // checks the result with a headless app-list request. It never reads or
 // copies Pyrolight's credentials.
-export const PyrolightSection: FC<Props> = ({ hostSettings, pyrolightExecPath, serverStatus, disabled }) => {
+export const PairingSection: FC<Props> = ({ hostSettings, pyrolightExecPath, serverStatus, disabled }) => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
-  // Shared with the install section, so an install or update shows here at once.
+  // Shared with Updates, so an install there enables pairing here at once.
   const installation = usePyrolightInstall(pyrolightExecPath).status;
   const executable = installation ? installation.executable : undefined;
-  const [status, setStatus] = useState<PairingStatus>("Unknown");
+  const [checked, setStatus] = useState<PairingStatus>("Unknown");
+  const status: PairingStatus = executable === null ? "NotInstalled" : checked;
 
   useEffect(() => { setStatus("Unknown"); }, [hostSettings.currentHostId]);
 
@@ -54,10 +55,7 @@ export const PyrolightSection: FC<Props> = ({ hostSettings, pyrolightExecPath, s
 
   return (
     <DialogControlsSection>
-      <DialogControlsSectionHeader>Pyrolight</DialogControlsSectionHeader>
-      <Field label="Executable" focusable={true} description={executable === null ? pairingStatusDescriptions.NotInstalled : undefined}>
-        {executable === undefined ? "Looking..." : (executable ?? "Not found")}
-      </Field>
+      <DialogControlsSectionHeader>Pairing</DialogControlsSectionHeader>
       <StatusField label="Pairing" icon={GameSteamMain} status={status} isRefreshing={status === "Checking"} />
       <Field description={pairingStatusDescriptions[status]} bottomSeparator="none" />
       <Field label="Check pairing" childrenContainerWidth="fixed">

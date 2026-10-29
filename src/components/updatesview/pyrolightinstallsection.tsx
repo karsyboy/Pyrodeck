@@ -10,7 +10,7 @@ const modeDescriptions: Record<InstallMode, string> = {
   missing: "Pyrolight was not found. Install the latest AppImage into ~/Applications.",
   managed: "Installed and updated by PyroDeck.",
   package: "Installed by the system's package manager. Update it there.",
-  selected: "PyroDeck uses the executable selected above. Turn that off to use an AppImage PyroDeck installs.",
+  selected: "PyroDeck uses the executable set in Advanced Tools → Launcher & executables. Turn that off to use an AppImage PyroDeck installs.",
   appimage: "An AppImage you added. Installing the latest release adds ~/Applications/Pyrolight.AppImage, which PyroDeck then uses."
 };
 
@@ -44,7 +44,7 @@ export const PyrolightInstallSection: FC<{ settings: UserSettings }> = ({ settin
   const feedback = state.error ?? (progress && progress.state !== "idle" ? progressText(progress) : null);
   return (
     <DialogControlsSection>
-      <DialogControlsSectionHeader>Pyrolight App</DialogControlsSectionHeader>
+      <DialogControlsSectionHeader>Pyrolight</DialogControlsSectionHeader>
       <Field label="Installed" focusable={true} description={mode ? modeDescriptions[mode] : undefined}>
         {!state.status ? "Looking..." : state.status.installed && mode === "managed" ? state.status.installed.tag : (state.status.executable ?? "Not found")}
       </Field>

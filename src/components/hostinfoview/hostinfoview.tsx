@@ -1,25 +1,14 @@
 import { DialogBody, DialogControlsSection, Field } from "@decky/ui";
 import { useCurrentHostSettings, useHostInfo } from "../../hooks";
 import { FC } from "react";
-import { HostOff } from "../icons";
-import { LabelWithIcon } from "../shared";
+import { NoHostSelectedView } from "../shared";
 import { hostGameStateLabels } from "../../lib";
 
 export const HostInfoView: FC = () => {
   const hostSettings = useCurrentHostSettings();
   const hostInfo = useHostInfo();
   if (hostSettings === null) {
-    return (
-      <DialogBody>
-        <DialogControlsSection>
-          <Field
-            label={<LabelWithIcon icon={HostOff} label="HOST IS NOT SELECTED" />}
-            description="Go to host selection page to select host"
-            bottomSeparator="none"
-          />
-        </DialogControlsSection>
-      </DialogBody>
-    );
+    return <NoHostSelectedView />;
   }
 
   return (

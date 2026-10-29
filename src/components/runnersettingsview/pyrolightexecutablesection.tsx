@@ -6,7 +6,7 @@ import { MoonDeckContext } from "../../contexts";
 import { logger } from "../../lib";
 import { useCurrentSettings } from "../../hooks";
 
-export const PyrolightExecutableSelection: FC = () => {
+export const PyrolightExecutableSection: FC = () => {
   const { settingsManager } = useContext(MoonDeckContext);
   const userSettings = useCurrentSettings();
   if (userSettings === null) {

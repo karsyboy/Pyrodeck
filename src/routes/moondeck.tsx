@@ -26,7 +26,7 @@ const AdvancedTools: FC = () => {
           layout="below"
           selectedOption={tool}
           rgOptions={[
-            { data: "runner", label: "Launcher options" },
+            { data: "runner", label: "Launcher & executables" },
             { data: "session", label: "Session behavior" },
             { data: "cleanup", label: "Legacy shortcut cleanup" },
             { data: "shortcuts", label: "Optional host shortcut sync" }
@@ -67,12 +67,6 @@ const MoonDeckRouter: FC<object> = () => (
         visible: true
       },
       {
-        title: "Hosts & Pairing",
-        content: <HostSelectionView />,
-        route: "/pyrodeck/host-selection",
-        visible: true
-      },
-      {
         title: "Session",
         content: (
           <DialogBody>
@@ -80,6 +74,25 @@ const MoonDeckRouter: FC<object> = () => (
           </DialogBody>
         ),
         route: "/pyrodeck/session",
+        visible: true
+      },
+      "separator",
+      {
+        title: "Hosts & Pairing",
+        content: <HostSelectionView />,
+        route: "/pyrodeck/host-selection",
+        visible: true
+      },
+      {
+        title: "Host Details",
+        content: <HostInfoView />,
+        route: "/pyrodeck/host-info",
+        visible: true
+      },
+      {
+        title: "Wake on LAN",
+        content: <WOLSettingsView />,
+        route: "/pyrodeck/wol-settings",
         visible: true
       },
       "separator",
@@ -98,7 +111,6 @@ const MoonDeckRouter: FC<object> = () => (
         visible: true
       })),
       "separator",
-      { title: "Troubleshooting & Diagnostics", content: <DialogBody><Diagnostics /></DialogBody>, route: "/pyrodeck/diagnostics", visible: true },
       {
         title: "Updates",
         content: <UpdatesView />,
@@ -106,27 +118,16 @@ const MoonDeckRouter: FC<object> = () => (
         visible: true
       },
       {
-        title: "Setup & Help",
-        content: <SetupGuideView />,
-        route: "/pyrodeck/setup-guide",
-        visible: true
-      },
-      {
-        title: "Host Details",
-        content: <HostInfoView />,
-        route: "/pyrodeck/host-info",
-        visible: true
-      },
-      {
-        title: "Wake on LAN",
-        content: <WOLSettingsView />,
-        route: "/pyrodeck/wol-settings",
-        visible: true
-      },
-      {
         title: "Advanced Tools",
         content: <AdvancedTools />,
         route: "/pyrodeck/advanced-tools",
+        visible: true
+      },
+      { title: "Troubleshooting & Diagnostics", content: <DialogBody><Diagnostics /></DialogBody>, route: "/pyrodeck/diagnostics", visible: true },
+      {
+        title: "Setup & Help",
+        content: <SetupGuideView />,
+        route: "/pyrodeck/setup-guide",
         visible: true
       }
     ]}

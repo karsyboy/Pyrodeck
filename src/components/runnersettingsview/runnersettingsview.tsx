@@ -1,47 +1,58 @@
+import { CurrentHostSettings, useCurrentHostSettings, useCurrentSettings } from "../../hooks";
 import { DialogBody, DialogControlsSection, DialogControlsSectionHeader, Field } from "@decky/ui";
 import { FC, useContext } from "react";
-import { LabelWithIcon, NumericTextInput, ToggleField } from "../shared";
+import { NoHostSelectedField, NumericTextInput, SettingsLoadingField, ToggleField } from "../shared";
 import { servicePingDefault, steamLaunchDefault, wakeOnLanDefault } from "../../lib";
-import { useCurrentHostSettings, useCurrentSettings } from "../../hooks";
 import { AppResolutionOverrideSection } from "../moonlightsettingsview/appresolutionoverride/appresolutionoverridesection";
-import { HostOff } from "../icons";
 import { MoonDeckContext } from "../../contexts";
+import { PyrolightExecutableSection } from "./pyrolightexecutablesection";
 import { PythonExecutableSection } from "./pythonexecutablesection";
 
 export const RunnerSettingsView: FC = () => {
   const { settingsManager } = useContext(MoonDeckContext);
   const userSettings = useCurrentSettings();
   const hostSettings = useCurrentHostSettings();
-  if (userSettings === null || hostSettings === null) {
-    return (
-      <DialogBody>
-        <DialogControlsSection>
-          <Field
-            label={<LabelWithIcon icon={HostOff} label="HOST IS NOT SELECTED" />}
-            description="Go to host selection page to select host"
-            bottomSeparator="none"
-          />
-        </DialogControlsSection>
-      </DialogBody>
-    );
+  if (userSettings === null) {
+    return <SettingsLoadingField />;
   }
 
   return (
     <DialogBody>
       <DialogControlsSection>
-        <DialogControlsSectionHeader>General</DialogControlsSectionHeader>
+        <DialogControlsSectionHeader>Executables</DialogControlsSectionHeader>
+        <PyrolightExecutableSection />
+        <PythonExecutableSection />
+      </DialogControlsSection>
+      <DialogControlsSection>
+        <DialogControlsSectionHeader>Logging</DialogControlsSectionHeader>
         <ToggleField
           label="Debug logs"
+          description="Write detailed launcher logs, for troubleshooting."
           value={userSettings.runnerDebugLogs}
           setValue={(value) => settingsManager.update((userSettings) => { userSettings.runnerDebugLogs = value; })}
         />
-        <PythonExecutableSection />
       </DialogControlsSection>
+      {hostSettings === null ?
+          (
+            <DialogControlsSection>
+              <DialogControlsSectionHeader>Host</DialogControlsSectionHeader>
+              <NoHostSelectedField />
+            </DialogControlsSection>
+          ) :
+          <RunnerHostSettings hostSettings={hostSettings} />}
+    </DialogBody>
+  );
+};
+
+const RunnerHostSettings: FC<{ hostSettings: CurrentHostSettings }> = ({ hostSettings }) => {
+  const { settingsManager } = useContext(MoonDeckContext);
+  return (
+    <>
       <AppResolutionOverrideSection hostSettings={hostSettings} />
       <DialogControlsSection>
         <DialogControlsSectionHeader>Timeouts</DialogControlsSectionHeader>
         <Field
-          description="Warning! Changing anything here to anything than the default values could easily break the runner!"
+          description="Changing these from their defaults can break launching."
           focusable={true}
         />
         <Field
@@ -78,6 +89,6 @@ export const RunnerSettingsView: FC = () => {
           />
         </Field>
       </DialogControlsSection>
-    </DialogBody>
+    </>
   );
 };
