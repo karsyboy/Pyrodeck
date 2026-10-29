@@ -99,10 +99,17 @@ class UserSettings(TypedDict):
 
 
 class UserSettingsManager(SettingsManager[UserSettings]):
-    def __init__(self, filepath, seed_filepath=None):
-        """`seed_filepath`: MoonDeck settings to start from when PyroDeck has none (read only)."""
+    def __init__(self, filepath, seed_filepath=None, installed_version=None):
+        """`seed_filepath`: MoonDeck settings to start from when PyroDeck has none (read only).
+
+        `installed_version`: PyroDeck's version; a prerelease follows prereleases by default.
+        """
         super().__init__(filepath)
         self.seed_filepath = seed_filepath
+        self.installed_version = installed_version
+
+    def _follows_prereleases(self) -> bool:
+        return "-" in (self.installed_version or "")
 
     def _default_settings(self):
         return UserSettings({
@@ -120,7 +127,7 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             "useMoonlightExec": False,
             "moonlightExecPath": "",
             "pyrolightPrereleases": False,
-            "pyrodeckPrereleases": False,
+            "pyrodeckPrereleases": self._follows_prereleases(),
             "pythonExecPath": ""
         })
 
@@ -402,4 +409,8 @@ class UserSettingsManager(SettingsManager[UserSettings]):
         if data["version"] == 45:
             data["version"] = 46
             data["pyrolightPrereleases"] = False
-            data["pyrodeckPrereleases"] = False
+            data["pyrodeckPrereleases"] = self._follows_prereleases()
+        if data["version"] == 46:
+            # Local builds before 0.3.0-prerelease.2 wrote version 46 without these.
+            data.setdefault("pyrolightPrereleases", False)
+            data.setdefault("pyrodeckPrereleases", self._follows_prereleases())

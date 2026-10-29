@@ -121,3 +121,26 @@ class NativeButtonMigrationTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(migrated["enableMoondeckShortcuts"])
             self.assertNotIn("buttonPosition", migrated)
             self.assertNotIn("buttonStyle", migrated)
+
+
+class PrereleaseSettingsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_v46_written_without_prerelease_keys_is_repaired(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "settings.json"
+            old = UserSettingsManager(path)._default_settings()
+            old.update(pyrolightPrereleases=True)
+            del old["pyrodeckPrereleases"]
+            path.write_text(json.dumps(old))
+            settings = await UserSettingsManager(path, installed_version="0.3.0-prerelease.2").read_or_update()
+            self.assertEqual((settings["version"], settings["pyrolightPrereleases"], settings["pyrodeckPrereleases"]),
+                             (46, True, True))
+            self.assertTrue(json.loads(path.read_text())["pyrodeckPrereleases"])
+
+    async def test_pyrodeck_prereleases_follow_the_installed_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for version, expected in (("0.3.0-prerelease.2", True), ("0.3.0", False), (None, False)):
+                with self.subTest(version=version):
+                    path = pathlib.Path(directory) / f"{version}.json"
+                    settings = await UserSettingsManager(path, installed_version=version).read_or_update()
+                    self.assertIs(settings["pyrodeckPrereleases"], expected)
+                    self.assertFalse(settings["pyrolightPrereleases"])

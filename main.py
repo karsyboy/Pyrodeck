@@ -36,10 +36,6 @@ set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=Tru
 frontend_logger = get_logger("frontend")
 set_logger_settings(frontend_logger, constants.FRONTEND_LOG_FILE, rotate=True, log_preamble="", verbose=True)
 
-settings_manager = UserSettingsManager(constants.get_config_file_path(), constants.get_moondeck_config_file_path())
-integration = Integration()
-pyrolight_installer = PyrolightInstaller()
-
 
 def plugin_version() -> str:
     """PyroDeck's version, as Decky shows it."""
@@ -48,6 +44,12 @@ def plugin_version() -> str:
         return json.loads(pathlib.Path(__file__).with_name("package.json").read_text()).get("version", "unknown")
     except (OSError, ValueError):
         return "unknown"
+
+
+settings_manager = UserSettingsManager(constants.get_config_file_path(), constants.get_moondeck_config_file_path(),
+                                       plugin_version())
+integration = Integration()
+pyrolight_installer = PyrolightInstaller()
 
 
 class Plugin:
