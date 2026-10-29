@@ -188,6 +188,23 @@ v6.2.8`). Drafts are ignored.
 | Record | `~/.config/pyrodeck/pyrolight-install.json` (path, tag, channel, digest); it applies only while that file exists |
 | Progress | `pyrolight_install_status` reports the executable PyroDeck would use, the managed install and `checking`, `downloading`, `verifying`, `installed` or `failed` |
 
+## PyroDeck updates
+
+`lib/pyrodeckupdate.py` chooses the newest
+[PyroDeck release](https://github.com/karsyboy/pyrodeck/releases) with a
+`pyrodeck-<tag>.zip` asset on the channel set by `pyrodeckPrereleases`, with the
+same channel and version rules as Pyrolight (`lib/githubreleases.py`). A
+release without a SHA-256 (asset digest or `SHA256SUMS`) is not offered.
+
+PyroDeck does not replace its own files. The frontend passes the ZIP's URL,
+the plugin name, the version without `v`, the SHA-256 and install type 2
+(update) to Decky Loader's `utilities/install_plugin` route. Decky shows its
+install confirmation, downloads the ZIP, refuses it on a checksum mismatch,
+uninstalls the running PyroDeck, unpacks the new one and reloads it. Updates are
+offered only for a newer version; a stable channel never offers a prerelease
+over its release. Checks are cached for 10 min per channel; Quick Access checks
+only while it is visible.
+
 Executable discovery is unchanged; the managed AppImage is found like any
 AppImage in `~/Applications`. PyroDeck offers Install when nothing is found,
 Update for its own AppImage when the selected channel has a newer release, and

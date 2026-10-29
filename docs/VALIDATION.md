@@ -298,6 +298,12 @@ Python's CA store on SteamOS, the Hosts & Pairing and Quick Access layout and
 controller focus in Game Mode, and the Library return and End Remote Game
 sequence on a Steam Deck with a real host.
 
+PyroDeck's self-update is tested against a loopback release server (channel,
+version order, checksum from the digest or `SHA256SUMS`, no checksum) and
+against the live releases, and the frontend tests check the exact Decky
+`utilities/install_plugin` call. Decky's prompt, install and reload on a device
+are not verified.
+
 ## Required Steam Deck acceptance — not verified
 
 In each Quick Access subpage (Remote Games, Session, Diagnostics and every
@@ -367,6 +373,10 @@ and handheld/docked display configuration.
 9. With no Pyrolight, install from Quick Access; then, with **Include
    prereleases** on and off, check **Update** and **Up to date** in Hosts &
    Pairing, and that pairing finds the new AppImage without a reload.
+10. Install an older PyroDeck release, then update from Quick Access and from
+    **Updates**, with **Include prereleases** off and on. Check Decky's
+    confirmation, cancel once, then confirm; PyroDeck must reload with the new
+    version and keep its settings.
 
 For a persistent spinner, collect **Troubleshooting & Diagnostics** and all four
 log tails immediately. Correlate the helper's Steam launch action/lifetime,

@@ -79,6 +79,15 @@ Install Plugin from ZIP**.
 - On first start, PyroDeck copies the hosts and stream preferences of an
   installed MoonDeck. MoonDeck's own files are left unchanged.
 
+### Updates
+
+PyroDeck updates itself: Quick Access shows **Update PyroDeck** when a newer
+release is out, and **Updates** in PyroDeck's settings shows the installed and
+latest versions. Decky Loader asks you to confirm, checks the release ZIP's
+SHA-256 checksum, replaces PyroDeck and reloads it. Turn on **Include
+prereleases** there to update to prereleases as well. The same page installs
+and updates Pyrolight.
+
 ## Quick start
 
 ### 1. Add the host
