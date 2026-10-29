@@ -108,6 +108,7 @@ export interface UserSettings {
   useMoonlightExec: boolean;
   moonlightExecPath: string;
   pyrolightPrereleases: boolean;
+  pyrodeckPrereleases: boolean;
   pythonExecPath: string;
 }
 

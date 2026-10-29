@@ -93,6 +93,8 @@ class UserSettings(TypedDict):
     moonlightExecPath: str
     # Install and update Pyrolight from prereleases too.
     pyrolightPrereleases: bool
+    # Update PyroDeck itself to prereleases too.
+    pyrodeckPrereleases: bool
     pythonExecPath: str
 
 
@@ -118,6 +120,7 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             "useMoonlightExec": False,
             "moonlightExecPath": "",
             "pyrolightPrereleases": False,
+            "pyrodeckPrereleases": False,
             "pythonExecPath": ""
         })
 
@@ -399,3 +402,4 @@ class UserSettingsManager(SettingsManager[UserSettings]):
         if data["version"] == 45:
             data["version"] = 46
             data["pyrolightPrereleases"] = False
+            data["pyrodeckPrereleases"] = False

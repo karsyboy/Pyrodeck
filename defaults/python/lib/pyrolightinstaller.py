@@ -14,20 +14,17 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from . import constants
+from . import constants, githubreleases
+from .githubreleases import ReleaseError as InstallerError, is_newer, version_key  # noqa: F401
 from .logger import logger
 
 REPOSITORY = "karsyboy/pyrolight"
-RELEASES_URL = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=30"
+RELEASES_URL = githubreleases.releases_url(REPOSITORY)
 ASSET_PATTERN = re.compile(r"^pyrolight-v?(?P<version>[0-9][0-9A-Za-z.\-]*)-linux-x86_64\.AppImage$")
 INSTALL_NAME = "Pyrolight.AppImage"
 CHUNK_SIZE = 1 << 16
 # An AppImage is an ELF executable with "AI" and its type at offset 8.
 APPIMAGE_MAGIC = (b"\x7fELF", b"AI\x02")
-
-
-class InstallerError(Exception):
-    pass
 
 
 def install_path() -> Path:
@@ -38,21 +35,9 @@ def state_path() -> Path:
     return constants.get_config_file_path().with_name("pyrolight-install.json")
 
 
-def version_key(tag: str) -> tuple:
-    """Order release tags: v6.2.8-prerelease < v6.2.8-prerelease.2 < v6.2.8 < v6.2.9."""
-    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:-prerelease(?:\.(\d+))?)?", tag)
-    if not match:
-        return ()
-    major, minor, patch, build, pre = match.groups()
-    prerelease = "-prerelease" in tag
-    return (int(major), int(minor), int(patch), int(build or 0), 0 if prerelease else 1, int(pre or 0))
-
-
-def is_newer(candidate: str, installed: Optional[str]) -> bool:
-    if not installed:
-        return True
-    new, old = version_key(candidate), version_key(installed)
-    return bool(new and old) and new > old or (not old and candidate != installed)
+def select_release(releases: list, prerelease: bool) -> dict:
+    """The newest release on the channel with a Linux AppImage."""
+    return githubreleases.select_release(releases, prerelease, ASSET_PATTERN, "Pyrolight")
 
 
 def read_state() -> Optional[dict]:
@@ -84,95 +69,20 @@ def write_state(value: dict):
         Path(temporary).unlink(missing_ok=True)
 
 
-def ssl_context():
-    """Verified TLS, also where the bundled Python has no default CA store."""
-    import os
-    import ssl
-
-    try:
-        import certifi  # type: ignore[import-not-found]
-        return ssl.create_default_context(cafile=certifi.where())
-    except ImportError:
-        pass
-    context = ssl.create_default_context()
-    if not context.cert_store_stats().get("x509_ca"):
-        for bundle in ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/cert.pem"):
-            if os.path.isfile(bundle):
-                context.load_verify_locations(bundle)
-                break
-    return context
-
-
-def select_release(releases: list, prerelease: bool) -> dict:
-    """The newest published release with a Linux AppImage on the selected channel."""
-    candidates = []
-    for release in releases if isinstance(releases, list) else []:
-        if not isinstance(release, dict) or release.get("draft") or (release.get("prerelease") and not prerelease):
-            continue
-        tag = release.get("tag_name")
-        assets = [asset for asset in release.get("assets") or [] if isinstance(asset, dict)]
-        appimage = next((asset for asset in assets if ASSET_PATTERN.match(str(asset.get("name")))), None)
-        if not isinstance(tag, str) or not version_key(tag) or appimage is None:
-            continue
-        sums = next((asset for asset in assets if asset.get("name") == "SHA256SUMS"), None)
-        candidates.append({
-            "tag": tag,
-            "prerelease": bool(release.get("prerelease")),
-            "publishedAt": release.get("published_at"),
-            "url": release.get("html_url"),
-            "asset": {
-                "name": appimage["name"],
-                "size": appimage.get("size"),
-                "url": appimage.get("browser_download_url"),
-                "digest": appimage.get("digest"),
-            },
-            "sumsUrl": sums.get("browser_download_url") if sums else None,
-        })
-    if not candidates:
-        raise InstallerError("No Pyrolight release with a Linux AppImage was found" +
-                             ("." if prerelease else ". Include prereleases to see test builds."))
-    return max(candidates, key=lambda candidate: version_key(candidate["tag"]))
-
-
 class PyrolightInstaller:
     def __init__(self):
         self.lock = asyncio.Lock()
         self.progress: dict = {"state": "idle"}
 
-    @staticmethod
-    def _session():
-        import aiohttp
-
-        return aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=None, connect=15, sock_read=60),
-            headers={"User-Agent": "PyroDeck", "Accept": "application/vnd.github+json"},
-            connector=aiohttp.TCPConnector(ssl=ssl_context()))
-
     async def latest(self, prerelease: bool) -> dict:
-        async with self._session() as session:
-            async with session.get(RELEASES_URL) as response:
-                if response.status != 200:
-                    raise InstallerError(f"GitHub answered {response.status} for Pyrolight's releases")
-                return select_release(await response.json(), prerelease)
+        async with githubreleases.session() as client:
+            return await githubreleases.latest(client, RELEASES_URL, prerelease, ASSET_PATTERN, "Pyrolight")
 
     async def check(self, prerelease: bool) -> dict:
         installed = read_state()
         release = await self.latest(prerelease)
         return {"schema": 1, "ok": True, "release": release, "installed": installed,
                 "updateAvailable": is_newer(release["tag"], installed and installed["tag"])}
-
-    async def _expected_digest(self, session, release: dict) -> str:
-        digest = release["asset"].get("digest")
-        if isinstance(digest, str) and digest.startswith("sha256:"):
-            return digest[len("sha256:"):].lower()
-        if release.get("sumsUrl"):
-            async with session.get(release["sumsUrl"]) as response:
-                if response.status == 200:
-                    for line in (await response.text()).splitlines():
-                        parts = line.split()
-                        if len(parts) == 2 and parts[1].lstrip("*") == release["asset"]["name"]:
-                            return parts[0].lower()
-        raise InstallerError("The release publishes no SHA-256 checksum for its AppImage; nothing was installed")
 
     async def install(self, prerelease: bool) -> dict:
         """Download the newest AppImage of the channel and put it in place."""
@@ -193,9 +103,9 @@ class PyrolightInstaller:
                                  "total": size if isinstance(size, int) else None}
                 target.parent.mkdir(parents=True, exist_ok=True)
                 digest = hashlib.sha256()
-                async with self._session() as session:
-                    expected = await self._expected_digest(session, release)
-                    async with session.get(release["asset"]["url"], headers={"Accept": "application/octet-stream"}) as response:
+                async with githubreleases.session() as client:
+                    expected = await githubreleases.expected_digest(client, release)
+                    async with client.get(release["asset"]["url"], headers={"Accept": "application/octet-stream"}) as response:
                         if response.status != 200:
                             raise InstallerError(f"The AppImage download failed with HTTP {response.status}")
                         with open(partial, "wb") as output:

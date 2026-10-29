@@ -27,7 +27,7 @@ from lib.logger import logger, set_logger_settings, get_logger
 from lib.utils import wake_on_lan, change_runner_ready_state
 from lib.runnerresult import set_result, get_result
 from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight, pyrolight_host
-from lib import runnercontrol, diagnostics
+from lib import runnercontrol, diagnostics, pyrodeckupdate
 from lib.integration import Integration, failure
 from lib.pyrolightinstaller import PyrolightInstaller, install_path, read_state
 
@@ -41,14 +41,27 @@ integration = Integration()
 pyrolight_installer = PyrolightInstaller()
 
 
+def plugin_version() -> str:
+    """PyroDeck's version, as Decky shows it."""
+    import json
+    try:
+        return json.loads(pathlib.Path(__file__).with_name("package.json").read_text()).get("version", "unknown")
+    except (OSError, ValueError):
+        return "unknown"
+
+
 class Plugin:
+    async def check_pyrodeck_update(self, prerelease: bool = False):
+        """The newest PyroDeck release for Decky's installer; Decky confirms and installs it."""
+        try:
+            return await pyrodeckupdate.check(plugin_version(), bool(prerelease))
+        except Exception as error:
+            logger.warning(f"Could not check PyroDeck releases: {error}")
+            return {**failure("release", f"Could not check PyroDeck releases: {error}"), "current": plugin_version()}
+
     async def troubleshooting(self):
         result = {"schema": 1, "session": integration.status(), "processes": diagnostics.processes()}
-        import json
-        try:
-            result["pyrodeckVersion"] = json.loads(pathlib.Path(__file__).with_name("package.json").read_text()).get("version", "unknown")
-        except (OSError, ValueError):
-            result["pyrodeckVersion"] = "unknown"
+        result["pyrodeckVersion"] = plugin_version()
         try:
             settings = await settings_manager.read_or_update()
             result["catalog"] = await integration.catalogs(settings)

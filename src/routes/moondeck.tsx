@@ -11,6 +11,7 @@ import { RemoteGames } from "../components/remotegames/remotegames";
 import { RunnerSettingsView } from "../components/runnersettingsview";
 import { SessionControls } from "../components/quicksettingsview/sessioncontrols";
 import { SetupGuideView } from "../components/setupguideview";
+import { UpdatesView } from "../components/updatesview/updatesview";
 import { WOLSettingsView } from "../components/wolsettingsview";
 import { routerHook } from "@decky/api";
 import { settingsCategories } from "../components/pyrolightsettings/categories";
@@ -98,6 +99,12 @@ const MoonDeckRouter: FC<object> = () => (
       })),
       "separator",
       { title: "Troubleshooting & Diagnostics", content: <DialogBody><Diagnostics /></DialogBody>, route: "/pyrodeck/diagnostics", visible: true },
+      {
+        title: "Updates",
+        content: <UpdatesView />,
+        route: "/pyrodeck/updates",
+        visible: true
+      },
       {
         title: "Setup & Help",
         content: <SetupGuideView />,
