@@ -12,6 +12,11 @@ from . import runnercontrol, sessionstate, utils, history
 from .pyrolightproxy import PyrolightProxy, PyrolightListError, find_pyrolight, pyrolight_host
 
 
+# `pyrolight list` failures that say nothing about the host's pairing or apps.
+TRANSIENT_FAILURES = ("unreachable", "failed", "client_error")
+FAILURE_TTL = 5
+
+
 def failure(code: str, message: str) -> dict:
     return {"schema": 1, "ok": False, "error": {"code": code, "message": message}}
 
@@ -119,7 +124,10 @@ class Integration:
             async def fetch(host_id, host):
                 key = (executable, host_id, host["address"], host["hostInfoPort"])
                 cached = self.catalog_cache.get(key)
-                if not refresh and cached and time.monotonic() - cached[0] < 30:
+                # A failure is retried soon: right after a stream the host or
+                # client can briefly refuse the request that follows it.
+                ttl = 30 if cached and cached[1]["status"] == "paired" else FAILURE_TTL
+                if not refresh and cached and time.monotonic() - cached[0] < ttl:
                     return cached[1]
                 async with semaphore:
                     identity = [executable, host["address"], host["hostInfoPort"]]
@@ -140,14 +148,15 @@ class Integration:
                     except TimeoutError:
                         result["error"] = "Host did not respond"
                     previous = known.get(host_id, {})
-                    if result["status"] == "unreachable" and previous.get("identity") == identity:
+                    if result["status"] in TRANSIENT_FAILURES and previous.get("identity") == identity:
                         validated = previous.get("result", {})
                         if validated.get("validated") and 0 <= time.time() - validated.get("validatedAt", 0) < 7 * 86400:
                             result.update(apps=validated.get("apps", []), validated=True, cached=True,
                                           validatedAt=validated["validatedAt"])
                     elif result["status"] != "paired":
-                        # Unpairing, a replacement host, malformed or unsupported
-                        # responses invalidate previous claims; only outages retain them.
+                        # Unpairing, a replacement host or an outdated client
+                        # invalidate previous claims; only outages and failed
+                        # requests to the same host retain them.
                         known.pop(host_id, None)
                     self.catalog_cache[key] = (time.monotonic(), result)
                     return result

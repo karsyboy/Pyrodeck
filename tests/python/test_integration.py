@@ -157,6 +157,30 @@ class IntegrationTest(unittest.IsolatedAsyncioTestCase):
                 proxy.list_apps.side_effect = PyrolightListError("unreachable", "offline")
                 self.assertEqual((await reloaded.catalogs(self.settings, True))["hosts"][0]["apps"], [])
 
+    async def test_a_failed_request_after_a_stream_keeps_the_validated_catalog(self):
+        from lib.pyrolightproxy import HostAppList, HostApp, PyrolightListError
+        proxy = AsyncMock()
+        proxy.__aenter__.return_value = proxy
+        proxy.list_apps.return_value = HostAppList("Host", HOST_ID, [HostApp("Valheim", 42, sources=["steam:892970"])])
+        self.settings["hostSettings"][HOST_ID]["mac"] = ""
+        with patch.object(self.service, "executable", return_value="pyrolight"), patch("lib.integration.PyrolightProxy", return_value=proxy):
+            first = (await self.service.catalogs(self.settings, True))["hosts"][0]
+            for problem in (PyrolightListError("failed", "connection reset"), TimeoutError()):
+                with self.subTest(problem=problem):
+                    proxy.list_apps.side_effect = problem
+                    host = (await self.service.catalogs(self.settings, True))["hosts"][0]
+                    self.assertEqual(host["apps"], first["apps"])
+                    self.assertTrue(host["validated"] and host["cached"])
+                    self.assertFalse(host["canWake"])
+            # A failure is not served from the cache for the paired TTL.
+            proxy.list_apps.side_effect = None
+            calls = proxy.list_apps.await_count
+            self.service.catalog_cache = {key: (stamp - 6, value) for key, (stamp, value) in self.service.catalog_cache.items()}
+            host = (await self.service.catalogs(self.settings))["hosts"][0]
+            self.assertEqual(proxy.list_apps.await_count, calls + 1)
+            self.assertEqual(host["status"], "paired")
+            self.assertFalse(host["cached"])
+
     async def test_successful_empty_catalog_invalidates_previous_availability(self):
         from lib.pyrolightproxy import HostAppList, HostApp, PyrolightListError
         proxy = AsyncMock()

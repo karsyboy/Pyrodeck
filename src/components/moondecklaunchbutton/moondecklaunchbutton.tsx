@@ -1,6 +1,6 @@
 import { AppType, isAppTypeSupported } from "../../lib/launchenv";
-import { Catalog, eligibleHosts, preferredHost, pyrolightIntegration, steamSourceId } from "../../lib/pyrolightintegration";
-import { FC, useContext, useEffect, useRef, useState } from "react";
+import { Catalog, eligibleHosts, preferredHost, pyrolightIntegration, steamSourceId, unansweredHostMessage } from "../../lib/pyrolightintegration";
+import { FC, RefObject, useContext, useEffect, useRef, useState } from "react";
 import { Menu, MenuItem, MenuSeparator, showContextMenu, showModal } from "@decky/ui";
 import { useCurrentSettings, useMoonDeckAppData } from "../../hooks";
 import { usePyrolightSession, useSessionPolling } from "../../hooks/usepyrolight";
@@ -13,14 +13,21 @@ import { steamIntegrationStatus } from "../../lib/steamintegrationstatus";
 interface Props { appId: number; appName: string; appType: number }
 export const MoonDeckLaunchButtonShell: FC = () => <StreamAction label="Stream" disabled />;
 
-const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
+// Retries after a failed or hostless catalog: the request right after a stream
+// can fail while the host and client finish the session.
+export const CATALOG_RETRY_DELAYS = [2000, 5000, 10000];
+export const CATALOG_REFRESH_INTERVAL = 30000;
+
+const MoonDeckLaunchButton: FC<Props & { anchor: RefObject<HTMLDivElement | null> }> = ({ appId, appName, appType, anchor }) => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
   const settings = useCurrentSettings();
   const activeApp = useMoonDeckAppData();
   const session = usePyrolightSession();
   useSessionPolling();
   const streaming = useRef(false);
-  streaming.current = Boolean(session.runnerActive || activeApp);
+  const streamingNow = Boolean(session.runnerActive || activeApp);
+  streaming.current = streamingNow;
+  const refreshAfterStream = useRef<(() => void) | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [alternative, setAlternative] = useState<string | null>(null);
   const menu = useRef<ReturnType<typeof showContextMenu> | null>(null);
@@ -30,9 +37,20 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
   useEffect(() => {
     let cancelled = false;
     let loading = false;
+    let retries = 0;
+    let retry: ReturnType<typeof setTimeout> | null = null;
     setCatalog(null);
     setAlternative(null);
     setError(null);
+    // The plugin's own document is not Steam's Library window.
+    const hidden = (): boolean => Boolean(anchor.current?.ownerDocument.hidden);
+    const scheduleRetry = (): void => {
+      if (cancelled || retry !== null || retries >= CATALOG_RETRY_DELAYS.length) return;
+      retry = setTimeout(() => {
+        retry = null;
+        if (!streaming.current) refresh(true);
+      }, CATALOG_RETRY_DELAYS[retries++]);
+    };
     const refresh = (force = false): void => {
       if (loading) return;
       loading = true;
@@ -44,19 +62,43 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
           eligibleHostIds: hosts.map((host) => host.id),
           library: `${appName}: ${hosts.length ? `${hosts.length} streaming host(s) available` : "no validated host match"}`
         });
+        if (hosts.length) retries = 0;
+        else scheduleRetry();
       }).catch((problem: unknown) => {
-        if (!cancelled) steamIntegrationStatus.update({ library: `${appName}: catalog failed (${String(problem)})` });
+        if (cancelled) return;
+        // Keep the last catalog this page showed; only retry its refresh.
+        steamIntegrationStatus.update({ library: `${appName}: catalog failed (${String(problem)})` });
         logger.error("Library catalog query failed", problem);
+        scheduleRetry();
       }).finally(() => { loading = false; });
+    };
+    refreshAfterStream.current = () => {
+      retries = 0;
+      if (retry !== null) clearTimeout(retry);
+      retry = null;
+      refresh(true);
     };
     refresh();
     const timer = setInterval(() => {
       // Catalog refresh launches a separate headless Pyrolight process. Keep
       // the validated catalog during gameplay; revalidate at the next launch.
-      if (!document.hidden && !streaming.current) refresh(true);
-    }, 30000);
-    return () => { cancelled = true; clearInterval(timer); menu.current?.Hide(); menu.current = null; };
-  }, [appId, appName]);
+      if (!hidden() && !streaming.current) refresh(true);
+    }, CATALOG_REFRESH_INTERVAL);
+    return () => {
+      cancelled = true;
+      refreshAfterStream.current = null;
+      clearInterval(timer);
+      if (retry !== null) clearTimeout(retry);
+      menu.current?.Hide(); menu.current = null;
+    };
+  }, [appId, appName, anchor]);
+  const wasStreaming = useRef(streamingNow);
+  useEffect(() => {
+    // Returning from a stream revalidates hosts the stream kept from
+    // refreshing, so the page offers Stream again without leaving it.
+    if (wasStreaming.current && !streamingNow) refreshAfterStream.current?.();
+    wasStreaming.current = streamingNow;
+  }, [streamingNow]);
   if (!isAppTypeSupported(appType) || !settings || !catalog) return null;
   const hosts = eligibleHosts(catalog, appId);
   if (!hosts.length) return null;
@@ -113,7 +155,7 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
       disabled={Boolean(busy || active)}
       launchDisabled={!selected}
       hostName={selected?.name}
-      message={failure ?? (selected?.cached && !active ? `${selected.name} is offline. Stream will try Wake-on-LAN.` : null)}
+      message={failure ?? (selected && !active ? unansweredHostMessage(selected) : null)}
       menuLabel={canEnd ? "Stream options" : undefined}
       onLaunch={() => {
         if (!selected || busy || pending.current) return;
@@ -153,4 +195,7 @@ const MoonDeckLaunchButton: FC<Props> = ({ appId, appName, appType }) => {
 };
 
 /** Library action beside Steam Input, sharing its controller navigation context. */
-export const MoonDeckLaunchButtonAnchor: FC<Props> = (props) => <div id="pyrodeck"><MoonDeckLaunchButton key={props.appId} {...props} /></div>;
+export const MoonDeckLaunchButtonAnchor: FC<Props> = (props) => {
+  const anchor = useRef<HTMLDivElement>(null);
+  return <div id="pyrodeck" ref={anchor}><MoonDeckLaunchButton key={props.appId} anchor={anchor} {...props} /></div>;
+};

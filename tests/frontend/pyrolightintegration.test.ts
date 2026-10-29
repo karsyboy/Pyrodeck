@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const backend = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock("@decky/api", () => backend);
-import { PyrolightIntegration, appKind, eligibleHosts, preferredHost, steamArtwork, steamSourceId } from "../../src/lib/pyrolightintegration";
+import { PyrolightIntegration, appKind, eligibleHosts, preferredHost, steamArtwork, steamSourceId, unansweredHostMessage } from "../../src/lib/pyrolightintegration";
 
 const prefs = { schema: 1, ok: true, revision: "one", activeProfileId: "default", activeProfileName: "Default", profiles: [{ id: "default", name: "Default" }], values: { fps: 60, enableHdr: false }, registry: [{ key: "fps", type: "integer", category: "Video & Display", scope: "profile", application: "reconnect" }], capabilities: { liveUpdates: false } };
 const app = { id: 42, name: "A game", sources: ["steam:620"], hdr_supported: false };
@@ -193,11 +193,18 @@ describe("browser Steam source identity", () => {
 });
 
 describe("validated offline identities", () => {
-  it("retains only a validated offline host with Wake-on-LAN and an unambiguous identity", () => {
+  it("retains only a validated, retained host with an unambiguous identity", () => {
     const offline = { ...host, status: "unreachable", validated: true, cached: true, canWake: true };
     const catalog = { schema: 1, ok: true as const, defaultHostId: "default", hosts: [offline] };
     expect(eligibleHosts(catalog, 620)).toEqual([offline]);
-    for (const change of [{ validated: false }, { canWake: false }, { status: "not_paired" }, { apps: [{ ...app, sources: ["steam:620", "steam:892970"] }] }, { apps: [] }]) {
+    // A host busy right after a stream, without Wake-on-LAN, keeps its games.
+    for (const change of [{ canWake: false }, { status: "failed", canWake: false }]) {
+      const retained = { ...offline, ...change };
+      expect(eligibleHosts({ ...catalog, hosts: [retained] }, 620)).toEqual([retained]);
+    }
+    expect(unansweredHostMessage({ ...offline, canWake: false })).toContain("did not answer");
+    expect(unansweredHostMessage(offline)).toContain("Wake-on-LAN");
+    for (const change of [{ validated: false }, { cached: false }, { status: "not_paired", cached: false }, { apps: [{ ...app, sources: ["steam:620", "steam:892970"] }] }, { apps: [] }]) {
       expect(eligibleHosts({ ...catalog, hosts: [{ ...offline, ...change }] }, 620)).toEqual([]);
     }
   });

@@ -2,6 +2,7 @@ import {
   Catalog,
   RemoteApp,
   appKind,
+  isLaunchableHost,
   pyrolightIntegration,
   steamArtwork,
   steamSourceId
@@ -307,7 +308,7 @@ export const RemoteGames: FC = () => {
             <Artwork hostId={hostId} app={app} />
             <ActionButton
               style={{ flex: "1 1 0", textAlign: "left", padding: "10px 12px" }}
-              disabled={busy || !(host?.status === "paired" || (host?.status === "unreachable" && host.validated && host.cached && host.canWake)) || (session.runnerActive && session.hostId === hostId && session.remoteAppId === app.id)}
+              disabled={busy || !(host && isLaunchableHost(host)) || (session.runnerActive && session.hostId === hostId && session.remoteAppId === app.id)}
               onClick={() => {
                 setBusy(true);
                 setError(null);

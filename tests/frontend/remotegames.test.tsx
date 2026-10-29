@@ -49,7 +49,8 @@ vi.mock("../../src/hooks/usepyrolight", async () => ({
 }));
 vi.mock("../../src/lib/pyrolightintegration", () => ({
   pyrolightIntegration: { catalog: fake.catalog, refreshSession: vi.fn() },
-  steamArtwork: () => undefined, steamSourceId: () => null, appKind: () => "other"
+  steamArtwork: () => undefined, steamSourceId: () => null, appKind: () => "other",
+  isLaunchableHost: (host: any) => host.status === "paired" || Boolean(host.validated && host.cached)
 }));
 import { RemoteGames } from "../../src/components/remotegames/remotegames";
 import { PyrolightViewVisibility } from "../../src/hooks/usepyrolight";

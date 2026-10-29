@@ -119,9 +119,27 @@ describe("native Library stream controls", () => {
     await render(); await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
     expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(1);
     data.session = { schema: 1, state: "disconnected", runnerActive: false }; await render();
-    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    // The end of the stream revalidates at once, then the periodic refresh resumes.
     expect(pyrolightIntegration.catalog).toHaveBeenLastCalledWith(true, false);
     expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(3);
+  });
+  it("retries a catalog that failed right after a stream until the action appears", async () => {
+    vi.useFakeTimers();
+    vi.mocked(pyrolightIntegration.catalog).mockRejectedValueOnce(new Error("busy")).mockResolvedValueOnce({ ...catalog, hosts: [] });
+    await render(); expect(container.querySelector("button")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenLastCalledWith(true, false);
+    expect(container.querySelector("button")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(3);
+    expect(container.textContent).toContain("Stream");
+    // Retries stop once the page has a host; only the periodic refresh remains.
+    await act(async () => { await vi.advanceTimersByTimeAsync(22000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(3);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(pyrolightIntegration.catalog).toHaveBeenCalledTimes(4);
   });
   it("requests cached availability when navigating to a new game during an active launch", async () => {
     data.active = { steamAppId: 892970 };

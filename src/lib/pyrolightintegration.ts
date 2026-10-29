@@ -59,9 +59,22 @@ export interface RemoteApp { id: number; name: string; hdr_supported: boolean; l
 export interface RemoteHost { id: string; name: string; status: string; error?: string; validated?: boolean; cached?: boolean; canWake?: boolean; validatedAt?: number; apps: RemoteApp[] }
 export interface Catalog { schema: number; ok: true; defaultHostId: string | null; hosts: RemoteHost[] }
 
+/**
+ * A host PyroDeck may launch on: paired now, or validated within the backend's
+ * retention window and only failing to answer (offline, or busy right after a
+ * stream). The runner revalidates the host and app before every launch.
+ */
+export function isLaunchableHost(host: RemoteHost): boolean {
+  return host.status === "paired" || Boolean(host.validated && host.cached);
+}
 export function eligibleHosts(catalog: Catalog, steamAppId: number): RemoteHost[] {
   const source = `steam:${steamAppId}`;
-  return catalog.hosts.filter((host) => (host.status === "paired" || (host.status === "unreachable" && host.validated && host.cached && host.canWake)) && host.apps.filter((app) => steamSourceId(app) === steamAppId && app.sources.includes(source)).length === 1);
+  return catalog.hosts.filter((host) => isLaunchableHost(host) && host.apps.filter((app) => steamSourceId(app) === steamAppId && app.sources.includes(source)).length === 1);
+}
+/** Why a launchable host is shown without a fresh catalog. */
+export function unansweredHostMessage(host: RemoteHost): string | null {
+  if (!host.cached) return null;
+  return host.canWake ? `${host.name} is offline. Stream will try Wake-on-LAN.` : `${host.name} did not answer. Stream checks it again.`;
 }
 export function preferredHost(hosts: RemoteHost[], defaultId: string | null): string | null {
   // Even one alternative requires an explicit selection when the default is absent.
