@@ -271,6 +271,33 @@ but they do not replace validation of the installed build in Game Mode. Verify
 that End Remote Game actually opens a confirmation before accepting it, then
 test Shift+Tab Exit and return to the same game page without navigating away.
 
+## 0.3.0 Library return, quit window and Pyrolight installer
+
+The missing Stream action after a stream was not a mount failure. The first
+catalog request after a stream can fail while the host and client finish the
+session. A failed request other than an outage dropped the host's validated
+catalog, an outage hid hosts without Wake-on-LAN, the failure was cached for
+30 s, and the action never retried: its refresh checked the plugin's own
+document, not the Library window. Tests now cover a failed and a timed-out
+request keeping the validated catalog without Wake-on-LAN, the 5 s failure
+cache, the forced refresh when a stream ends, and the 2/5/10 s retries ending
+once a host appears.
+
+The quit window stayed open because Pyrolight's CLI quit reported success only
+from a host poll its seeker had already stopped. Pyrolight now reports the
+completed quit from the quit task (compile-checked, branch
+`fix/cli-quit-completion`). The runner closes a client left open after `ended`
+and, for older builds, 45 s after `ending`; both cases are tested with a fake
+client that never exits.
+
+Installer tests use a loopback release server: channel selection, version
+order, checksum mismatch, a non-AppImage download and a missing checksum, each
+keeping the previous AppImage. One real install of v6.2.7 from GitHub into a
+temporary home verified the digest and ran `--version`. Not verified: the Decky
+Python's CA store on SteamOS, the Hosts & Pairing and Quick Access layout and
+controller focus in Game Mode, and the Library return and End Remote Game
+sequence on a Steam Deck with a real host.
+
 ## Required Steam Deck acceptance — not verified
 
 In each Quick Access subpage (Remote Games, Session, Diagnostics and every
@@ -334,6 +361,12 @@ and handheld/docked display configuration.
    repeated navigation after the catalog's normal 30-second TTL and after
    logout/login. Capture Steam UI frame time and client/Steam CPU if stutter
    persists. The automated operation counts do not establish a device FPS gain.
+8. Stream a game, exit it with Steam's Exit Game and with Disconnect, back out
+   of its page and open it again: Stream (or Resume Stream) must be there within
+   a few seconds. Run End Remote Game and check its window closes by itself.
+9. With no Pyrolight, install from Quick Access; then, with **Include
+   prereleases** on and off, check **Update** and **Up to date** in Hosts &
+   Pairing, and that pairing finds the new AppImage without a reload.
 
 For a persistent spinner, collect **Troubleshooting & Diagnostics** and all four
 log tails immediately. Correlate the helper's Steam launch action/lifetime,

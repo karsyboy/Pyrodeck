@@ -37,6 +37,20 @@ Mode is still in progress; see the [validation report](docs/VALIDATION.md).
 
 ### 1. Install Pyrolight
 
+PyroDeck can install Pyrolight for you once PyroDeck itself is installed
+([step 2](#2-install-pyrodeck)): while no Pyrolight is found, Quick Access shows
+**Install Pyrolight**. The same action is under **Hosts & Pairing → Pyrolight
+App**, which also shows **Update** when a newer release is out. Turn on
+**Include prereleases** there to install and update to prereleases as well.
+
+PyroDeck downloads the latest `pyrolight-*-linux-x86_64.AppImage` from the
+[Pyrolight releases](https://github.com/karsyboy/pyrolight/releases), checks it
+against the release's SHA-256 checksum and installs it as
+`~/Applications/Pyrolight.AppImage`. It never changes a Pyrolight installed by
+a package manager or a file you selected yourself.
+
+To install it by hand instead:
+
 1. Switch the Steam Deck to Desktop Mode.
 2. Download the `pyrolight-*-linux-x86_64.AppImage` from the
    [Pyrolight releases](https://github.com/karsyboy/pyrolight/releases) into
@@ -152,7 +166,8 @@ restarts or shuts down the host.
 
 | Message | What to do |
 | --- | --- |
-| Pyrolight was not found | Install the AppImage as in [Install Pyrolight](#1-install-pyrolight), or set its path in **Hosts & Pairing**. |
+| Pyrolight was not found | Select **Install Pyrolight** in Quick Access, install it as in [Install Pyrolight](#1-install-pyrolight), or set its path in **Hosts & Pairing**. |
+| Installing Pyrolight failed | Check the Deck's internet connection and retry. A failed or interrupted download keeps the installed AppImage. Disconnect the stream before updating. |
 | This Pyrolight is too old for PyroDeck | Update Pyrolight. |
 | Pyrolight crashed while initializing a display / missing `eglfs` plugin | Update Pyrolight. If you set a custom path in **Hosts & Pairing**, select the new file, then refresh **Remote Games**. |
 | Pyrolight is not paired with this host | [Pair](#2-pair) again. |

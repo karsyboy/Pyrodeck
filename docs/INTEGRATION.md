@@ -147,6 +147,54 @@ conditional cancellation. The remembered application ID remains session
 metadata; the host closes whichever application is running when it handles quit.
 Confirmed switches still require conditional cancellation.
 
+The quit action runs as a Steam app, so its Pyrolight window must not outlive
+it. Pyrolight exits after reporting `ended`, and with integration events after
+`failed`. The runner closes a client still open 2 s after `ended`. Pyrolight
+builds that never report the end of a quit (they waited for a host poll their
+seeker had stopped) are closed once the request can no longer fail: 45 s after
+`ending`, when the session is recorded as ended.
+
+## Library catalog after a stream
+
+A Library page offers Stream for hosts that are paired now, or that were
+validated within seven days and only failed to answer. The backend keeps a
+host's validated catalog through an outage or a failed `pyrolight list` to the
+same address, port and executable; unpairing, a different host, an outdated
+client or an expired catalog remove it. Successful catalogs are cached for
+30 s and failures for 5 s. The runner revalidates host and app before every
+launch, so a retained catalog never launches without a fresh check.
+
+The Library action refreshes its catalog when the owned stream ends (no more
+runner and no tracked app) and retries a failed or hostless catalog after 2, 5
+and 10 s. The periodic 30 s refresh is paused during streams and while Steam's
+Library window, not the plugin's own document, is hidden.
+
+## Pyrolight installation
+
+`lib/pyrolightinstaller.py` installs one AppImage,
+`~/Applications/Pyrolight.AppImage`, from the
+[Pyrolight releases](https://github.com/karsyboy/pyrolight/releases). The
+stable channel takes the highest non-prerelease release with a
+`pyrolight-<tag>-linux-x86_64.AppImage` asset; with `pyrolightPrereleases` the
+highest release of either kind (`v6.2.8-prerelease < v6.2.8-prerelease.2 <
+v6.2.8`). Drafts are ignored.
+
+| Step | Contract |
+| --- | --- |
+| Start | `install_pyrolight(prerelease)` starts a background task and returns; refused during an owned stream or while an install runs |
+| Download | Into `~/Applications/.Pyrolight.AppImage.part`, with verified TLS (certifi, else the system CA bundle) |
+| Verify | SHA-256 against the asset's GitHub `digest`, else the release's `SHA256SUMS`; no checksum means no install. The file must be an ELF type-2 AppImage |
+| Replace | `chmod 755` and an atomic rename; any failure or cancellation keeps the previous file |
+| Record | `~/.config/pyrodeck/pyrolight-install.json` (path, tag, channel, digest); it applies only while that file exists |
+| Progress | `pyrolight_install_status` reports the executable PyroDeck would use, the managed install and `checking`, `downloading`, `verifying`, `installed` or `failed` |
+
+Executable discovery is unchanged; the managed AppImage is found like any
+AppImage in `~/Applications`. PyroDeck offers Install when nothing is found,
+Update for its own AppImage when the selected channel has a newer release, and
+Install latest beside an AppImage the user added. A Pyrolight on `PATH` or a
+selected executable is never modified. Release checks are cached for 10 min
+in the frontend (GitHub allows 60 anonymous API requests an hour).
+
 ## Validation and remaining device acceptance
 
 Automated checks cover settings/profile parity, revision conflicts and
