@@ -81,7 +81,7 @@ class GameSessionSettings(TypedDict):
 
 class UserSettings(TypedDict):
     # Continues MoonDeck's numbering: 44 is the first PyroDeck schema.
-    version: Literal[45]
+    version: Literal[46]
     currentHostId: Optional[str]
     gameSession: GameSessionSettings
     enableMoondeckShortcuts: bool
@@ -91,6 +91,8 @@ class UserSettings(TypedDict):
     # Pyrolight executable: found automatically unless useMoonlightExec is set.
     useMoonlightExec: bool
     moonlightExecPath: str
+    # Install and update Pyrolight from prereleases too.
+    pyrolightPrereleases: bool
     pythonExecPath: str
 
 
@@ -115,6 +117,7 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             "runnerDebugLogs": False,
             "useMoonlightExec": False,
             "moonlightExecPath": "",
+            "pyrolightPrereleases": False,
             "pythonExecPath": ""
         })
 
@@ -393,3 +396,6 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             data["version"] = 45
             data.pop("buttonPosition", None)
             data.pop("buttonStyle", None)
+        if data["version"] == 45:
+            data["version"] = 46
+            data["pyrolightPrereleases"] = False

@@ -13,7 +13,7 @@ export const pairingStatusDescriptions: Record<PairingStatus, string> = {
   Unreachable: "Pyrolight cannot reach the host. Check that it is on and that Pyroshine is running.",
   WrongHost: "Pyrolight reached a different host at this address. Select the host again.",
   Outdated: "This Pyrolight is too old for PyroDeck. Update Pyrolight.",
-  NotInstalled: "Pyrolight was not found. Install the Pyrolight AppImage in ~/Applications or set its path.",
+  NotInstalled: "Pyrolight was not found. Install it from Pyrolight App in Host Selection, or set its path.",
   Error: "Pyrolight failed. See the backend log in Troubleshooting & Diagnostics."
 };
 
@@ -24,13 +24,4 @@ export async function getPairingStatus(address: string, port: number, hostId: st
     logger.critical("Error while checking Pyrolight pairing: ", message);
   }
   return "Error";
-}
-
-export async function getPyrolightPath(pyrolightExecPath: string | null): Promise<string | null> {
-  try {
-    return await call<[string | null], string | null>("get_pyrolight_path", pyrolightExecPath);
-  } catch (message) {
-    logger.critical("Error while looking for Pyrolight: ", message);
-  }
-  return null;
 }

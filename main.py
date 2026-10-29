@@ -29,6 +29,7 @@ from lib.runnerresult import set_result, get_result
 from lib.pyrolightproxy import PyrolightListError, PyrolightProxy, find_pyrolight, pyrolight_host
 from lib import runnercontrol, diagnostics
 from lib.integration import Integration, failure
+from lib.pyrolightinstaller import PyrolightInstaller, install_path, read_state
 
 set_logger_settings(logger, constants.BACKEND_LOG_FILE, rotate=True, verbose=True)
 
@@ -37,6 +38,7 @@ set_logger_settings(frontend_logger, constants.FRONTEND_LOG_FILE, rotate=True, l
 
 settings_manager = UserSettingsManager(constants.get_config_file_path(), constants.get_moondeck_config_file_path())
 integration = Integration()
+pyrolight_installer = PyrolightInstaller()
 
 
 class Plugin:
@@ -97,6 +99,35 @@ class Plugin:
         except Exception as error:
             return failure("network", str(error))
 
+    async def pyrolight_install_status(self, configured_path: Optional[str] = None):
+        """The Pyrolight PyroDeck would use, its own AppImage install and a running install's progress."""
+        import shutil
+        try:
+            return {"schema": 1, "ok": True, "executable": find_pyrolight(configured_path),
+                    "onPath": shutil.which("pyrolight"), "installPath": str(install_path()),
+                    "installed": read_state(), "progress": pyrolight_installer.progress}
+        except Exception as error:
+            logger.exception("Could not read the Pyrolight installation")
+            return failure("install", str(error))
+
+    async def check_pyrolight_release(self, prerelease: bool = False):
+        try:
+            return await pyrolight_installer.check(bool(prerelease))
+        except Exception as error:
+            logger.warning(f"Could not check Pyrolight releases: {error}")
+            return failure("release", f"Could not check Pyrolight releases: {error}")
+
+    async def install_pyrolight(self, prerelease: bool = False):
+        """Start installing or updating the AppImage; progress is in pyrolight_install_status."""
+        if runnercontrol.is_runner_active():
+            return failure("active_stream", "Disconnect the stream before installing or updating Pyrolight.")
+        if pyrolight_installer.lock.locked():
+            return failure("busy", "Pyrolight is already being installed")
+        pyrolight_installer.progress = {"state": "checking"}
+        # The download can outlive this call and the Quick Access page.
+        self.install_task = asyncio.create_task(pyrolight_installer.install(bool(prerelease)))
+        return {"schema": 1, "ok": True}
+
     async def reconnect_session(self):
         if integration.lock.locked():
             return failure("busy", "Another session operation is in progress")
@@ -114,6 +145,10 @@ class Plugin:
     @utils.async_scope_log(logger.info)
     async def _unload(self):
         self.__cleanup_states()
+        # An unfinished download leaves the installed AppImage unchanged.
+        task = getattr(self, "install_task", None)
+        if task is not None:
+            task.cancel()
 
     async def frontend_log_entry(self, level: str, message: str):
         try:
@@ -259,15 +294,6 @@ class Plugin:
             logger.error(f"Failed to get the host's apps from Pyrolight: {err}")
             return None
 
-        except Exception:
-            logger.exception("Unhandled exception")
-            return None
-
-    @utils.async_scope_log(logger.info)
-    async def get_pyrolight_path(self, configured_path: Optional[str]):
-        """The Pyrolight executable the runner would use, or None."""
-        try:
-            return find_pyrolight(configured_path)
         except Exception:
             logger.exception("Unhandled exception")
             return None

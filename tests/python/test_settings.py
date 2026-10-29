@@ -64,7 +64,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_fresh_install_without_moondeck_gets_buddy_free_defaults(self):
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
-        self.assertEqual(settings["version"], 45)
+        self.assertEqual(settings["version"], 46)
         self.assertNotIn("clientId", settings)
         self.assertEqual(settings["hostSettings"], {})
         self.assertTrue(self.pyrodeck.exists())
@@ -89,7 +89,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(settings["moonlightExecPath"], "")
 
         written = json.loads(self.pyrodeck.read_text())
-        self.assertEqual(written["version"], 45)
+        self.assertEqual(written["version"], 46)
 
     async def test_existing_pyrodeck_settings_win_over_moondeck(self):
         await UserSettingsManager(self.pyrodeck, None).read_or_update()
@@ -100,7 +100,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
     async def test_an_unreadable_moondeck_file_falls_back_to_defaults(self):
         self.write_moondeck({"version": 999, "garbage": True})
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
-        self.assertEqual(settings["version"], 45)
+        self.assertEqual(settings["version"], 46)
         self.assertEqual(settings["hostSettings"], {})
 
 
@@ -117,7 +117,7 @@ class NativeButtonMigrationTest(unittest.IsolatedAsyncioTestCase):
                        buttonPosition={"offsetX": "999px"}, buttonStyle={"theme": "Clean"})
             path.write_text(json.dumps(old))
             migrated = await manager.read_or_update()
-            self.assertEqual(migrated["version"], 45)
+            self.assertEqual(migrated["version"], 46)
             self.assertFalse(migrated["enableMoondeckShortcuts"])
             self.assertNotIn("buttonPosition", migrated)
             self.assertNotIn("buttonStyle", migrated)

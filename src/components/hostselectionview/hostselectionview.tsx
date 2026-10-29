@@ -8,6 +8,7 @@ import { HostScanButton } from "./hostscanbutton";
 import { HostSelectionDropdown } from "./hostselectiondropdown";
 import { MoonDeckContext } from "../../contexts";
 import { PyrolightExecutableSelection } from "./pyrolightexecutableselection";
+import { PyrolightInstallSection } from "./pyrolightinstallsection";
 import { PyrolightSection } from "./pyrolightsection";
 
 export const HostSelectionView: FC = () => {
@@ -74,6 +75,7 @@ export const HostSelectionView: FC = () => {
         </Field>
       </DialogControlsSection>
       <DialogControlsSection><PyrolightExecutableSelection /></DialogControlsSection>
+      <PyrolightInstallSection settings={settings} />
       {hostSettings &&
         <PyrolightSection
           hostSettings={hostSettings}

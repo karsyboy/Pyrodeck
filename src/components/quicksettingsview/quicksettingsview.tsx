@@ -14,6 +14,7 @@ import {
 import { ActionButton } from "../shared/actionbutton";
 import { Diagnostics } from "../diagnostics/diagnostics";
 import { HostStatusPanel } from "./hoststatuspanel";
+import { PyrolightInstallPanel } from "./pyrolightinstallpanel";
 import { RemoteGames } from "../remotegames/remotegames";
 import { SessionControls } from "./sessioncontrols";
 import { pyrolightIntegration } from "../../lib/pyrolightintegration";
@@ -88,6 +89,7 @@ const QuickSettingsContent: FC<{ visible: boolean }> = ({ visible }) => {
         serverRefreshStatus={serverRefreshStatus}
         hostInfo={hostInfo}
       />
+      <PyrolightInstallPanel settings={currentSettings} />
       <PanelSection title="Play">
         <PanelSectionRow>
           <ActionButton onClick={() => setPage("Remote Games")}>

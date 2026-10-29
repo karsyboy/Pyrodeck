@@ -42,6 +42,7 @@ vi.mock("../../src/hooks/usepyrolight", async () => {
 });
 vi.mock("../../src/lib/pyrolightintegration", () => ({ pyrolightIntegration: { refresh: fake.refresh } }));
 vi.mock("../../src/components/quicksettingsview/hoststatuspanel", () => ({ HostStatusPanel: () => null }));
+vi.mock("../../src/components/quicksettingsview/pyrolightinstallpanel", () => ({ PyrolightInstallPanel: () => null }));
 vi.mock("../../src/components/pyrolightsettings/settings", () => ({
   SettingsFeedback: () => null,
   PyrolightSettings: ({ category }: any) => <button data-subpage>{category} control</button>

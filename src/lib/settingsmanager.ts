@@ -107,6 +107,7 @@ export interface UserSettings {
   runnerDebugLogs: boolean;
   useMoonlightExec: boolean;
   moonlightExecPath: string;
+  pyrolightPrereleases: boolean;
   pythonExecPath: string;
 }
 

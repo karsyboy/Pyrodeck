@@ -26,7 +26,7 @@ export const SetupGuideView: FC = () => {
         </Field>
         <Field
           label="Step 2 - Install Pyrolight on the Steam Deck"
-          description="In Desktop Mode, download the Pyrolight AppImage into ~/Applications and make it executable. PyroDeck finds it there."
+          description="On &quot;Host Selection&quot;, press Install under Pyrolight App. PyroDeck downloads the latest AppImage into ~/Applications and updates it from there. An AppImage you download yourself into ~/Applications works too."
         >
           <DialogButton onClick={() => { Navigation.NavigateToExternalWeb(pyrolightLink); }}>Open</DialogButton>
         </Field>

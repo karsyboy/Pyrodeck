@@ -1,10 +1,11 @@
 import { ConfirmModal, DialogButton, DialogControlsSection, DialogControlsSectionHeader, Field, showModal } from "@decky/ui";
 import { FC, useContext, useEffect, useState } from "react";
-import { PairingStatus, ServerStatus, getPairingStatus, getPyrolightPath, logger, pairingStatusDescriptions } from "../../lib";
+import { PairingStatus, ServerStatus, getPairingStatus, logger, pairingStatusDescriptions } from "../../lib";
 import { CurrentHostSettings } from "../../hooks";
 import { GameSteamMain } from "../icons";
 import { MoonDeckContext } from "../../contexts";
 import { StatusField } from "../shared";
+import { usePyrolightInstall } from "../../hooks/usepyrolightinstall";
 
 interface Props {
   hostSettings: CurrentHostSettings;
@@ -33,16 +34,10 @@ const PairModal: FC<{ closeModal?: () => void; onConfirm: () => void }> = ({ clo
 // copies Pyrolight's credentials.
 export const PyrolightSection: FC<Props> = ({ hostSettings, pyrolightExecPath, serverStatus, disabled }) => {
   const { moonDeckAppLauncher } = useContext(MoonDeckContext);
-  const [executable, setExecutable] = useState<string | null | undefined>(undefined);
+  // Shared with the install section, so an install or update shows here at once.
+  const installation = usePyrolightInstall(pyrolightExecPath).status;
+  const executable = installation ? installation.executable : undefined;
   const [status, setStatus] = useState<PairingStatus>("Unknown");
-
-  useEffect(() => {
-    let active = true;
-    getPyrolightPath(pyrolightExecPath)
-      .then((path) => { if (active) setExecutable(path); })
-      .catch((e) => logger.critical(e));
-    return () => { active = false; };
-  }, [pyrolightExecPath]);
 
   useEffect(() => { setStatus("Unknown"); }, [hostSettings.currentHostId]);
 
