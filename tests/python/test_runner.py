@@ -241,6 +241,34 @@ class RunnerTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(sessionstate.read()["state"], state)
                 self.assertEqual(sessionstate.read()["error"], "Host refused quit" if exit_code else None)
 
+    async def run_quit(self, events):
+        from unittest import mock
+        from lib import sessionstate
+        from lib.runner import pyroshinerunner
+
+        self.pyrolight.set(quit={"exit": 0, "sleep": -1, "events": events})
+        async with FakeHost() as host:
+            selected = settings(host.port, str(self.pyrolight.executable), runner_type=RunnerType.Utility,
+                                action=UtilityAction.Quit)
+            selected["generation"] = sessionstate.begin(selected)
+            with mock.patch.object(pyroshinerunner, "QUIT_COMPLETION_TIMEOUT", 0.3), \
+                    mock.patch.object(pyroshinerunner, "QUIT_EXIT_GRACE", 0.1):
+                await asyncio.wait_for(PyroshineRunner.run(selected), 10)
+        pid = self.pyrolight.invocations()[-1]["pid"]
+        self.assertFalse(process_alive(pid), "the quit window never outlives the quit")
+        self.assertIsNone(read_client_process())
+        return sessionstate.read()
+
+    async def test_a_quit_client_left_open_after_ending_the_app_is_closed(self):
+        state = await self.run_quit([{"schema": 1, "state": "ending"}, {"schema": 1, "state": "ended", "error": ""}])
+        self.assertEqual(state["state"], "ended")
+
+    async def test_a_quit_client_that_never_reports_completion_is_closed(self):
+        # Pyrolight builds that waited for a host poll after the quit request.
+        state = await self.run_quit([{"schema": 1, "state": "ending"}])
+        self.assertEqual(state["state"], "ended")
+        self.assertIsNone(state["error"])
+
     async def test_codec_and_vrr_are_only_passed_when_the_build_offers_them(self):
         self.pyrolight.set(help="  --vrr  Use variable refresh rate\n  --video-codec <video-codec>  Select video codec:\n      AV1/H.264/HEVC/auto.\n")
         await self.run_runner(cmd_options=options(video_codec="PyroWave", enable_vrr=True))

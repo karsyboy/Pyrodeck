@@ -431,7 +431,8 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
         # Lazy import to improve CLI performance
         import asyncio
 
-        if not self.process:
+        process = self.process
+        if not process:
             return None
 
         async def log_stream(stream: Optional[asyncio.StreamReader]):
@@ -454,12 +455,13 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
                     file.write(data.decode(errors="replace"))
             logger.info("Finished saving Pyrolight output.")
 
-        process_task = asyncio.create_task(self.process.wait())
-        log_task = asyncio.create_task(log_stream(self.process.stdout))
+        process_task = asyncio.create_task(process.wait())
+        log_task = asyncio.create_task(log_stream(process.stdout))
         # Cancellation also stops the log reader before a resumed attempt can
         # reuse its file and lifecycle callback.
         await asyncio.gather(process_task, log_task)
-        return self.process.returncode
+        # terminate() may have released the proxy's handle meanwhile.
+        return process.returncode
 
 
 def record_client_process(pid: int, token: str):

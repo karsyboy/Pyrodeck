@@ -30,6 +30,10 @@ from .. import constants, sessionstate, history
 # A Pyrolight exit with an error this soon after start is a launch failure.
 EARLY_EXIT_SECS = 10
 WINDOW_READY_TIMEOUT = 60
+# Pyrolight's quit request times out after 30 s, plus its two serverinfo checks.
+QUIT_COMPLETION_TIMEOUT = 45
+# Time a finished quit client gets to close its window by itself.
+QUIT_EXIT_GRACE = 2
 
 
 def find_app_by_name(app_list: HostAppList, name: str) -> HostApp:
@@ -168,6 +172,65 @@ class PyroshineRunner:
             raise RunnerError(Result.PyrolightFailed, detail)
 
     @classmethod
+    async def run_quit(cls, proxy: PyrolightProxy, args: list[str], generation: Optional[str]):
+        """Run Pyrolight's quit action and close its window once it is done.
+
+        The quit window is Steam's running app, so it must not outlive the
+        quit. Pyrolight exits by itself after reporting "ended", and with
+        integration events also after "failed". Builds before the completed
+        quit was reported stay on "Quitting app..." forever: once the request
+        has been sent ("ending"), a failure would have exited within the
+        client's quit timeout, so a client still open after it has quit the
+        app and is closed here.
+        """
+        import asyncio
+
+        requested = asyncio.Event()
+        finished = asyncio.Event()
+        if generation:
+            sessionstate.update(generation, state="ending")
+
+        def quit_event(event):
+            state = event.get("state")
+            if state not in ("ending", "ended", "failed"):
+                return
+            if generation:
+                sessionstate.update(generation, state=state, error=event.get("error") or None)
+            (requested if state == "ending" else finished).set()
+
+        proxy.on_event = quit_event
+        await proxy.start(args)
+        client = asyncio.create_task(proxy.wait())
+
+        async def completion():
+            await requested.wait()
+            try:
+                await asyncio.wait_for(finished.wait(), QUIT_COMPLETION_TIMEOUT)
+            except TimeoutError:
+                logger.warning("Pyrolight did not report the end of its quit; update Pyrolight")
+                if generation:
+                    sessionstate.update(generation, state="ended", error=None)
+            await asyncio.sleep(QUIT_EXIT_GRACE)
+
+        watcher = asyncio.create_task(completion())
+        try:
+            await asyncio.wait({client, watcher}, return_when=asyncio.FIRST_COMPLETED)
+            if not client.done():
+                logger.info("Pyrolight stayed open after the quit; closing it")
+                await proxy.terminate()
+                await client
+                return
+            returncode = client.result()
+        finally:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+        logger.info(f"Pyrolight quit exited with {returncode}")
+        if returncode not in (0, None):
+            error = sessionstate.read().get("error") if generation else None
+            raise RunnerError(Result.PyrolightFailed, error or f"Pyrolight could not end the host app (exit code {returncode})! "
+                              f"See {constants.PYROLIGHT_LOG_FILE}.")
+
+    @classmethod
     async def run(cls, settings: RunnerSettings, overlay_stack=None):
         generation = settings.get("generation")
         exec_path = find_pyrolight(settings["pyrolight_exec_path"])
@@ -187,13 +250,8 @@ class PyroshineRunner:
                     # Match Pyrolight's Quit App action: end the application
                     # currently running on this paired host. The remembered app
                     # ID is session metadata, not a conditional cancel request.
-                    args = [action.value, settings["host_id"], "--integration-events"]
-                    if generation:
-                        sessionstate.update(generation, state="ending")
-                        def quit_event(event):
-                            if event.get("state") in ("ending", "ended", "failed"):
-                                sessionstate.update(generation, state=event["state"], error=event.get("error") or None)
-                        proxy.on_event = quit_event
+                    await cls.run_quit(proxy, [action.value, settings["host_id"], "--integration-events"], generation)
+                    return
                 await cls.run_pyrolight(proxy, args)
                 return
 
