@@ -44,6 +44,8 @@ const labels: Record<string, string> = {
   audioQuality: "Audio quality",
   playAudioOnHost: "Play audio on host",
   muteOnFocusLoss: "Mute on focus loss",
+  enableMicrophone: "Send microphone to the host",
+  micEchoCancel: "Microphone echo cancellation",
   multiController: "Multiple controllers",
   absoluteMouseMode: "Absolute mouse",
   absoluteTouchMode: "Absolute touchscreen",
@@ -82,7 +84,10 @@ const choiceLabels: Record<string, string> = {
   WM_WINDOWED: "Windowed",
   VDS_AUTO: "Automatic",
   VDS_FORCE_HARDWARE: "Hardware",
-  VDS_FORCE_SOFTWARE: "Software"
+  VDS_FORCE_SOFTWARE: "Software",
+  MEC_AUTO: "Automatic",
+  MEC_ON: "On",
+  MEC_OFF: "Off"
 };
 function choiceLabel(value: string): string {
   return (
@@ -175,7 +180,11 @@ const SettingControl: FC<{ descriptor: SettingDescriptor }> = ({
     quitAppAfter:
       "Applies to standalone Pyrolight. PyroDeck keeps host games open on disconnect.",
     packetSize:
-      "0 uses the transport default. Change only for network troubleshooting."
+      "0 uses the transport default. Change only for network troubleshooting.",
+    enableMicrophone:
+      "Talk in games and chat on the host with Pyroshine, Rubylight or Apollo. Mute while streaming with Ctrl+Alt+Shift+U on a keyboard.",
+    micEchoCancel:
+      "Keeps the host's sound from the speakers out of the microphone. Automatic and On use the system's echo-cancelled microphone when there is one; Off suits headphones."
   };
   const reason =
     descriptor.requires && !values[descriptor.requires] ?

@@ -63,7 +63,7 @@ use. PyroDeck overrides quit-after only for its own sessions.
 | Profiles | Active, create, duplicate, rename, delete, restore defaults | Pyrolight profile catalog |
 | Video & Display | Width/height (custom included), FPS, bitrate, automatic bitrate, V-Sync, frame pacing, codec, HDR, YUV 4:4:4, display mode, VRR | Profile |
 | VRR Advanced | Latency preset, buffer fraction, timing target, history, tolerance, reduce judder | Profile |
-| Audio | Stereo/5.1/7.1, quality, host playback, focus-loss mute | Profile |
+| Audio | Stereo/5.1/7.1, quality, host playback, focus-loss mute, microphone, microphone echo cancellation | Profile |
 | Controller & Input | Multiple controllers, mouse/touch mode, gamepad mouse, swapped mouse buttons, background gamepad, scrolling, face-button layout, shortcut capture | Global |
 | Advanced Streaming | Decoder, bitrate override, packet size, performance overlay, game optimization | Profile |
 | Advanced Streaming | Quit-after (standalone), keep awake, rich presence, interface mode, language | Global |

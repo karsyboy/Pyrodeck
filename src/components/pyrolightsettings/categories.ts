@@ -12,7 +12,7 @@ export const settingsCategories = [
   {
     category: "Audio",
     title: "Audio",
-    description: "Speakers, sound quality and host audio"
+    description: "Speakers, sound quality, host audio and microphone"
   },
   {
     category: "Controller & Input",
