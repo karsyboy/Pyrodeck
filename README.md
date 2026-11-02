@@ -5,7 +5,7 @@
 </p>
 
 PyroDeck is a [Decky Loader](https://decky.xyz/) plugin for the Steam Deck
-based on [MoonDeck](https://github.com/FrogTheFrog/moondeck). It streams games
+based on [MoonDeck](https://github.com/MoonDeckTeam/moondeck). It streams games
 from a [Pyroshine](https://github.com/karsyboy/pyroshine) host through
 [Pyrolight](https://github.com/karsyboy/pyrolight): open a game in your Steam
 library, select **Stream**, and play. No extra program is needed on the host.
@@ -231,7 +231,7 @@ saw, and the logs above.
 ## License and credits
 
 PyroDeck is an independent community fork of
-[MoonDeck](https://github.com/FrogTheFrog/moondeck) by FrogTheFrog. It keeps
+[MoonDeck](https://github.com/MoonDeckTeam/moondeck) by FrogTheFrog. It keeps
 MoonDeck's Steam Deck integration and replaces MoonDeck Buddy with
 [Pyroshine](https://github.com/karsyboy/pyroshine) and
 [Pyrolight](https://github.com/karsyboy/pyrolight).
