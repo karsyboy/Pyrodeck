@@ -157,3 +157,35 @@ class FindPyrolightTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SteamOverlayTest(unittest.IsolatedAsyncioTestCase):
+    """Helper commands run without Steam's overlay preload; the stream keeps it."""
+
+    async def test_helpers_drop_the_overlay_preload_and_the_stream_keeps_it(self):
+        import asyncio
+
+        from lib.pyrolightproxy import PyrolightProxy
+
+        support.isolate_state(self)
+        fake = support.FakePyrolight(self)
+        fake.set_apps([])
+        fake.set(help=PYROLIGHT_HELP, stream={"sleep": -1})
+        # An empty value keeps the dynamic loader quiet while still being "set".
+        with mock.patch.dict(os.environ, {"LD_PRELOAD": ""}):
+            async with PyrolightProxy(str(fake.executable)) as proxy:
+                await proxy.list_apps("host")
+                await proxy.probe_capabilities()
+                await proxy.start(["stream", "host", "Valheim"])
+                # The fake records itself on start-up; stop it only after that.
+                for _ in range(100):
+                    if fake.streams():
+                        break
+                    await asyncio.sleep(0.05)
+                await proxy.terminate()
+        invocations = fake.invocations()
+        helpers = [entry for entry in invocations if entry["argv"] != ["stream", "host", "Valheim"]]
+        streams = [entry for entry in invocations if entry["argv"] == ["stream", "host", "Valheim"]]
+        self.assertEqual(len(helpers), 2, invocations)
+        self.assertTrue(all(not entry["ld_preload"] for entry in helpers), helpers)
+        self.assertEqual([entry["ld_preload"] for entry in streams], [True])

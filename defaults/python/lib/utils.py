@@ -321,7 +321,7 @@ async def create_subprocess_shell(program: str, stderr_to_devnull = False):
 
 
 async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = False, separate_stderr = False,
-                                 extra_env: Optional[dict[str, str]] = None):
+                                 extra_env: Optional[dict[str, str]] = None, without_steam_overlay = False):
     # Lazy import to improve CLI performance
     import asyncio
     import os
@@ -341,6 +341,13 @@ async def create_subprocess_exec(program: str, *args: str, stderr_to_devnull = F
         stderr = asyncio.subprocess.DEVNULL
     else:
         stderr = asyncio.subprocess.STDOUT
+
+    # The runner is started by Steam, which preloads its overlay into every child process. Short
+    # helper commands (Pyrolight's list, settings, artwork and version queries) have no use for it,
+    # and MoonDeck saw helpers hang on a lock inside the overlay until the launch was abandoned.
+    # The stream itself keeps the overlay.
+    if without_steam_overlay:
+        env.pop("LD_PRELOAD", None)
 
     return await asyncio.create_subprocess_exec(program, *args,
                                                 stdout=asyncio.subprocess.PIPE,

@@ -2,7 +2,8 @@
 """A deterministic stand-in for the Pyrolight executable.
 
 Behavior comes from `$FAKE_PYROLIGHT_DIR/config.json`; every invocation is
-appended to `$FAKE_PYROLIGHT_DIR/invocations.jsonl` as {"argv", "pid"}.
+appended to `$FAKE_PYROLIGHT_DIR/invocations.jsonl` as {"argv", "pid",
+"ld_preload"} (whether LD_PRELOAD, Steam's overlay preload, was set).
 
 config.json keys (all optional):
   list:   {"exit": int, "stdout": str, "stderr": str}
@@ -22,7 +23,8 @@ with open(os.path.join(directory, "config.json")) as file:
     config = json.load(file)
 
 with open(os.path.join(directory, "invocations.jsonl"), "a") as file:
-    file.write(json.dumps({"argv": sys.argv[1:], "pid": os.getpid()}) + "\n")
+    file.write(json.dumps({"argv": sys.argv[1:], "pid": os.getpid(),
+                           "ld_preload": "LD_PRELOAD" in os.environ}) + "\n")
 
 args = sys.argv[1:]
 if args and args[0] == "settings":

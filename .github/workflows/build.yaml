@@ -9,6 +9,10 @@ on:
   # release.yml runs the same tests and build on the tagged revision.
   workflow_call:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-plugin:
     name: Check formatting

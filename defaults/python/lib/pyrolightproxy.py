@@ -302,12 +302,13 @@ class PyrolightProxy(contextlib.AbstractAsyncContextManager):
         return await self.terminate()
 
     async def __run_to_completion(self, args: list[str], timeout: float) -> tuple[int, bytes, bytes]:
-        """Run a short-lived Pyrolight command; kill it (and only it) on timeout or cancellation."""
+        """Run a short-lived Pyrolight command without Steam's overlay; kill it (and only it) on timeout or cancellation."""
         import asyncio
         from . import utils
 
         logger.info(f"Executing: {self.exec_path} {' '.join(args)}")
-        process = await utils.create_subprocess_exec(self.exec_path, *args, separate_stderr=True)
+        process = await utils.create_subprocess_exec(self.exec_path, *args, separate_stderr=True,
+                                                     without_steam_overlay=True)
         reaper = utils.ProcessReaper(process.pid)
         try:
             async with asyncio.timeout(timeout):
