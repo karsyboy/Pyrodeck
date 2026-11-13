@@ -39,7 +39,7 @@ vi.mock("../../src/hooks", async (original) => ({
 import { HostSelectionView } from "../../src/components/hostselectionview";
 import { AdvancedView } from "../../src/components/advancedview";
 
-const settings = { currentHostId: "host", hostSettings: {}, gameSession: { controllerConfig: null, resumeAfterSuspend: false }, useMoonlightExec: false, moonlightExecPath: "", pythonExecPath: "", runnerDebugLogs: false, pyrolightPrereleases: false } as any;
+const settings = { currentHostId: "host", hostSettings: {}, gameSession: { controllerConfig: null, resumeAfterSuspend: false }, useMoonlightExec: false, moonlightExecPath: "", pythonExecPath: "", setupCommand: "", runnerDebugLogs: false, pyrolightPrereleases: false } as any;
 const host = { currentHostId: "host", address: "10.0.0.2", hostInfoPort: 47989, hostName: "Host", runnerTimeouts: { servicePing: 5, wakeOnLan: 60, steamLaunch: 5 },
   resolution: { appResolutionOverride: "Native", appResolutionOverrideForInternalDisplay: false }, gameStreamApps: { showQuickAccessButton: false } } as any;
 let container: HTMLDivElement; let root: ReturnType<typeof createRoot>;
@@ -66,7 +66,8 @@ describe("settings pages", () => {
   it("puts Advanced Tools on one page and needs no host for the Pyrolight executable", async () => {
     current.host = null;
     await render(<AdvancedView />);
-    expect(headers()).toEqual(["Executables", "Session", "Host", "Logging"]);
+    expect(headers()).toEqual(["Executables", "Launch", "Session", "Host", "Logging"]);
+    expect(container.textContent).toContain("Setup command");
     expect(container.textContent).toContain("Use a specific Pyrolight executable");
     expect(container.textContent).toContain("HOST IS NOT SELECTED");
     // The legacy toggle that could hide the Library action is gone.
@@ -75,6 +76,6 @@ describe("settings pages", () => {
 
   it("adds the host's launch settings and app shortcuts once a host is selected", async () => {
     await render(<AdvancedView />);
-    expect(headers()).toEqual(["Executables", "Session", "App Resolution Override", "Launch Timeouts", "Host App Shortcuts", "Logging"]);
+    expect(headers()).toEqual(["Executables", "Launch", "Session", "App Resolution Override", "Launch Timeouts", "Host App Shortcuts", "Logging"]);
   });
 });

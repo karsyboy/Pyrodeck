@@ -64,7 +64,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_fresh_install_without_moondeck_gets_buddy_free_defaults(self):
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
-        self.assertEqual(settings["version"], 47)
+        self.assertEqual(settings["version"], 48)
         self.assertNotIn("clientId", settings)
         self.assertEqual(settings["hostSettings"], {})
         self.assertTrue(self.pyrodeck.exists())
@@ -89,7 +89,7 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(settings["moonlightExecPath"], "")
 
         written = json.loads(self.pyrodeck.read_text())
-        self.assertEqual(written["version"], 47)
+        self.assertEqual(written["version"], 48)
 
     async def test_existing_pyrodeck_settings_win_over_moondeck(self):
         await UserSettingsManager(self.pyrodeck, None).read_or_update()
@@ -97,10 +97,29 @@ class SettingsTest(unittest.IsolatedAsyncioTestCase):
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
         self.assertEqual(settings["hostSettings"], {})
 
+    async def test_moondeck_1_14_settings_seed_pyrodeck_with_the_setup_command(self):
+        # MoonDeck 1.14 reuses schema number 44 for its setup command.
+        self.write_moondeck({**MOONDECK_43, "version": 44, "setupCommand": "'/home/deck/wake host.sh'"})
+        settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
+        self.assertEqual(settings["version"], 48)
+        self.assertEqual(settings["setupCommand"], "'/home/deck/wake host.sh'")
+        self.assertNotIn("clientId", settings)
+        self.assertEqual(settings["hostSettings"]["B1B2C3D4"]["address"], "192.168.1.10")
+
+    async def test_pyrodeck_47_settings_gain_an_empty_setup_command(self):
+        manager = UserSettingsManager(self.pyrodeck)
+        old = manager._default_settings()
+        old.pop("setupCommand")
+        old["version"] = 47
+        self.pyrodeck.parent.mkdir(parents=True)
+        self.pyrodeck.write_text(json.dumps(old))
+        settings = await manager.read_or_update()
+        self.assertEqual((settings["version"], settings["setupCommand"]), (48, ""))
+
     async def test_an_unreadable_moondeck_file_falls_back_to_defaults(self):
         self.write_moondeck({"version": 999, "garbage": True})
         settings = await UserSettingsManager(self.pyrodeck, self.moondeck).read_or_update()
-        self.assertEqual(settings["version"], 47)
+        self.assertEqual(settings["version"], 48)
         self.assertEqual(settings["hostSettings"], {})
 
 
@@ -117,7 +136,7 @@ class NativeButtonMigrationTest(unittest.IsolatedAsyncioTestCase):
                        buttonPosition={"offsetX": "999px"}, buttonStyle={"theme": "Clean"})
             path.write_text(json.dumps(old))
             migrated = await manager.read_or_update()
-            self.assertEqual(migrated["version"], 47)
+            self.assertEqual(migrated["version"], 48)
             self.assertNotIn("enableMoondeckShortcuts", migrated)
             self.assertNotIn("buttonPosition", migrated)
             self.assertNotIn("buttonStyle", migrated)
@@ -133,7 +152,7 @@ class PrereleaseSettingsTest(unittest.IsolatedAsyncioTestCase):
             path.write_text(json.dumps(old))
             settings = await UserSettingsManager(path, installed_version="0.3.0-prerelease.2").read_or_update()
             self.assertEqual((settings["version"], settings["pyrolightPrereleases"], settings["pyrodeckPrereleases"]),
-                             (47, True, True))
+                             (48, True, True))
             self.assertTrue(json.loads(path.read_text())["pyrodeckPrereleases"])
 
     async def test_v46_drops_the_toggle_that_hid_the_library_action(self):
@@ -143,7 +162,7 @@ class PrereleaseSettingsTest(unittest.IsolatedAsyncioTestCase):
             old.update(version=46, enableMoondeckShortcuts=False, enableMoondeckButtonPrompt=False)
             path.write_text(json.dumps(old))
             settings = await UserSettingsManager(path).read_or_update()
-            self.assertEqual(settings["version"], 47)
+            self.assertEqual(settings["version"], 48)
             for removed in ("enableMoondeckShortcuts", "enableMoondeckButtonPrompt"):
                 self.assertNotIn(removed, settings)
                 self.assertNotIn(removed, json.loads(path.read_text()))

@@ -15,8 +15,10 @@ add_plugin_to_path()
 
 import asyncio
 import contextlib
+import os
 import signal
 import logging
+import tempfile
 
 from lib.runner.pyroshinerunner import PyroshineRunner
 from lib.logger import logger, set_logger_settings
@@ -29,6 +31,34 @@ from lib import sessionstate
 
 
 set_logger_settings(logger, constants.RUNNER_LOG_FILE, rotate=False)
+
+
+async def run_setup_command(command: str | None):
+    """Runs the user's setup command (MoonDeck's) before Wake-on-LAN and the stream."""
+    if not command:
+        return
+
+    logger.info("Running setup command")
+    with tempfile.TemporaryFile() as output:
+        process = await asyncio.create_subprocess_shell(command, stdin=asyncio.subprocess.DEVNULL,
+                                                        stdout=output, stderr=asyncio.subprocess.STDOUT,
+                                                        start_new_session=True)
+        try:
+            returncode = await process.wait()
+        except asyncio.CancelledError:
+            # The launch was cancelled: do not leave the command behind.
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGTERM)
+            raise
+
+        output.seek(0)
+        text = output.read().decode(errors="replace").strip()
+        if text:
+            logger.info(f"Setup command output:\n{text}")
+
+    if returncode != 0:
+        logger.error(f"Setup command exited with code {returncode}")
+        raise runnerresult.RunnerError(runnerresult.Result.SetupCommandFailed)
 
 
 async def run_with_suspend_resume(settings: RunnerSettings):
@@ -86,7 +116,6 @@ async def main():
             if not is_runner_ready():
                 raise runnerresult.RunnerError(runnerresult.Result.RunnerNotReady)
 
-            import os
             logger.info("Display environment: WAYLAND_DISPLAY=%s DISPLAY=%s XDG_SESSION_TYPE=%s XDG_CURRENT_DESKTOP=%s SteamGameId=%s",
                         os.environ.get("WAYLAND_DISPLAY"), os.environ.get("DISPLAY"), os.environ.get("XDG_SESSION_TYPE"),
                         os.environ.get("XDG_CURRENT_DESKTOP"), os.environ.get("SteamGameId"))
@@ -101,6 +130,7 @@ async def main():
             if settings["debug_logs"]:
                 logger.setLevel(logging.DEBUG)
 
+            await run_setup_command(settings["setup_command"])
             await run_with_suspend_resume(settings)
             if sessionstate.read().get("state") not in ("failed", "ended"):
                 sessionstate.update(settings["generation"], state="disconnected")

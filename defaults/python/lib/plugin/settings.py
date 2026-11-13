@@ -81,7 +81,7 @@ class GameSessionSettings(TypedDict):
 
 class UserSettings(TypedDict):
     # Continues MoonDeck's numbering: 44 is the first PyroDeck schema.
-    version: Literal[47]
+    version: Literal[48]
     currentHostId: Optional[str]
     gameSession: GameSessionSettings
     hostSettings: Dict[str, HostSettings]
@@ -94,6 +94,8 @@ class UserSettings(TypedDict):
     # Update PyroDeck itself to prereleases too.
     pyrodeckPrereleases: bool
     pythonExecPath: str
+    # Shell command the runner runs before Wake-on-LAN and a stream launch.
+    setupCommand: str
 
 
 class UserSettingsManager(SettingsManager[UserSettings]):
@@ -124,7 +126,8 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             "moonlightExecPath": "",
             "pyrolightPrereleases": False,
             "pyrodeckPrereleases": self._follows_prereleases(),
-            "pythonExecPath": ""
+            "pythonExecPath": "",
+            "setupCommand": ""
         })
 
     async def _initial_settings(self) -> UserSettings:
@@ -149,6 +152,13 @@ class UserSettingsManager(SettingsManager[UserSettings]):
         return self._default_settings()
 
     def _migrate_settings(self, data: dict):
+        # MoonDeck 1.14 numbers its setup command schema 44, which PyroDeck
+        # already used for its first schema. A MoonDeck seed still has the
+        # Buddy client ID that PyroDeck's 44 removed, so it continues from 43.
+        moondeck_setup_command = None
+        if data["version"] == 44 and "clientId" in data:
+            data["version"] = 43
+            moondeck_setup_command = data.pop("setupCommand", None)
         if data["version"] == 1:
             data["version"] = 2
             for host in data["hostSettings"].keys():
@@ -414,3 +424,6 @@ class UserSettingsManager(SettingsManager[UserSettings]):
             # The Library action is always shown; the old toggle could hide it.
             data.pop("enableMoondeckShortcuts", None)
             data.pop("enableMoondeckButtonPrompt", None)
+        if data["version"] == 47:
+            data["version"] = 48
+            data["setupCommand"] = moondeck_setup_command or ""

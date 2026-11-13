@@ -8,6 +8,7 @@ import { HostAppShortcutsSection } from "./hostappshortcuts";
 import { MoonDeckContext } from "../../contexts";
 import { PyrolightExecutableSection } from "./pyrolightexecutablesection";
 import { PythonExecutableSection } from "./pythonexecutablesection";
+import { SetupCommandSection } from "./setupcommandsection";
 
 const TimeoutsSection: FC<{ hostSettings: CurrentHostSettings }> = ({ hostSettings }) => {
   const { settingsManager } = useContext(MoonDeckContext);
@@ -44,6 +45,10 @@ export const AdvancedView: FC = () => {
         <DialogControlsSectionHeader>Executables</DialogControlsSectionHeader>
         <PyrolightExecutableSection />
         <PythonExecutableSection />
+      </DialogControlsSection>
+      <DialogControlsSection>
+        <DialogControlsSectionHeader>Launch</DialogControlsSectionHeader>
+        <SetupCommandSection />
       </DialogControlsSection>
       <DialogControlsSection>
         <DialogControlsSectionHeader>Session</DialogControlsSectionHeader>

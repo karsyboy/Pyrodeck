@@ -6,6 +6,7 @@ export const ChangelogView: FC = () => {
     <DialogBody>
       <DialogControlsSection>
         <DialogControlsSectionHeader>Upcoming</DialogControlsSectionHeader>
+        <Field description="Advanced: an optional setup command runs before Wake-on-LAN and each stream launch (from MoonDeck 1.14). A MoonDeck 1.14 setup command is imported with its hosts." />
         <Field description="Controller Back from a Quick Access subpage returns to PyroDeck's main menu before exiting to Decky's plugin list." />
         <Field description="Add individual Remote Games applications, including the host's Steam entry, to your Steam Library. Saved shortcuts keep their original host and application. Host non-Steam Steam Library games are available with an updated Pyroshine build." />
       </DialogControlsSection>

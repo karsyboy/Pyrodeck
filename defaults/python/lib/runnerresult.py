@@ -27,6 +27,7 @@ class Result(Enum):
     HostWithoutAppSources = "This host does not report Steam app IDs! Update Pyroshine on the host."
     HostAppNotFound = "This game is not available on the host! Install it there, or unhide it in Pyroshine's library."
     HostAppAmbiguous = "The host offers more than one app with this name!"
+    SetupCommandFailed = f"The setup command failed! See {constants.RUNNER_LOG_FILE}."
     Terminated = "TERMINATED"
 
 

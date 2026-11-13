@@ -108,6 +108,7 @@ export interface UserSettings {
   pyrolightPrereleases: boolean;
   pyrodeckPrereleases: boolean;
   pythonExecPath: string;
+  setupCommand: string;
 }
 
 export function stringifyDimension(value: Dimension): string {

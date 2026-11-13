@@ -35,6 +35,8 @@ class RunnerSettings(TypedDict):
     debug_logs: bool
     remote_app_id: Optional[int]
     terminate_app_id: Optional[int]
+    # Run before Wake-on-LAN and a stream launch; never for pair/quit.
+    setup_command: Optional[str]
 
 
 def parse_audio_settings(host_settings: HostSettings, env_settings: EnvSettings) -> Optional[str]:
@@ -182,4 +184,5 @@ async def parse_settings() -> RunnerSettings:
         "debug_logs": user_settings["runnerDebugLogs"],
         "remote_app_id": env_settings["remote_app_id"],
         "terminate_app_id": env_settings["terminate_app_id"],
+        "setup_command": (user_settings["setupCommand"].strip() or None) if runner_type != RunnerType.Utility else None,
     })
